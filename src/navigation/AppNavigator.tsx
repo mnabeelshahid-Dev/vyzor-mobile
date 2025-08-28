@@ -1,7 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View } from 'react-native';
+import { View, Text } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { useCurrentUser } from '../hooks/useAuth';
 
@@ -10,8 +10,8 @@ import RegisterScreen from '../screens/auth/registerScreen';
 import ForgotPasswordScreen from '../screens/auth/forgetPasswordScreen';
 
 // Main App Screens
-import TasksScreen from '../screens/branches/taskScreen/TaskScreen';
-import OverviewScreen from '../screens/overview/OverviewScreen';
+import TasksScreen from '../screens/branches/tasks/TaskScreen';
+import SectionsScreen from '../screens/branches/sections/SectionsScreen';
 
 // Loading Component
 import LoadingWrapper from '../components/loadWrapper';
@@ -62,7 +62,7 @@ import BranchActiveIcon from '../assets/svgs/taskBranchActiveIcon.svg';
 import BranchInActiveIcon from '../assets/svgs/taskBranchInActiveIcon.svg';
 import ScheduleInActiveIcon from '../assets/svgs/scheduleInActive.svg';
 import ScheduleActiveIcon from '../assets/svgs/scheduleActiveIcon.svg';
-import EmailInActiveIcon from '../assets/svgs/emailIcon.svg';
+import EmailInActiveIcon from '../assets/svgs/bottomEmailIcon.svg';
 import EmailActiveIcon from '../assets/svgs/EmailActiveIcon.svg';
 import StatsBarInActiveIcon from '../assets/svgs/statsbarsInActive.svg';
 import StatsBarActiveIcon from '../assets/svgs/statsBarActiveIcon.svg';
@@ -72,14 +72,15 @@ import EmailScreen from '../screens/email/EmailScreen';
 import BranchesScreen from '../screens/branches/BranchesScreen';
 import StatisticsScreen from '../screens/statistics/StatisticsScreen';
 import ScheduleScreen from '../screens/schedule/ScheduleScreen';
-import Test from '../screens/auth/test';
 import LoginScreen from '../screens/auth/loginScreen';
+import ChatScreen from '../screens/chat/ChatScreen';
 
 const BranchesStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Branches" component={BranchesScreen} />
       <Stack.Screen name="Task" component={TasksScreen} />
+      <Stack.Screen name="Section" component={SectionsScreen} />
     </Stack.Navigator>
   );
 };
@@ -186,7 +187,7 @@ const MainNavigator = () => {
       />
       <MainTab.Screen
         name="Chat"
-        component={OverviewScreen}
+        component={ChatScreen}
         options={{
           tabBarIcon: ({ focused, color, size }) => (
             <View style={{ alignItems: 'center' }}>

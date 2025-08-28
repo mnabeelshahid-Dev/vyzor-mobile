@@ -1,0 +1,81 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/OFL.txt",
+      "sha1": "82688a5a9432815688e9c413e710e1aacf7b1174"
+    },
+    {
+      "path": "assets/fonts/Prompt-Black.ttf",
+      "sha1": "c3d8031352a7a209e1812158d026e5a273642ee9"
+    },
+    {
+      "path": "assets/fonts/Prompt-BlackItalic.ttf",
+      "sha1": "65e009e7cd1db93a1c3b9abfd2716d0f6adad6a8"
+    },
+    {
+      "path": "assets/fonts/Prompt-Bold.ttf",
+      "sha1": "3780b5ecc1feb84c5c02baa905d080f862123861"
+    },
+    {
+      "path": "assets/fonts/Prompt-BoldItalic.ttf",
+      "sha1": "846e2d57ce7d5c7cafda03c9c62ce0e6b4f155c6"
+    },
+    {
+      "path": "assets/fonts/Prompt-ExtraBold.ttf",
+      "sha1": "650d07b3fa02cf6b69f45891de406a9fd5f9ea4c"
+    },
+    {
+      "path": "assets/fonts/Prompt-ExtraBoldItalic.ttf",
+      "sha1": "58ef25270e2f87793be8ff9573215051e61018b5"
+    },
+    {
+      "path": "assets/fonts/Prompt-ExtraLight.ttf",
+      "sha1": "a317f0b9c115f2bc2f547b0d4024ddd15c70713b"
+    },
+    {
+      "path": "assets/fonts/Prompt-ExtraLightItalic.ttf",
+      "sha1": "59d20468be79498b60d0f283697d0afe162cd8a7"
+    },
+    {
+      "path": "assets/fonts/Prompt-Italic.ttf",
+      "sha1": "bce6d6e1f98da7f1538507a21d95473c16c3ba92"
+    },
+    {
+      "path": "assets/fonts/Prompt-Light.ttf",
+      "sha1": "fc6944c247b5e45053494ab190f8a24e3805c415"
+    },
+    {
+      "path": "assets/fonts/Prompt-LightItalic.ttf",
+      "sha1": "41d27de6e8173ebd1c1aafa2127c4cdc505b1123"
+    },
+    {
+      "path": "assets/fonts/Prompt-Medium.ttf",
+      "sha1": "86dc787f5e9226f8e2c41c806fb6d7f3da0482cf"
+    },
+    {
+      "path": "assets/fonts/Prompt-MediumItalic.ttf",
+      "sha1": "1ddddf2d2646ea193e974e8e5f26aa1fafa35f65"
+    },
+    {
+      "path": "assets/fonts/Prompt-Regular.ttf",
+      "sha1": "309878c94d04897fcc4858299e0a52999812d044"
+    },
+    {
+      "path": "assets/fonts/Prompt-SemiBold.ttf",
+      "sha1": "fb7941f731a81a6bc19bf007abfd913e24d9a790"
+    },
+    {
+      "path": "assets/fonts/Prompt-SemiBoldItalic.ttf",
+      "sha1": "493dc598382113851ff049adfd1d6023b2806422"
+    },
+    {
+      "path": "assets/fonts/Prompt-Thin.ttf",
+      "sha1": "14dcebdff426d2ce9ffad3c769166847928ad5f9"
+    },
+    {
+      "path": "assets/fonts/Prompt-ThinItalic.ttf",
+      "sha1": "2af0c78e0e09fcb9ec173f525b56baac110d5dfb"
+    }
+  ]
+}

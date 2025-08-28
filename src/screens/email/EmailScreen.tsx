@@ -1,74 +1,256 @@
 import React, { useState } from 'react';
+import { StatusBar, Platform } from 'react-native';
 import {
   View,
   Text,
+  SafeAreaView,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
+  TextInput,
+  FlatList,
+  Modal,
+  Pressable,
+  useWindowDimensions,
   ScrollView,
-  Platform,
 } from 'react-native';
-import Modal from 'react-native-modal';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import FilterIcon from '../../assets/svgs/filterIcon.svg';
-import SearchIcon from '../../assets/svgs/searchIcon.svg';
-import ClanderIcon from '../../assets/svgs/calendar.svg';
+import CalendarIcon from '../../assets/svgs/calendar.svg';
 
-const emails = [
+const STATUS_COLORS = {
+  Success: '#28B446',
+  Failed: '#E4190A',
+  Pending: '#9C528B',
+};
+
+const EMAILS = [
   {
-    subject: 'Document Created',
+    id: '1',
+    title: 'Document Created',
     email: 'jack@vyzor.com',
     date: '11-08-2025 at 4:14 pm',
     status: 'Success',
   },
   {
-    subject: 'Document Created',
+    id: '2',
+    title: 'Document Created',
     email: 'jack@vyzor.com',
     date: '11-08-2025 at 4:14 pm',
     status: 'Failed',
   },
   {
-    subject: 'Document Created',
+    id: '3',
+    title: 'Document Created',
     email: 'jack@vyzor.com',
     date: '11-08-2025 at 4:14 pm',
     status: 'Pending',
   },
   {
-    subject: 'Document Created',
+    id: '4',
+    title: 'Document Created',
     email: 'jack@vyzor.com',
     date: '11-08-2025 at 4:14 pm',
     status: 'Success',
   },
   {
-    subject: 'Document Created',
+    id: '5',
+    title: 'Document Created',
     email: 'jack@vyzor.com',
     date: '11-08-2025 at 4:14 pm',
     status: 'Failed',
   },
 ];
 
-const statusColors = {
-  Success: '#22B573',
-  Failed: '#E53935',
-  Pending: '#8E44AD',
+const FILTER_OPTIONS = {
+  to: ['All', 'jack@vyzor.com', 'jill@vyzor.com'],
+  type: [
+    'All',
+    'Create User',
+    'Event Created',
+    'Event Document',
+    'Document Completed',
+    'Document Expired',
+    'Document Deleted',
+    'Document Created',
+  ],
+  status: ['All', 'Pending', 'Failed', 'Success'],
 };
 
-const EmailScreen = () => {
+function formatDate(dateObj) {
+  if (!dateObj) return '';
+  const dd = String(dateObj.getDate()).padStart(2, '0');
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const yyyy = dateObj.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+}
+
+export default function EmailNotificationsScreen({ navigation }) {
+  const [filterModal, setFilterModal] = useState(false);
   const [search, setSearch] = useState('');
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [selectedTo, setSelectedTo] = useState('');
-  const [selectedEmailType, setSelectedEmailType] = useState('All');
-  const [selectedStatus, setSelectedStatus] = useState('All');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [filters, setFilters] = useState({
+    to: 'All',
+    type: 'All',
+    status: 'All',
+    startDate: '',
+    endDate: '',
+  });
+  const [dropdown, setDropdown] = useState({ field: null, visible: false });
+  const [datePicker, setDatePicker] = useState({ field: null, show: false });
+
+  const { width } = useWindowDimensions();
+  const isSmall = width < 350;
+  const containerPadding = Math.max(12, width * 0.04);
+  const modalWidth = Math.min(420, width - 2 * containerPadding);
+
+  // Filtering logic
+  const filteredEmails = EMAILS.filter(item => {
+    if (filters.to !== 'All' && item.email !== filters.to) return false;
+    if (filters.type !== 'All' && item.title !== filters.type) return false;
+    if (filters.status !== 'All' && item.status !== filters.status) return false;
+    if (filters.startDate) {
+      const [sday, smonth, syear] = filters.startDate.split('-');
+      const itemDate = new Date(item.date.split(' at')[0].split('-').reverse().join('-'));
+      const filterDate = new Date(`${syear}-${smonth}-${sday}`);
+      if (itemDate < filterDate) return false;
+    }
+    if (filters.endDate) {
+      const [eday, emonth, eyear] = filters.endDate.split('-');
+      const itemDate = new Date(item.date.split(' at')[0].split('-').reverse().join('-'));
+      const filterDate = new Date(`${eyear}-${emonth}-${eday}`);
+      if (itemDate > filterDate) return false;
+    }
+    if (
+      search &&
+      !(
+        item.title.toLowerCase().includes(search.toLowerCase()) ||
+        item.email.toLowerCase().includes(search.toLowerCase())
+      )
+    )
+      return false;
+    return true;
+  });
+
+  const renderEmail = ({ item }) => (
+    <View style={[styles.emailRow, { padding: containerPadding }]}>
+      <View style={styles.emailTextBlock}>
+        <Text style={styles.emailTitle}>{item.title}</Text>
+        <Text style={styles.emailAddress}>{item.email}</Text>
+      </View>
+      <View style={styles.emailMetaBlock}>
+        <Text style={styles.emailDate}>{item.date}</Text>
+        <View
+          style={[
+            styles.statusPill,
+            {
+              backgroundColor: STATUS_COLORS[item.status],
+              borderColor: STATUS_COLORS[item.status],
+            },
+          ]}
+        >
+          <Text style={[styles.statusText]}>{item.status}</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  // Responsive font
+  const labelFont = isSmall ? 13 : 16;
+  const inputHeight = isSmall ? 38 : 44;
+
+  // Dropdown menu (now: overlays just under input, no red dot, matches Figma)
+  const renderDropdown = (field) =>
+    dropdown.visible && dropdown.field === field ? (
+      <View style={styles.dropdownOverlay}>
+        <View style={styles.dropdownMenu}>
+          {FILTER_OPTIONS[field].map((option) => (
+            <TouchableOpacity
+              key={option}
+              style={styles.dropdownItem}
+              onPress={() => {
+                setFilters((f) => ({ ...f, [field]: option }));
+                setDropdown({ field: null, visible: false });
+              }}
+            >
+              <Text
+                style={[
+                  styles.dropdownText,
+                  filters[field] === option && { color: '#1292E6', fontWeight: 'bold' },
+                ]}
+              >
+                {option}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    ) : null;
+
+  // Date picker (native)
+  const renderDatePicker = (field) =>
+    datePicker.show && datePicker.field === field ? (
+      <DateTimePicker
+        value={
+          filters[field]
+            ? new Date(filters[field].split('-').reverse().join('-'))
+            : new Date()
+        }
+        mode="date"
+        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+        onChange={(event, selectedDate) => {
+          setDatePicker({ field: null, show: false });
+          if (selectedDate) {
+            setFilters((f) => ({
+              ...f,
+              [field]: formatDate(selectedDate),
+            }));
+          }
+        }}
+      />
+    ) : null;
+
+  // Helper to show value or placeholder for dropdowns & dates
+  const getInputText = (field, isDate = false) => {
+    if (isDate) {
+      return filters[field]
+        ? <Text style={{
+            fontSize: labelFont,
+            color: '#184B74',
+            flex: 1,
+            textAlign: 'left',
+          }}>{filters[field]}</Text>
+        : <Text style={{
+            fontSize: labelFont,
+            color: '#7A8194',
+            flex: 1,
+            textAlign: 'left',
+          }}>{field === 'startDate' ? 'Start Date' : 'End Date'}</Text>
+    }
+    return (
+      <Text
+        style={{
+          fontSize: labelFont,
+          color: filters[field] === 'All' ? '#1292E6' : '#184B74',
+          fontWeight: filters[field] === 'All' ? 'bold' : '600',
+          flex: 1,
+          textAlign: 'left',
+        }}
+        numberOfLines={1}
+      >
+        {filters[field]}
+      </Text>
+    );
+  };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
+      <StatusBar barStyle="dark-content" backgroundColor="#007AFF" />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
             <BackArrowIcon width={17} height={17} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Email Notifications</Text>
@@ -81,7 +263,7 @@ const EmailScreen = () => {
       {/* Floating Search Bar */}
       <View style={styles.searchBarFloatWrap}>
         <View style={styles.searchBarFloat}>
-          <SearchIcon width={22} height={22} style={{ marginLeft: 8 }} />
+          <SearchIcon width={25} height={25} style={{ marginLeft: 8 }} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search..."
@@ -92,157 +274,157 @@ const EmailScreen = () => {
         </View>
         <TouchableOpacity
           style={styles.filterBtnFloat}
-          onPress={() => setShowFilterModal(true)}
+          onPress={() => setFilterModal(true)}
         >
-          <FilterIcon width={22} height={22} />
+          <FilterIcon width={32} height={32} />
         </TouchableOpacity>
-        {/* Filter Modal */}
-        <Modal
-          style={{ width: '100%' }}
-          isVisible={showFilterModal}
-          animationIn="fadeIn"
-          animationOut="fadeOut"
+      </View>
+      {/* Branches List */}
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: '#F2F2F2',
+          borderTopLeftRadius: 30,
+          borderTopRightRadius: 30,
+          paddingTop: 50,
+          paddingHorizontal: 16,
+        }}
+      >
+        {/* Email List */}
+        <FlatList
+          data={filteredEmails}
+          keyExtractor={(item) => item.id}
+          renderItem={renderEmail}
+          style={styles.emailList}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+
+      {/* Filter Modal */}
+      <Modal
+        visible={filterModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFilterModal(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setFilterModal(false)}
         >
-          <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-            <View style={styles.modalOverlay} />
-          </TouchableOpacity>
-          <View style={styles.filterModalWrap}>
-            <View style={styles.filterModal}>
-              <View style={styles.filterModalHeader}>
-                <Text style={styles.filterModalTitle}>Filter Options</Text>
+          <Pressable
+            style={[
+              styles.modalBox,
+              {
+                width: modalWidth,
+                padding: Math.max(16, modalWidth * 0.06),
+              },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <ScrollView
+              style={{ maxHeight: 420 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { fontSize: labelFont }]}>Filter Options</Text>
                 <TouchableOpacity
-                  onPress={() => setShowFilterModal(false)}
-                  style={styles.filterModalCloseBtn}
+                  style={styles.closeBtnWrap}
+                  onPress={() => setFilterModal(false)}
                 >
-                  <View style={styles.filterModalCloseCircle}>
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        color: '#007AFF',
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      ×
-                    </Text>
-                  </View>
+                  <Text style={styles.closeBtn}>×</Text>
                 </TouchableOpacity>
               </View>
-              {/* Dropdowns and Date Pickers */}
-              <View style={styles.filterModalBody}>
-                {/* To Dropdown */}
-                <TouchableOpacity style={styles.filterDropdown}>
-                  <Text style={styles.filterDropdownText}>
-                    {selectedTo || 'To'}
-                  </Text>
-                  <Text style={styles.filterDropdownArrow}>▼</Text>
-                </TouchableOpacity>
-                {/* Email Type Dropdown */}
-                <TouchableOpacity style={styles.filterDropdown}>
-                  <Text style={styles.filterDropdownText}>
-                    {selectedEmailType || 'Email Type'}
-                  </Text>
-                  <Text style={styles.filterDropdownArrow}>▼</Text>
-                </TouchableOpacity>
-                {/* Status Dropdown */}
-                <TouchableOpacity style={styles.filterDropdown}>
-                  <Text style={styles.filterDropdownText}>
-                    {selectedStatus || 'Status'}
-                  </Text>
-                  <Text style={styles.filterDropdownArrow}>▼</Text>
-                </TouchableOpacity>
-                {/* Start Date Picker */}
-                <TouchableOpacity style={styles.filterDropdown}>
-                  <Text style={styles.filterDropdownText}>
-                    {startDate || 'Start Date'}
-                  </Text>
-                  <ClanderIcon height={25} width={25} />
-                </TouchableOpacity>
-                {/* End Date Picker */}
-                <TouchableOpacity style={styles.filterDropdown}>
-                  <Text style={styles.filterDropdownText}>
-                    {endDate || 'End Date'}
-                  </Text>
-                  <ClanderIcon height={25} width={25} />
-                </TouchableOpacity>
-              </View>
+              {/* Filter Fields */}
+              {['to', 'type', 'status'].map((field) => (
+                <View key={field} style={{ marginBottom: 16, zIndex: dropdown.visible && dropdown.field === field ? 999 : 1 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterInput,
+                      { height: inputHeight },
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() =>
+                      setDropdown({ field, visible: !dropdown.visible || dropdown.field !== field })
+                    }
+                  >
+                    {getInputText(field, false)}
+                    <Text style={{ fontSize: 13, color: '#A6B0C3', marginLeft: 'auto' }}>▼</Text>
+                  </TouchableOpacity>
+                  {dropdown.visible && dropdown.field === field && renderDropdown(field)}
+                </View>
+              ))}
+              <TouchableOpacity
+                style={[styles.filterInput, { flex: 1, height: inputHeight, marginBottom: 15 }]}
+                onPress={() => setDatePicker({ field: 'startDate', show: true })}
+                activeOpacity={0.7}
+              >
+                {getInputText('startDate', true)}
+                <CalendarIcon width={16} height={16} color={'#A6B0C3'} style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
+              {renderDatePicker('startDate')}
+              <TouchableOpacity
+                style={[styles.filterInput, { flex: 1, height: inputHeight }]}
+                onPress={() => setDatePicker({ field: 'endDate', show: true })}
+                activeOpacity={0.7}
+              >
+                {getInputText('endDate', true)}
+                <CalendarIcon width={16} height={16} color={'#A6B0C3'} style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
+              {renderDatePicker('endDate')}
               {/* Buttons */}
-              <View style={styles.filterModalActions}>
-                <TouchableOpacity style={styles.filterModalBtn}>
-                  <Text style={styles.filterModalBtnText}>Clear</Text>
+              <View style={styles.filterBtnRow}>
+                <TouchableOpacity
+                  style={[styles.clearBtn, { flex: 1, height: inputHeight * 0.95 }]}
+                  onPress={() =>
+                    setFilters({
+                      to: 'All',
+                      type: 'All',
+                      status: 'All',
+                      startDate: '',
+                      endDate: '',
+                    })
+                  }
+                >
+                  <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: labelFont }}>
+                    Clear
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[
-                    styles.filterModalBtn,
-                    { backgroundColor: '#007AFF' },
-                  ]}
+                  style={[styles.applyBtn, { flex: 1, height: inputHeight * 0.95 }]}
+                  onPress={() => setFilterModal(false)}
                 >
-                  <Text style={[styles.filterModalBtnText, { color: '#fff' }]}>
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: labelFont }}>
                     Apply Filters
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
-        </Modal>
-      </View>
-
-      {/* Search Bar */}
-
-      {/* Email List */}
-      <ScrollView
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {emails
-          .filter(
-            e =>
-              e.subject.toLowerCase().includes(search.toLowerCase()) ||
-              e.email.toLowerCase().includes(search.toLowerCase())
-          )
-          .map((item, idx) => (
-            <View key={idx} style={styles.emailCard}>
-              <View style={styles.leftBorder} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.emailSubject}>{item.subject}</Text>
-                <Text style={styles.emailAddress}>{item.email}</Text>
-              </View>
-              <View
-                style={{ alignItems: 'flex-end', justifyContent: 'center' }}
-              >
-                <Text style={styles.emailDate}>{item.date}</Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: statusColors[item.status] },
-                  ]}
-                >
-                  <Text style={styles.statusText}>{item.status}</Text>
-                </View>
-              </View>
-            </View>
-          ))}
-      </ScrollView>
-    </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#1292E6',
   },
   header: {
     backgroundColor: '#007AFF',
-    paddingTop: Platform.OS === 'ios' ? 88 : 80,
-    paddingBottom: 50,
+    paddingTop: Platform.OS === 'ios' ? 18 : 55,
+    paddingBottom: 10,
     paddingHorizontal: 0,
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'flex-start',
     zIndex: 0,
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
     paddingHorizontal: 24,
@@ -257,7 +439,7 @@ const styles = StyleSheet.create({
   searchBarFloatWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: -48,
+    top: 20,
     marginHorizontal: 24,
     zIndex: 2,
   },
@@ -266,8 +448,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 16,
-    height: 48,
+    borderRadius: 8,
+    height: 52,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -277,174 +459,204 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 8,
     color: '#222',
-    fontSize: 17,
+    fontSize: 18,
   },
   filterBtnFloat: {
     backgroundColor: '#fff',
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 10,
+    paddingHorizontal: 14,
     marginLeft: 12,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
   },
-  listContent: {
-    paddingTop: 32,
-    paddingBottom: 32,
-    borderTopLeftRadius: 34,
-    borderTopRightRadius: 34,
-    zIndex: 1,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-    flex: 1,
-    position: 'relative',
-  },
-  emailCard: {
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 16,
+  },
+  filterBtn: {
+    width: 44,
+    height: 44,
     backgroundColor: '#fff',
-    borderRadius: 14,
-    marginHorizontal: 24,
-    marginTop: 18,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     elevation: 2,
   },
-  leftBorder: {
-    width: 5,
-    height: '80%',
-    backgroundColor: '#007AFF',
-    borderRadius: 3,
-    marginRight: 14,
+  dropdownOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 44,
+    zIndex: 1001,
+    alignItems: 'flex-start',
   },
-  emailSubject: {
-    fontSize: 17,
-    fontWeight: 'bold',
+  dropdownMenu: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 6,
+    marginTop: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 8,
+    width: '100%',
+    minWidth: 210,
+    maxWidth: 340,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    width: '100%',
+  },
+  dropdownText: {
+    fontSize: 16,
     color: '#222',
+  },
+  emailList: {
+    flex: 1,
+    backgroundColor: '#F6F6F6',
+  },
+  emailRow: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    marginVertical: 6,
+    marginHorizontal: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    elevation: 1,
+    justifyContent: 'space-between',
+    borderLeftWidth: 4,
+    borderLeftColor: '#1292E6',
+  },
+  emailTextBlock: {
+    flex: 1.6,
+    justifyContent: 'center',
+  },
+  emailTitle: {
+    color: '#111111ff',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 5,
   },
   emailAddress: {
-    fontSize: 14,
-    color: '#007AFF',
-    marginTop: 2,
+    color: '#1292E6',
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  emailMetaBlock: {
+    flex: 1.2,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   emailDate: {
-    fontSize: 13,
-    color: '#222',
-    marginBottom: 6,
-    textAlign: 'right',
+    color: '#7A8194',
+    fontSize: 11,
+    marginBottom: 7,
   },
-  statusBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
+  statusPill: {
+    borderRadius: 8,
+    borderWidth: 1.2,
+    paddingHorizontal: 14,
     alignItems: 'center',
-    justifyContent: 'center',
     alignSelf: 'flex-end',
-    minWidth: 70,
+    minWidth: 64,
   },
   statusText: {
+    fontWeight: '400',
+    fontSize: 13,
+    textAlign: 'center',
     color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 15,
   },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    zIndex: 10,
-  },
-  filterModalWrap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 11,
-  },
-  filterModal: {
-    width: '85%',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  filterModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 18,
-  },
-  filterModalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#222',
-  },
-  filterModalCloseBtn: {
-    marginLeft: 12,
-  },
-  filterModalCloseCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F2F6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterModalBody: {
-    marginBottom: 18,
-  },
-  filterDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F7F8FA',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 14,
-  },
-  filterDropdownText: {
-    fontSize: 16,
-    color: '#222',
-  },
-  filterDropdownArrow: {
-    fontSize: 18,
-    color: '#222',
-    marginLeft: 8,
-  },
-  filterModalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  filterModalBtn: {
+  // Modal
+  modalBackdrop: {
     flex: 1,
-    backgroundColor: '#F2F6FF',
-    borderRadius: 8,
-    paddingVertical: 12,
-    marginHorizontal: 6,
+    backgroundColor: 'rgba(0,0,0,0.14)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  filterModalBtnText: {
-    fontSize: 16,
+  modalBox: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    minHeight: 340,
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 1, height: 2 },
+    shadowOpacity: 0.09,
+    shadowRadius: 15,
+    elevation: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 22,
+    justifyContent: 'space-between',
+  },
+  modalTitle: {
+    color: '#111111ff',
+    fontWeight: '600',
+  },
+  closeBtnWrap: {
+    backgroundColor: '#0088E71A',
+    borderRadius: 50,
+    paddingHorizontal: 7,
+    paddingBottom: 1,
+  },
+  closeBtn: {
+    fontSize: 22,
     color: '#007AFF',
     fontWeight: 'bold',
+    marginLeft: 0,
+    marginTop: -1,
+  },
+  filterInput: {
+    backgroundColor: '#fff',
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#D5D8E1',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+  },
+  filterBtnRow: {
+    flexDirection: 'row',
+    marginTop: 18,
+    gap: 12,
+  },
+  clearBtn: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1.2,
+    borderColor: '#1292E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  applyBtn: {
+    backgroundColor: '#1292E6',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+  bottomNav: {
+    height: 62,
+    backgroundColor: '#fff',
+    borderTopColor: '#E1E8F0',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 18,
+  },
+  navIcon: {
+    fontSize: 27,
+    color: '#7A8194',
   },
 });
-
-export default EmailScreen;

@@ -5,7 +5,7 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   Platform,
 } from 'react-native';
 import Modal from 'react-native-modal';
@@ -14,7 +14,6 @@ import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import FilterIcon from '../../assets/svgs/filterIcon.svg';
 import SearchIcon from '../../assets/svgs/searchIcon.svg';
-import ArrowDownIcon from '../../assets/svgs/arrowDown.svg';
 import ArrowUpIcon from '../../assets/svgs/arrowUpWard.svg';
 import ArrowDownWard from '../../assets/svgs/arrowDownward.svg';
 import ArrowRight from '../../assets/svgs/rightArrow.svg';
@@ -55,6 +54,33 @@ const BranchesScreen = ({ navigation }) => {
     setShowDropdown(false);
   };
 
+  const filteredBranches = branches
+    .filter(b => b.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) =>
+      sortOrder === 'asc'
+        ? a.name.localeCompare(b.name)
+        : b.name.localeCompare(a.name)
+    );
+
+  const renderBranch = ({ item }) => (
+    <TouchableOpacity
+      onPress={navigateToTask}
+      style={styles.branchCard}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={styles.branchName}>{item.name}</Text>
+        <Text style={styles.branchNumber}>
+          Branch #; {item.number}
+        </Text>
+      </View>
+      <View style={styles.rightCircleWrap}>
+        <View style={styles.rightCircle}>
+          <ArrowRight width={20} height={20} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#007AFF" />
@@ -65,7 +91,7 @@ const BranchesScreen = ({ navigation }) => {
             <BackArrowIcon width={17} height={17} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Branches</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowDropdown(true)}>
             <ThreeDotIcon width={26} height={26} />
           </TouchableOpacity>
         </View>
@@ -117,44 +143,24 @@ const BranchesScreen = ({ navigation }) => {
           <FilterIcon width={32} height={32} />
         </TouchableOpacity>
       </View>
-      {/* Tasks List */}
-      <ScrollView
-        contentContainerStyle={{
-          paddingBottom: 16,
+      {/* Branches List */}
+      <View
+        style={{
+          flex: 1,
           backgroundColor: '#F2F2F2',
-          paddingTop: 50,
           borderTopLeftRadius: 30,
           borderTopRightRadius: 30,
-          flex: 1,
+          paddingTop: 50,
         }}
       >
-        {branches
-          .filter(b => b.name.toLowerCase().includes(search.toLowerCase()))
-          .sort((a, b) =>
-            sortOrder === 'asc'
-              ? a.name.localeCompare(b.name)
-              : b.name.localeCompare(a.name)
-          )
-          .map((branch, idx) => (
-            <TouchableOpacity
-              onPress={() => navigateToTask()}
-              key={idx}
-              style={styles.branchCard}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.branchName}>{branch.name}</Text>
-                <Text style={styles.branchNumber}>
-                  Branch #; {branch.number}
-                </Text>
-              </View>
-              <View style={styles.rightCircleWrap}>
-                <View style={styles.rightCircle}>
-                  <ArrowRight width={20} height={20} />
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-      </ScrollView>
+        <FlatList
+          data={filteredBranches}
+          keyExtractor={(_, idx) => idx.toString()}
+          renderItem={renderBranch}
+          contentContainerStyle={{ paddingBottom: 16 }}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
 
       {/* Sort Modal */}
       {showSortModal && (
@@ -237,7 +243,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     top: 20,
-    // marginTop: 16, // changed from -48
     marginHorizontal: 24,
     zIndex: 2,
   },
