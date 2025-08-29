@@ -74,6 +74,7 @@ import StatisticsScreen from '../screens/statistics/StatisticsScreen';
 import ScheduleScreen from '../screens/schedule/ScheduleScreen';
 import LoginScreen from '../screens/auth/loginScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
+import ProfileScreen from '../screens/profile/ProfileScreen';
 
 const BranchesStack = () => {
   return (
@@ -260,11 +261,14 @@ const RootNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {isAuthenticated ? (
-        <Stack.Screen
-          name="Main"
-          component={MainNavigator}
-          options={{ headerShown: false }}
-        />
+        <>
+          <Stack.Screen
+            name="Main"
+            component={MainNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="Profile" component={ProfileScreen} />
+        </>
       ) : (
         <Stack.Screen
           name="Auth"
