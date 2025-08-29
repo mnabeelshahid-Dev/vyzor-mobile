@@ -167,38 +167,38 @@ export default function TaskScreen({ navigation }) {
       <View style={[styles.taskCard, { borderRadius: 18, padding: 20, marginBottom: 22, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }]}>
         {/* Top Row: Number, Status Badge */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-          <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: 16 }}>{item.number}</Text>
+          <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 15 }}>{item.number}</Text>
           <View style={{ flex: 1 }} />
           <View style={{ backgroundColor: statusColor, borderRadius: 6, paddingHorizontal: 16, paddingVertical: 4 }}>
             <Text style={{ color: '#fff', fontSize: 16 }}>{statusText}</Text>
           </View>
         </View>
         {/* Title */}
-        <Text style={{ color: '#222E44', fontWeight: 'bold', fontSize: 18, marginBottom: 2 }}>{item.title}</Text>
+        <Text style={{ color: '#222E44', fontWeight: '600', fontSize: 17, marginBottom: 2 }}>{item.title}</Text>
         {/* Date Row */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
           <CalendarIcon width={20} height={20} style={{ opacity: 0.7 }} />
-          <Text style={{ color: '#AAB3BB', fontSize: 16, marginLeft: 8, fontWeight: '500' }}>{item.start} - {item.end}</Text>
+          <Text style={{ color: '#AAB3BB', fontSize: 14, marginLeft: 8, fontWeight: '400' }}>{item.start} - {item.end}</Text>
         </View>
         {/* Progress Bar */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
           <View style={{ flex: 1, height: 6, backgroundColor: '#E6F1FB', borderRadius: 6, overflow: 'hidden', marginRight: 8 }}>
             <View style={{ height: 6, width: `${item.percentage}%`, backgroundColor: statusColor, borderRadius: 6 }} />
           </View>
-          <Text style={{ color: '#222E44', fontWeight: 'bold', fontSize: 16 }}>{item.percentage}%</Text>
+          <Text style={{ color: '#222E44', fontWeight: '600', fontSize: 14 }}>{item.percentage}%</Text>
         </View>
         {/* Button Row */}
         <View style={{ backgroundColor: '#F7F9FC', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0' }}>
           <View style={{ flexDirection: 'row', padding: 12, marginBottom: 16, }}>
             {/* Reassign */}
             <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => openModal('user')}>
-              <UserIcon width={22} height={22} color={'#1292E6'} />
-              <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 17, marginLeft: 8 }}>Reassign</Text>
+              <UserIcon width={20} height={20} color={'#1292E6'} />
+              <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 15, marginLeft: 8 }}>Reassign</Text>
             </TouchableOpacity>
             {/* Devices */}
             <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', opacity: 0.5 }} onPress={() => openModal('devices')}>
-              <SettingsIcon width={22} height={22} />
-              <Text style={{ color: '#888', fontWeight: '500', fontSize: 17, marginLeft: 8 }}>Devices</Text>
+              <SettingsIcon width={20} height={20} />
+              <Text style={{ color: '#888', fontWeight: '500', fontSize: 15, marginLeft: 8 }}>Devices</Text>
               <View style={{ backgroundColor: '#F1F1F6', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
                 <Text style={{ color: '#888', fontWeight: 'bold', fontSize: 16 }}>{item.devices}</Text>
               </View>
@@ -207,8 +207,8 @@ export default function TaskScreen({ navigation }) {
           <View style={{ flexDirection: 'row', padding: 12, marginBottom: 16, marginTop: -28 }}>
             {/* Sections */}
             <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => openModal('sections')}>
-              <MenuIcon width={22} height={22} />
-              <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 17, marginLeft: 8 }}>Sections</Text>
+              <MenuIcon width={20} height={20} />
+              <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 15, marginLeft: 8 }}>Sections</Text>
               <View style={{ backgroundColor: '#E6F1FB', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
                 <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: 16 }}>{item.sections}</Text>
               </View>
@@ -415,7 +415,7 @@ export default function TaskScreen({ navigation }) {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Tasks</Text>
           <TouchableOpacity onPress={() => openModal('dropdown')}>
-            <ThreeDotIcon width={26} height={26} />
+            <ThreeDotIcon width={20} height={20} />
           </TouchableOpacity>
         </View>
       </View>
@@ -490,7 +490,6 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
     paddingHorizontal: 18,
     borderBottomLeftRadius: 22,
     borderBottomRightRadius: 22,

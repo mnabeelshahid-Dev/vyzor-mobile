@@ -5,8 +5,11 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   Platform,
+  SafeAreaView,
+  StatusBar,
+  FlatList,
+  Dimensions,
 } from 'react-native';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
@@ -14,35 +17,54 @@ import FilterIcon from '../../assets/svgs/filterIcon.svg';
 import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
 
+const { width } = Dimensions.get('window');
+const getResponsive = (val: number) => Math.round(val * (width / 390));
+
+// Card colors for statuses
+const statusConfig = {
+  onTime: { border: '#22C55E', bar: '#22C55E', label: 'On Time task' },
+  outside: { border: '#A35F94', bar: '#A35F94', label: 'Outside Period' },
+  expired: { border: '#EF4444', bar: '#EF4444', label: 'Expired Task' },
+};
+
 const tasks = [
   { status: 'onTime', label: 'Test Task for the Branding', color: '#22C55E' },
-  { status: 'outside', label: 'Test Task for the Branding', color: '#A855F7' },
+  { status: 'outside', label: 'Test Task for the Branding', color: '#A35F94' },
   { status: 'expired', label: 'Test Task for the Branding', color: '#EF4444' },
   { status: 'onTime', label: 'Test Task for the Branding', color: '#22C55E' },
-  { status: 'outside', label: 'Test Task for the Branding', color: '#A855F7' },
+  { status: 'outside', label: 'Test Task for the Branding', color: '#A35F94' },
   { status: 'expired', label: 'Test Task for the Branding', color: '#EF4444' },
 ];
 
-function StatisticsScreen() {
+export default function StatisticsScreen({ navigation }) {
   const [search, setSearch] = useState('');
   const [showSortModal, setShowSortModal] = useState(false);
   const [sortOrder, setSortOrder] = useState('asc');
 
-  const handleSort = order => {
-    setSortOrder(order);
-    setShowSortModal(false);
-  };
+  // Filtered and sorted tasks
+  const filteredTasks = tasks
+    .filter(b => b.label.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) =>
+      sortOrder === 'asc'
+        ? a.label.localeCompare(b.label)
+        : b.label.localeCompare(a.label)
+    );
+
+  // Responsive styling helpers
+  const statCardWidth = (width - getResponsive(16) * 2 - getResponsive(12) * 2) / 3;
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
+      <StatusBar barStyle="dark-content" backgroundColor="#007AFF" />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity>
-            <BackArrowIcon width={17} height={17} />
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <BackArrowIcon width={getResponsive(17)} height={getResponsive(17)} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Branches</Text>
+          <Text style={styles.headerTitle}>Statistics</Text>
           <TouchableOpacity>
-            <ThreeDotIcon width={26} height={26} />
+            <ThreeDotIcon width={getResponsive(20)} height={getResponsive(20)} />
           </TouchableOpacity>
         </View>
       </View>
@@ -50,7 +72,7 @@ function StatisticsScreen() {
       {/* Floating Search Bar */}
       <View style={styles.searchBarFloatWrap}>
         <View style={styles.searchBarFloat}>
-          <SearchIcon width={22} height={22} style={{ marginLeft: 8 }} />
+          <SearchIcon width={getResponsive(25)} height={getResponsive(25)} style={{ marginLeft: 8 }} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search..."
@@ -63,118 +85,136 @@ function StatisticsScreen() {
           style={styles.filterBtnFloat}
           onPress={() => setShowSortModal(true)}
         >
-          <FilterIcon width={22} height={22} />
+          <FilterIcon width={getResponsive(32)} height={getResponsive(32)} />
         </TouchableOpacity>
       </View>
 
-      {/* Stats Cards */}
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { borderColor: '#22C55E' }]}>
-          <Text style={[styles.statTitle, { color: '#22C55E' }]}>
-            On Time task
-          </Text>
-          <Text style={styles.statValue}>10 of 20</Text>
-        </View>
-        <View style={[styles.statCard, { borderColor: '#A855F7' }]}>
-          <Text style={[styles.statTitle, { color: '#A855F7' }]}>
-            Outside Period
-          </Text>
-          <Text style={styles.statValue}>0 of 10</Text>
-        </View>
-        <View style={[styles.statCard, { borderColor: '#EF4444' }]}>
-          <Text style={[styles.statTitle, { color: '#EF4444' }]}>
-            Expired Task
-          </Text>
-          <Text style={styles.statValue}>10 of 30</Text>
-        </View>
-      </View>
-
-      {/* Progress Bars */}
-      <View style={styles.progressBox}>
-        <View style={styles.progressRow}>
-          <Text style={styles.progressLabel}>On Time</Text>
-          <View style={styles.progressBarBg}>
-            <View
-              style={[
-                styles.progressBar,
-                { backgroundColor: '#22C55E', width: '75%' },
-              ]}
-            />
+      {/* Content Background */}
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: '#F2F2F2',
+          borderTopLeftRadius: getResponsive(30),
+          borderTopRightRadius: getResponsive(30),
+          paddingTop: getResponsive(44),
+        }}
+      >
+        {/* Stats Cards */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, { borderLeftColor: '#22C55E', width: statCardWidth }]}>
+            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>
+              On Time task
+            </Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>10</Text> of 20</Text>
           </View>
-          <Text style={styles.progressPercent}>75%</Text>
-        </View>
-        <View style={styles.progressRow}>
-          <Text style={styles.progressLabel}>Outside</Text>
-          <View style={styles.progressBarBg}>
-            <View
-              style={[
-                styles.progressBar,
-                { backgroundColor: '#A855F7', width: '25%' },
-              ]}
-            />
+          <View style={[styles.statCard, { borderLeftColor: '#A35F94', width: statCardWidth }]}>
+            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>
+              Outside Period
+            </Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>0</Text> of 10</Text>
           </View>
-          <Text style={styles.progressPercent}>25%</Text>
-        </View>
-        <View style={styles.progressRow}>
-          <Text style={styles.progressLabel}>Expired</Text>
-          <View style={styles.progressBarBg}>
-            <View
-              style={[
-                styles.progressBar,
-                { backgroundColor: '#EF4444', width: '75%' },
-              ]}
-            />
+          <View style={[styles.statCard, { borderLeftColor: '#EF4444', width: statCardWidth }]}>
+            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>
+              Expired Task
+            </Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>10</Text> of 30</Text>
           </View>
-          <Text style={styles.progressPercent}>75%</Text>
         </View>
-      </View>
 
-      {/* Date Range */}
-      <View style={styles.dateRangeBox}>
-        <CalendarIcon width={18} height={18} />
-        <Text style={styles.dateRangeText}>
-          July 09, 2025 - July 23, 2025 ( 12:00 PM )
-        </Text>
-      </View>
-
-      {/* Task List */}
-      <ScrollView style={{ flex: 1 }}>
-        {tasks
-          .filter(b => b.label.toLowerCase().includes(search.toLowerCase()))
-          .sort((a, b) =>
-            sortOrder === 'asc'
-              ? a.label.localeCompare(b.label)
-              : b.label.localeCompare(a.label)
-          )
-          .map((task, idx) => (
-            <View key={idx} style={styles.taskCard}>
+        {/* Progress Bars */}
+        <View style={styles.progressBox}>
+          <View style={styles.progressRow}>
+            <Text style={styles.progressLabel}>On Time</Text>
+            <View style={styles.progressBarBg}>
               <View
-                style={[styles.taskIndicator, { backgroundColor: task.color }]}
+                style={[
+                  styles.progressBar,
+                  { backgroundColor: '#22C55E', width: '75%' },
+                ]}
               />
+            </View>
+            <Text style={styles.progressPercent}>75%</Text>
+          </View>
+          <View style={styles.progressRow}>
+            <Text style={styles.progressLabel}>Outside</Text>
+            <View style={styles.progressBarBg}>
+              <View
+                style={[
+                  styles.progressBar,
+                  { backgroundColor: '#A35F94', width: '25%' },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressPercent}>25%</Text>
+          </View>
+          <View style={styles.progressRow}>
+            <Text style={styles.progressLabel}>Expired</Text>
+            <View style={styles.progressBarBg}>
+              <View
+                style={[
+                  styles.progressBar,
+                  { backgroundColor: '#EF4444', width: '75%' },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressPercent}>75%</Text>
+          </View>
+        </View>
+
+        {/* Date Range */}
+        <View style={styles.dateRangeBox}>
+          <CalendarIcon width={getResponsive(20)} height={getResponsive(20)} />
+          <Text style={styles.dateRangeText}>
+            July 09, 2025 - July 23, 2025 ( 12:00 PM )
+          </Text>
+        </View>
+
+        {/* Task List */}
+        <FlatList
+          data={filteredTasks}
+          style={{ flex: 1, marginTop: getResponsive(8) }}
+          showsVerticalScrollIndicator={false}
+          keyExtractor={(_, idx) => idx.toString()}
+          contentContainerStyle={{ paddingBottom: getResponsive(24) }}
+          renderItem={({ item }) => (
+            <View
+              style={[
+                styles.taskCard,
+                {
+                  borderLeftColor:
+                    item.status === 'onTime'
+                      ? '#22C55E'
+                      : item.status === 'outside'
+                        ? '#A35F94'
+                        : '#EF4444',
+                  borderLeftWidth: getResponsive(4),
+                },
+              ]}
+            >
               <View style={{ flex: 1 }}>
-                <Text style={styles.taskTitle}>{task.label}</Text>
+                <Text style={styles.taskTitle}>{item.label}</Text>
                 <View style={styles.taskDates}>
-                  <Text style={styles.taskDate}>
+                  <Text style={[styles.taskDate,{ fontWeight: '500', color:'#021639F5' }]}>
                     Starting: 15-07-2025 12:00 PM
                   </Text>
-                  <Text style={styles.taskDate}>
+                  <Text style={[styles.taskDate,{ fontWeight: '500', color:'#021639F5' }]}>
                     Ending: 15-07-2025 12:00 PM
                   </Text>
                 </View>
               </View>
             </View>
-          ))}
-      </ScrollView>
-    </View>
+          )}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F7F8FA' },
   header: {
     backgroundColor: '#007AFF',
-    paddingTop: Platform.OS === 'ios' ? 88 : 80,
-    paddingBottom: 50,
+    paddingTop: Platform.OS === 'ios' ? getResponsive(18) : getResponsive(55),
+    paddingBottom: getResponsive(20),
     paddingHorizontal: 0,
     alignItems: 'flex-start',
     justifyContent: 'flex-start',
@@ -185,45 +225,47 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     width: '100%',
-    paddingHorizontal: 24,
+    paddingHorizontal: getResponsive(24),
   },
   headerTitle: {
     color: '#fff',
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: getResponsive(18),
+    fontWeight: '600',
     textAlign: 'center',
     flex: 1,
   },
   searchBarFloatWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: -48,
-    marginHorizontal: 24,
+    marginTop: -getResponsive(32),
+    marginHorizontal: getResponsive(24),
     zIndex: 2,
+    top: getResponsive(25),
   },
   searchBarFloat: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 16,
-    height: 48,
+    borderRadius: getResponsive(16),
+    height: getResponsive(52),
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
+    paddingHorizontal: getResponsive(10),
   },
   searchInput: {
     flex: 1,
     paddingHorizontal: 8,
     color: '#222',
-    fontSize: 17,
+    fontSize: getResponsive(17),
   },
   filterBtnFloat: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 10,
-    marginLeft: 12,
+    borderRadius: getResponsive(16),
+    padding: getResponsive(10),
+    marginLeft: getResponsive(12),
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -232,97 +274,144 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginBottom: 8,
+    marginHorizontal: getResponsive(16),
+    marginBottom: getResponsive(14),
+    marginTop: getResponsive(8),
   },
   statCard: {
-    flex: 1,
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginHorizontal: 4,
-    borderWidth: 2,
+    borderRadius: getResponsive(14),
+    padding: getResponsive(10),
+    marginHorizontal: getResponsive(4),
+    borderLeftWidth: getResponsive(6),
+    borderRightWidth: 0,
+    borderTopWidth: 0,
+    borderBottomWidth: 0,
+    elevation: 2,
+    minHeight: getResponsive(64),
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    shadowColor: '#0002',
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
-  statTitle: { fontSize: 14, fontWeight: 'bold', marginBottom: 4 },
-  statValue: { fontSize: 16, fontWeight: 'bold', color: '#222' },
+  statTitle: {
+    fontSize: getResponsive(10),
+    lineHeight: getResponsive(14),
+  },
+  statValue: {
+    fontSize: getResponsive(12),
+    fontWeight: '400',
+    color: '#222',
+  },
+  boldNum: {
+    fontWeight: 'bold',
+    fontSize: getResponsive(13),
+    color: '#222',
+  },
   progressBox: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    marginHorizontal: 16,
-    padding: 16,
-    marginBottom: 8,
+    borderRadius: getResponsive(13),
+    marginHorizontal: getResponsive(16),
+    padding: getResponsive(18),
+    marginBottom: getResponsive(16),
+    elevation: 2,
+    shadowColor: '#0002',
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
   progressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: getResponsive(8),
   },
-  progressLabel: { width: 70, fontSize: 14, color: '#222' },
+  progressLabel: {
+    width: getResponsive(78),
+    fontSize: getResponsive(10),
+    color: '#7A8194',
+  },
   progressBarBg: {
     flex: 1,
-    height: 8,
+    height: getResponsive(6),
     backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-    marginHorizontal: 8,
+    borderRadius: getResponsive(8),
+    marginHorizontal: getResponsive(8),
     overflow: 'hidden',
   },
   progressBar: {
-    height: 8,
-    borderRadius: 4,
+    height: getResponsive(6),
+    borderRadius: getResponsive(8),
   },
   progressPercent: {
-    width: 40,
+    width: getResponsive(50),
     textAlign: 'right',
-    fontSize: 14,
+    fontSize: getResponsive(10),
     color: '#222',
   },
   dateRangeBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E5F0FF',
-    borderRadius: 8,
-    marginHorizontal: 16,
-    padding: 8,
-    marginBottom: 8,
+    backgroundColor: '#0088E714',
+    borderRadius: getResponsive(11),
+    marginHorizontal: getResponsive(16),
+    padding: getResponsive(13),
+    marginBottom: getResponsive(10),
+    marginTop: getResponsive(4),
   },
   dateRangeText: {
-    marginLeft: 8,
-    color: '#222',
-    fontSize: 15,
-    fontWeight: '500',
+    marginLeft: getResponsive(8),
+    color: '#184B74',
+    fontSize: getResponsive(14),
+    fontWeight: '400',
   },
   taskCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginVertical: 4,
-    padding: 12,
+    borderRadius: getResponsive(14),
+    marginHorizontal: getResponsive(16),
+    marginVertical: getResponsive(6),
+    padding: getResponsive(14),
     elevation: 1,
+    shadowColor: '#0001',
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+
   },
   taskIndicator: {
-    width: 6,
-    height: 40,
-    borderRadius: 4,
-    marginRight: 12,
+    width: getResponsive(6),
+    height: getResponsive(56),
+    borderRadius: getResponsive(6),
+    marginRight: getResponsive(14),
   },
-  taskTitle: { fontSize: 16, fontWeight: 'bold', color: '#222' },
+  taskTitle: {
+    fontSize: getResponsive(15),
+    fontWeight: '500',
+    color: '#021639F5',
+    marginBottom: getResponsive(3),
+  },
   taskDates: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 4,
+    justifyContent: 'flex-start',
+    // marginTop: getResponsive(2),
   },
-  taskDate: { fontSize: 13, color: '#666', marginRight: 12 },
+  taskDate: {
+    fontSize: getResponsive(10),
+    color: '#7A8194',
+    marginRight: getResponsive(22),
+    fontWeight: '400',
+  },
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    height: 60,
+    height: getResponsive(60),
     backgroundColor: '#fff',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderTopLeftRadius: getResponsive(18),
+    borderTopRightRadius: getResponsive(18),
     elevation: 10,
   },
 });
-export default StatisticsScreen;

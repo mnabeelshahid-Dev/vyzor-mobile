@@ -255,7 +255,7 @@ export default function EmailNotificationsScreen({ navigation }) {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Email Notifications</Text>
           <TouchableOpacity>
-            <ThreeDotIcon width={26} height={26} />
+            <ThreeDotIcon width={20} height={20} />
           </TouchableOpacity>
         </View>
       </View>
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#007AFF',
     paddingTop: Platform.OS === 'ios' ? 18 : 55,
-    paddingBottom: 10,
+    // paddingBottom: 10,
     paddingHorizontal: 0,
     alignItems: 'center',
     justifyContent: 'flex-start',
@@ -431,8 +431,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: '#fff',
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '600',
     textAlign: 'center',
     flex: 1,
   },

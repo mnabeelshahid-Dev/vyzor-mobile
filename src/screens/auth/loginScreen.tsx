@@ -471,23 +471,19 @@ const createStyles = (theme: {
       justifyContent: 'flex-start',
     },
     gradientBackground: {
-      minHeight: '100%',
-      backgroundColor: '#0088E7', // Updated to match SVG color
+      backgroundColor: '#0088E7',
       paddingHorizontal: 20,
       paddingTop: 0,
-      paddingBottom: 20,
+      flex:1
     },
     statusArea: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingTop: 50,
-      paddingBottom: 20,
-      paddingHorizontal: 5,
     },
     statusTime: {
       color: '#FFFFFF',
-      fontSize: 16,
+      fontSize: 14,
       fontWeight: '600',
     },
     statusIcons: {
@@ -500,11 +496,9 @@ const createStyles = (theme: {
       fontSize: 14,
     },
     logoSection: {
-      height: 220,
       justifyContent: 'center',
       alignItems: 'center',
-      paddingTop: 40,
-      paddingBottom: 20,
+      paddingVertical: 60,
     },
     logoContainer: {
       alignItems: 'center',
@@ -515,40 +509,37 @@ const createStyles = (theme: {
     },
     logoText: {
       color: '#FFFFFF',
-      fontSize: 32,
-      fontWeight: '900',
+      fontSize: 30,
+      fontWeight: '600',
       letterSpacing: 1,
       fontFamily: 'Poppins',
     },
     loginCard: {
       backgroundColor: '#FFFFFF',
       borderRadius: 25,
-      paddingHorizontal: 35,
-      paddingVertical: 40,
-      minHeight: 500,
-      marginTop: 0,
+      paddingHorizontal: 30,
+      paddingVertical: 20,
+      height: '70%'
     },
     cardTitle: {
-      fontSize: 25,
-      fontWeight: '900',
+      fontSize: 22,
+      fontWeight: '500',
       color: '#101828',
       textAlign: 'center',
       fontFamily: 'Poppins',
     },
     cardSubtitle: {
-      fontSize: 18,
+      fontSize: 12,
       fontWeight: '600',
       color: '#475467',
       textAlign: 'center',
-      marginBottom: 32,
       fontFamily: 'Poppins',
     },
     form: {
-      paddingBottom: 20,
+     marginTop: 30,
     },
     floatingInputContainer: {
       marginBottom: 15,
-      paddingHorizontal: 0,
       position: 'relative',
     },
     floatingInputWrapper: {
@@ -556,7 +547,7 @@ const createStyles = (theme: {
     },
     floatingLabelContainer: {
       position: 'absolute',
-      left: 0,
+      left: -5,
       top: 16,
       flexDirection: 'row',
       alignItems: 'center',
@@ -598,7 +589,7 @@ const createStyles = (theme: {
       fontFamily: 'Poppins',
     },
     floatingInput: {
-      fontSize: 16,
+      fontSize: 14,
       color: '#1F2937',
       paddingVertical: 8,
       paddingHorizontal: 0,
@@ -660,7 +651,7 @@ const createStyles = (theme: {
     },
     input: {
       flex: 1,
-      fontSize: 16,
+      fontSize: 14,
       color: '#1F2937',
       paddingVertical: 8,
       paddingRight: 16,
@@ -675,7 +666,7 @@ const createStyles = (theme: {
       zIndex: 2,
     },
     passwordToggleIcon: {
-      fontSize: 16,
+      fontSize: 14,
       color: '#9CA3AF',
       fontFamily: 'Poppins',
     },
@@ -687,8 +678,8 @@ const createStyles = (theme: {
     },
     forgotPasswordText: {
       color: '#021639',
-      fontSize: 16,
-      fontWeight: '500',
+      fontSize: 14,
+      fontWeight: '400',
       fontFamily: 'Poppins',
     },
     forgotPasswordLoader: {
@@ -697,7 +688,7 @@ const createStyles = (theme: {
     loginButton: {
       backgroundColor: '#0088E7',
       borderRadius: 12,
-      paddingVertical: 18,
+      paddingVertical: 8,
       alignItems: 'center',
       marginBottom: 32,
       shadowColor: '#0088E7',
@@ -715,7 +706,7 @@ const createStyles = (theme: {
     loginButtonText: {
       color: '#FFFFFF',
       fontSize: 18,
-      fontWeight: '900',
+      fontWeight: '500',
       fontFamily: 'Poppins',
     },
     divider: {
@@ -734,8 +725,8 @@ const createStyles = (theme: {
     },
     dividerText: {
       color: '#000000',
-      fontSize: 20,
-      fontWeight: '900',
+      fontSize: 19,
+      fontWeight: '500',
       paddingHorizontal: 16,
       fontFamily: 'Poppins',
     },
@@ -790,14 +781,14 @@ const createStyles = (theme: {
       marginTop: 'auto',
     },
     signUpText: {
-      fontSize: 16,
+      fontSize: 14,
       color: '#868696',
       fontFamily: 'Poppins',
     },
     signUpLink: {
-      fontSize: 16,
+      fontSize: 14,
       color: '#0088E7',
-      fontWeight: '900',
+      fontWeight: '600',
       fontFamily: 'Poppins',
     },
     // Password strength styles
