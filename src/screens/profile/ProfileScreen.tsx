@@ -693,17 +693,20 @@ const styles = StyleSheet.create({
   // Edit Mode Styles
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#E8E8E8',
-    borderRadius: 25,
-    marginHorizontal: 24,
+    backgroundColor: '#d3e8f8ff',
+    // borderRadius: 25,
+    // marginHorizontal: 24,
     marginBottom: 24,
     padding: 4,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    paddingVertical: 8,
+    marginVertical: 6,
+    paddingHorizontal: 4,
+    backgroundColor: '#eef2f5ff',
+    color: '#021639',
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 2,
@@ -719,7 +722,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: '#021639',
     textAlign: 'center',
   },
   activeTabText: {
