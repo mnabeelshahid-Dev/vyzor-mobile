@@ -542,7 +542,7 @@ const ProfileScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   header: {
     backgroundColor: '#007AFF',
-    paddingTop: Platform.OS === 'ios' ? 18 : 18,
+    paddingTop: Platform.OS === 'ios' ? 12 : 12,
     paddingBottom: 10,
     paddingHorizontal: 0,
     alignItems: 'center',
@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: '#fff',
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: 'bold',
     textAlign: 'center',
     flex: 1,
@@ -631,8 +631,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
     marginBottom: 16,
     // shadowColor: '#000',
     // shadowOpacity: 0.06,
@@ -667,13 +668,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileItemTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1A1A1A',
     marginBottom: 4,
   },
   profileItemSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     fontWeight: '400',
   },
