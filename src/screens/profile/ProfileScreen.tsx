@@ -223,22 +223,37 @@ const ProfileScreen = ({ navigation }) => {
             placeholder="Enter phone number"
             placeholderTextColor="#999"
           />
-          <TouchableOpacity style={styles.phoneEditIcon}>
+          {/* <TouchableOpacity style={styles.phoneEditIcon}>
             <Text style={styles.phoneEditIconText}>✎</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </View>
 
-      <TouchableOpacity style={styles.addNumberButton}>
+      {/* <TouchableOpacity style={styles.addNumberButton}>
         <Text style={styles.addNumberText}>Add New Number</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
-      <View style={styles.countryCodeContainer}>
+      {/* <View style={styles.countryCodeContainer}>
         <Text style={styles.inputLabel}>Country Code</Text>
         <TouchableOpacity style={styles.dropdownInput}>
           <Text style={styles.dropdownInputText}>+44 | 334-4444</Text>
           <Text style={styles.dropdownArrowText}>▾</Text>
         </TouchableOpacity>
+      </View> */}
+
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabelAddNewNumber}>Add New Number</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value="(223)-334-4444"
+            placeholder="Enter phone number"
+            placeholderTextColor="#999"
+          />
+          {/* <TouchableOpacity style={styles.phoneEditIcon}>
+            <Text style={styles.phoneEditIconText}>✎</Text>
+          </TouchableOpacity> */}
+        </View>
       </View>
 
       <InputField
@@ -527,7 +542,7 @@ const ProfileScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   header: {
     backgroundColor: '#007AFF',
-    paddingTop: Platform.OS === 'ios' ? 18 : 55,
+    paddingTop: Platform.OS === 'ios' ? 18 : 18,
     paddingBottom: 10,
     paddingHorizontal: 0,
     alignItems: 'center',
@@ -566,9 +581,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 12,
+    width: 80,
+    height: 80,
+    borderRadius: 16,
     backgroundColor: '#ddd',
   },
   editIconContainer: {
@@ -594,13 +609,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   userName: {
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: '700',
     color: '#1A1A1A',
     marginBottom: 4,
   },
   userRole: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     fontWeight: '500',
   },
@@ -738,8 +753,14 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '300',
     color: '#1A1A1A',
+    marginBottom: 8,
+  },
+  inputLabelAddNewNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0088E7',
     marginBottom: 8,
   },
   inputWrapper: {
@@ -840,19 +861,35 @@ const styles = StyleSheet.create({
   phoneInputWrapper: {
     position: 'relative',
   },
+  // phoneInput: {
+  //   backgroundColor: '#fff',
+  //   borderRadius: 12,
+  //   padding: 16,
+  //   fontSize: 14,
+  //   color: '#1A1A1A',
+  //   borderWidth: 1,
+  //   borderColor: '#E8E8E8',
+  //   paddingRight: 50,
+  //   shadowColor: '#000',
+  //   shadowOpacity: 0.02,
+  //   shadowRadius: 4,
+  //   elevation: 1,
+  // },
   phoneInput: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: 'transparent', // no background
+    paddingVertical: 8,
+    paddingHorizontal: 0, // remove side padding to align with underline
     fontSize: 14,
     color: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    paddingRight: 50,
-    shadowColor: '#000',
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 1,
+
+    // Only bottom border (underline)
+    borderBottomWidth: 1,
+    borderBottomColor: '#B0B0B0', // light gray, adjust as needed
+
+    // Remove unnecessary styles
+    borderRadius: 0,
+    shadowColor: 'transparent',
+    elevation: 0,
   },
   phoneEditIcon: {
     position: 'absolute',
@@ -898,9 +935,9 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: '#007AFF',
+    borderRadius: 5,
+    paddingVertical: 6,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -911,15 +948,15 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   resetButtonText: {
-    color: '#666',
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
   updateButton: {
     flex: 1,
     backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 5,
+    paddingVertical: 6,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#007AFF',
