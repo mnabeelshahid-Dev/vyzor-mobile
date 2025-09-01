@@ -13,6 +13,14 @@ import Modal from 'react-native-modal';
 import { useLogout } from '../../hooks/useAuth';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
+import LocationIcon from '../../assets/svgs/location.svg';
+import PasswordIcon from '../../assets/svgs/password.svg';
+import TimeZoneIcon from '../../assets/svgs/timezone.svg';
+import LanguageIcon from '../../assets/svgs/language.svg';
+import PhoneIcon from '../../assets/svgs/phone.svg';
+import EditIcon from '../../assets/svgs/edit.svg';
+import EyeSlash from '../../assets/svgs/eyeSlash.svg';
+
 import { SafeAreaView } from 'react-native';
 import { StatusBar } from 'react-native';
 
@@ -103,7 +111,13 @@ const ProfileScreen = ({ navigation }) => {
         />
         {secureTextEntry && (
           <TouchableOpacity style={styles.eyeIcon} onPress={onTogglePassword}>
-            <Text style={styles.eyeIconText}>{showPassword ? '👁️‍🗨️' : '👁️'}</Text>
+            <Text style={styles.eyeIconText}>
+              {showPassword ? (
+                '👁️‍🗨️'
+              ) : (
+                <EyeSlash style={styles.editIcon} height={20} width={20} />
+              )}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -141,12 +155,12 @@ const ProfileScreen = ({ navigation }) => {
         value="dansmith.vyzor@gmail.com"
         placeholder="Enter email"
       />
-      <DropdownField
+      <InputField
         label="Language"
         value="French"
         placeholder="Select language"
       />
-      <DropdownField
+      <InputField
         label="Time Zone"
         value="UTC-12:00"
         placeholder="Select timezone"
@@ -395,7 +409,8 @@ const ProfileScreen = ({ navigation }) => {
                 style={styles.editIconContainer}
                 onPress={handleEditPress}
               >
-                <Text style={styles.editIcon}>✎</Text>
+                {/* <Text style={styles.editIcon}>✎</Text> */}
+                <EditIcon style={styles.editIcon} height={20} width={20} />
               </TouchableOpacity>
             </View>
             <Text style={styles.userName}>Dan Smith</Text>
@@ -410,9 +425,7 @@ const ProfileScreen = ({ navigation }) => {
                   style={[styles.iconCircle, { backgroundColor: '#E8F4FD' }]}
                 >
                   <View style={styles.iconWrapper}>
-                    <Text style={[styles.iconText, { color: '#007AFF' }]}>
-                      @
-                    </Text>
+                    <LocationIcon height={20} width={20} color={'#0088E7'} />
                   </View>
                 </View>
               }
@@ -426,9 +439,7 @@ const ProfileScreen = ({ navigation }) => {
                   style={[styles.iconCircle, { backgroundColor: '#E8F4FD' }]}
                 >
                   <View style={styles.iconWrapper}>
-                    <Text style={[styles.iconText, { color: '#007AFF' }]}>
-                      🌐
-                    </Text>
+                    <LanguageIcon height={20} width={20} color={'#0088E7'} />
                   </View>
                 </View>
               }
@@ -443,9 +454,7 @@ const ProfileScreen = ({ navigation }) => {
                   style={[styles.iconCircle, { backgroundColor: '#E8F4FD' }]}
                 >
                   <View style={styles.iconWrapper}>
-                    <Text style={[styles.iconText, { color: '#007AFF' }]}>
-                      🌍
-                    </Text>
+                    <TimeZoneIcon height={20} width={20} color={'#0088E7'} />
                   </View>
                 </View>
               }
@@ -460,9 +469,7 @@ const ProfileScreen = ({ navigation }) => {
                   style={[styles.iconCircle, { backgroundColor: '#E8F4FD' }]}
                 >
                   <View style={styles.iconWrapper}>
-                    <Text style={[styles.iconText, { color: '#134882ff' }]}>
-                      📞
-                    </Text>
+                    <PhoneIcon height={20} width={20} color={'#0088E7'} />
                   </View>
                 </View>
               }
@@ -476,9 +483,7 @@ const ProfileScreen = ({ navigation }) => {
                   style={[styles.iconCircle, { backgroundColor: '#E8F4FD' }]}
                 >
                   <View style={styles.iconWrapper}>
-                    <Text style={[styles.iconText, { color: '#007AFF' }]}>
-                      🔒
-                    </Text>
+                    <PasswordIcon height={20} width={20} color={'#0088E7'} />
                   </View>
                 </View>
               }
@@ -563,25 +568,25 @@ const styles = StyleSheet.create({
   avatar: {
     width: 120,
     height: 120,
-    borderRadius: 40,
+    borderRadius: 12,
     backgroundColor: '#ddd',
   },
   editIconContainer: {
     position: 'absolute',
-    bottom: 2,
-    right: -2,
+    top: -6,
+    right: -10,
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: '#007AFF',
+    // borderRadius: 16,
+    // backgroundColor: '#007AFF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    // borderWidth: 3,
+    // borderColor: '#fff',
+    // shadowColor: '#000',
+    // shadowOpacity: 0.1,
+    // shadowRadius: 4,
+    // elevation: 3,
   },
   editIcon: {
     color: '#fff',
@@ -737,23 +742,40 @@ const styles = StyleSheet.create({
   inputWrapper: {
     position: 'relative',
   },
+  // textInput: {
+  //   backgroundColor: '#fff',
+  //   borderRadius: 12,
+  //   topBorderwidth: 0,
+  //   padding: 16,
+  //   fontSize: 14,
+  //   color: '#1A1A1A',
+  //   borderWidth: 1,
+  //   borderColor: '#E8E8E8',
+  //   shadowColor: '#000',
+  //   shadowOpacity: 0.02,
+  //   shadowRadius: 4,
+  //   elevation: 1,
+  // },
   textInput: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: 'transparent', // no background
+    paddingVertical: 8,
+    paddingHorizontal: 0, // remove side padding to align with underline
     fontSize: 14,
     color: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    shadowColor: '#000',
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 1,
+
+    // Only bottom border (underline)
+    borderBottomWidth: 1,
+    borderBottomColor: '#B0B0B0', // light gray, adjust as needed
+
+    // Remove unnecessary styles
+    borderRadius: 0,
+    shadowColor: 'transparent',
+    elevation: 0,
   },
   eyeIcon: {
     position: 'absolute',
     right: 16,
-    top: 16,
+    top: 4,
     padding: 4,
   },
   eyeIconText: {
