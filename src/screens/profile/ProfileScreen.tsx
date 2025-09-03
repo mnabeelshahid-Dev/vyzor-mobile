@@ -499,21 +499,16 @@ const ProfileScreen = ({ navigation }) => {
     onChangeText,
     errorMessage,
   }) => (
-    <View style={styles.inputContainer}>
+    <View style={styles.phoneNumberContainer}>
       <Text style={styles.inputLabel}>{label}</Text>
-      <View style={styles.inputWrapper}>
+      <View style={styles.phoneInputWrapper}>
         <TextInput
-          key={label} // Add this key prop
-          style={styles.textInput}
+          style={styles.phoneInput}
           value={value}
           placeholder={placeholder}
           secureTextEntry={secureTextEntry && !showPassword}
           placeholderTextColor="#999"
           onChangeText={onChangeText}
-          autoCapitalize="none"
-          autoCorrect={false}
-          blurOnSubmit={false}
-          returnKeyType="next"
         />
         {secureTextEntry && (
           <TouchableOpacity style={styles.eyeIcon} onPress={onTogglePassword}>
@@ -549,33 +544,42 @@ const ProfileScreen = ({ navigation }) => {
 
   const renderGeneralInfo = () => (
     <View style={styles.tabContent}>
-      <InputField
-        label="First Name"
-        value={firstName}
-        placeholder="Enter first name"
-        secureTextEntry={false}
-        showPassword={false}
-        onTogglePassword={() => {}}
-        onChangeText={setFirstName}
-      />
-      <InputField
-        label="Last Name"
-        value={lastName}
-        placeholder="Enter last name"
-        secureTextEntry={false}
-        showPassword={false}
-        onTogglePassword={() => {}}
-        onChangeText={setLastName}
-      />
-      <InputField
-        label="Email"
-        value={email}
-        placeholder="Enter email"
-        secureTextEntry={false}
-        showPassword={false}
-        onTogglePassword={() => {}}
-        onChangeText={setEmail}
-      />
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>First Name</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={firstName}
+            placeholder="Enter first name"
+            placeholderTextColor="#999"
+            onChangeText={setFirstName}
+          />
+        </View>
+      </View>
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Last Name</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={lastName}
+            placeholder="Enter last name"
+            placeholderTextColor="#999"
+            onChangeText={setLastName}
+          />
+        </View>
+      </View>
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Email</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={email}
+            placeholder="Enter email"
+            placeholderTextColor="#999"
+            onChangeText={setEmail}
+          />
+        </View>
+      </View>
       {/* Language as select */}
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>Language</Text>
@@ -683,54 +687,108 @@ const ProfileScreen = ({ navigation }) => {
 
   const renderChangePassword = () => (
     <View style={styles.tabContent}>
-      <InputField
-        label="Current Password"
-        value={currentPasswordField}
-        placeholder="Enter current password"
-        secureTextEntry={true}
-        showPassword={showCurrentPassword}
-        onChangeText={text => {
-          setCurrentPasswordField(text);
-          if (currentPasswordError) {
-            validateCurrentPassword(text);
-          }
-        }}
-        onTogglePassword={() => setShowCurrentPassword(!showCurrentPassword)}
-        errorMessage={currentPasswordError}
-      />
-      <InputField
-        label="New Password"
-        value={newPasswordField}
-        placeholder="Enter new password"
-        secureTextEntry={true}
-        showPassword={showNewPassword}
-        onChangeText={text => {
-          setNewPasswordField(text);
-          if (newPasswordError) {
-            validateNewPassword(text);
-          }
-          if (confirmNewPasswordField) {
-            validateConfirmPassword(confirmNewPasswordField, text);
-          }
-        }}
-        onTogglePassword={() => setShowNewPassword(!showNewPassword)}
-        errorMessage={newPasswordError}
-      />
-      <InputField
-        label="Confirm New Password"
-        value={confirmNewPasswordField}
-        placeholder="Confirm new password"
-        secureTextEntry={true}
-        showPassword={showConfirmPassword}
-        onChangeText={text => {
-          setConfirmNewPasswordField(text);
-          if (confirmPasswordError) {
-            validateConfirmPassword(text, newPasswordField);
-          }
-        }}
-        onTogglePassword={() => setShowConfirmPassword(!showConfirmPassword)}
-        errorMessage={confirmPasswordError}
-      />
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Current Password</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={currentPasswordField}
+            placeholder="Enter current password"
+            secureTextEntry={!showCurrentPassword}
+            placeholderTextColor="#999"
+            onChangeText={text => {
+              setCurrentPasswordField(text);
+              if (currentPasswordError) {
+                validateCurrentPassword(text);
+              }
+            }}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowCurrentPassword(!showCurrentPassword)}
+          >
+            <Text style={styles.eyeIconText}>
+              {showCurrentPassword ? (
+                '👁️‍🗨️'
+              ) : (
+                <EyeSlash style={styles.editIcon} height={20} width={20} />
+              )}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {currentPasswordError ? (
+          <Text style={styles.errorText}>{currentPasswordError}</Text>
+        ) : null}
+      </View>
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>New Password</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={newPasswordField}
+            placeholder="Enter new password"
+            secureTextEntry={!showNewPassword}
+            placeholderTextColor="#999"
+            onChangeText={text => {
+              setNewPasswordField(text);
+              if (newPasswordError) {
+                validateNewPassword(text);
+              }
+              if (confirmNewPasswordField) {
+                validateConfirmPassword(confirmNewPasswordField, text);
+              }
+            }}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowNewPassword(!showNewPassword)}
+          >
+            <Text style={styles.eyeIconText}>
+              {showNewPassword ? (
+                '👁️‍🗨️'
+              ) : (
+                <EyeSlash style={styles.editIcon} height={20} width={20} />
+              )}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {newPasswordError ? (
+          <Text style={styles.errorText}>{newPasswordError}</Text>
+        ) : null}
+      </View>
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Confirm New Password</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={confirmNewPasswordField}
+            placeholder="Confirm new password"
+            secureTextEntry={!showConfirmPassword}
+            placeholderTextColor="#999"
+            onChangeText={text => {
+              setConfirmNewPasswordField(text);
+              if (confirmPasswordError) {
+                validateConfirmPassword(text, newPasswordField);
+              }
+            }}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          >
+            <Text style={styles.eyeIconText}>
+              {showConfirmPassword ? (
+                '👁️‍🗨️'
+              ) : (
+                <EyeSlash style={styles.editIcon} height={20} width={20} />
+              )}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {confirmPasswordError ? (
+          <Text style={styles.errorText}>{confirmPasswordError}</Text>
+        ) : null}
+      </View>
     </View>
   );
 
@@ -779,33 +837,42 @@ const ProfileScreen = ({ navigation }) => {
         <Text style={styles.addNumberText}>+ Add New Number</Text>
       </TouchableOpacity>
 
-      <InputField
-        label="State/Province/Region"
-        value={state}
-        placeholder="Enter state/province/region"
-        secureTextEntry={false}
-        showPassword={false}
-        onTogglePassword={() => {}}
-        onChangeText={setState}
-      />
-      <InputField
-        label="Street"
-        value={street}
-        placeholder="Enter street address"
-        secureTextEntry={false}
-        showPassword={false}
-        onTogglePassword={() => {}}
-        onChangeText={setStreet}
-      />
-      <InputField
-        label="Zip/Postal Code"
-        value={postalCode}
-        placeholder="Enter zip/postal code"
-        secureTextEntry={false}
-        showPassword={false}
-        onTogglePassword={() => {}}
-        onChangeText={setPostalCode}
-      />
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>State/Province/Region</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={state}
+            placeholder="Enter state/province/region"
+            placeholderTextColor="#999"
+            onChangeText={setState}
+          />
+        </View>
+      </View>
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Street</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={street}
+            placeholder="Enter street address"
+            placeholderTextColor="#999"
+            onChangeText={setStreet}
+          />
+        </View>
+      </View>
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Zip/Postal Code</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={postalCode}
+            placeholder="Enter zip/postal code"
+            placeholderTextColor="#999"
+            onChangeText={setPostalCode}
+          />
+        </View>
+      </View>
     </View>
   );
 
@@ -1342,7 +1409,7 @@ const styles = StyleSheet.create({
   eyeIcon: {
     position: 'absolute',
     right: 16,
-    top: 4,
+    top: 8,
     padding: 4,
   },
   eyeIconText: {
