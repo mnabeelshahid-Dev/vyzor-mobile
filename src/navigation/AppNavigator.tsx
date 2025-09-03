@@ -250,13 +250,13 @@ const RootNavigator = () => {
   const { isLoading: userLoading } = useCurrentUser();
 
   // Show loading screen while checking authentication status
-  if (authLoading || userLoading) {
-    return (
-      <LoadingWrapper isLoading={true}>
-        <View />
-      </LoadingWrapper>
-    );
-  }
+  // if (authLoading || userLoading) {
+  //   return (
+  //     <LoadingWrapper isLoading={true}>
+  //       <View />
+  //     </LoadingWrapper>
+  //   );
+  // }
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
