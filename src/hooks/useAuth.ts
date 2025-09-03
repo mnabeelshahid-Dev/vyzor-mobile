@@ -35,7 +35,7 @@ export const useLogin = () => {
     onSuccess: () => {
       showSuccessToast(
         'Welcome back!',
-        'You have been logged in successfully.'
+        'You have been logged in successfully.',
       );
     },
     onError: (error: Error) => {
@@ -73,7 +73,7 @@ export const useRegister = () => {
         dateOfBirth,
         password,
         confirmPassword,
-        phoneNumber
+        phoneNumber,
       );
       if (!success) {
         throw new Error('Registration failed');
@@ -84,17 +84,17 @@ export const useRegister = () => {
       // Show success toast but don't navigate - let the screen handle navigation
       showSuccessToast(
         'Account Created!',
-        'Welcome to Vyzor! Your account has been created successfully.'
+        'Welcome to Vyzor! Your account has been created successfully.',
       );
       console.log(
-        '✅ Registration mutation successful, screen will handle navigation'
+        '✅ Registration mutation successful, screen will handle navigation',
       );
     },
     onError: (error: Error) => {
       // Show error toast but don't navigate - let the screen handle staying on register
       showErrorToast('Registration Failed', error.message);
       console.log(
-        '❌ Registration mutation failed, staying on register screen'
+        '❌ Registration mutation failed, staying on register screen',
       );
     },
   });
@@ -141,7 +141,7 @@ export const useForgotPassword = () => {
     onSuccess: () => {
       showSuccessToast(
         'Email Sent!',
-        'Password reset instructions have been sent to your email.'
+        'Password reset instructions have been sent to your email.',
       );
     },
     onError: (error: Error) => {

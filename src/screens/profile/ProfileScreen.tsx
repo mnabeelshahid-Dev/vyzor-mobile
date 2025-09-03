@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,51 @@ import {
   TouchableOpacity,
   Platform,
   Image,
+  // Picker,
   ScrollView,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import Modal from 'react-native-modal';
-import { useLogout } from '../../hooks/useAuth';
+import { Picker } from '@react-native-picker/picker';
+import { apiService } from '../../services/api';
+
+import { useAuthStore } from '../../store/authStore';
+
+import {
+  useLogout,
+  // useCurrentUser,
+  // useNewCurrentUser,
+} from '../../hooks/useAuth';
+// import { profileApi } from '../../api/profile';
+// import { useCurrentUserProfile } from '../../hooks/useAuth';
+
+// Define the expected properties on profileData
+interface ProfileData {
+  firstName: string;
+  lastName: string;
+  role: string;
+  email: string;
+  location: string;
+  timezone: string;
+  phone: string;
+  language: string;
+  updatedById: string;
+  clientId: string;
+  birthday: string;
+  endDate: string;
+  startDate: string;
+  webId: string;
+  addressModel: {
+    city: string;
+    street: string;
+    state: string;
+    postalCode: string;
+  };
+  userPhoneModels: { phoneModel: { phoneNumber: string; webId: string } }[];
+  // Add other fields as needed
+}
+
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import LocationIcon from '../../assets/svgs/location.svg';
@@ -20,7 +60,7 @@ import LanguageIcon from '../../assets/svgs/language.svg';
 import PhoneIcon from '../../assets/svgs/phone.svg';
 import EditIcon from '../../assets/svgs/edit.svg';
 import EyeSlash from '../../assets/svgs/eyeSlash.svg';
-
+import axios from 'axios';
 import { SafeAreaView } from 'react-native';
 import { StatusBar } from 'react-native';
 
@@ -38,6 +78,182 @@ const ProfileScreen = ({ navigation }) => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [profileData, setProfileData] = useState<ProfileData>({
+    firstName: '',
+    lastName: '',
+    role: '',
+    email: '',
+    location: '',
+    timezone: '',
+    phone: '',
+    language: '',
+    updatedById: '',
+    webId: '',
+    clientId: '',
+    birthday: '',
+    endDate: '',
+    startDate: '',
+    addressModel: {
+      city: '',
+      street: '',
+      postalCode: '',
+      state: '',
+    },
+    userPhoneModels: [{ phoneModel: { phoneNumber: '', webId: '' } }],
+  });
+  const [currentPasswordField, setCurrentPasswordField] = useState('');
+  const [newPasswordField, setNewPasswordField] = useState('');
+  const [confirmNewPasswordField, setConfirmNewPasswordField] = useState('');
+
+  const [currentPasswordError, setCurrentPasswordError] = useState('');
+  const [newPasswordError, setNewPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
+
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [language, setLanguage] = useState('');
+  const [timezone, setTimezone] = useState('');
+
+  const [street, setStreet] = useState('');
+  const [state, setState] = useState('');
+  const [postalCode, setPostalCode] = useState('');
+
+  const [phoneNumbers, setPhoneNumbers] = useState([]);
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await apiService.get<ProfileData>(
+          '/api/security/userAccounts/currentUser/',
+        );
+
+        if (response.success && response.data) {
+          const profileData = response.data;
+          setProfileData(profileData);
+
+          // Initialize form fields with fetched data
+          setFirstName(profileData.firstName || '');
+          setLastName(profileData.lastName || '');
+          setEmail(profileData.email || '');
+          setLanguage(profileData.language || '');
+          setTimezone(profileData.timezone || '');
+
+          // Initialize contact details states
+          setStreet(profileData.addressModel?.street || '');
+          setState(profileData.addressModel?.state || '');
+          setPostalCode(profileData.addressModel?.postalCode || '');
+
+          // Initialize phone numbers - first one as default, others as non-default
+          const userPhones = profileData.userPhoneModels || [];
+          if (userPhones.length > 0) {
+            const initialPhones = userPhones.map((phoneObj, index) => ({
+              id: Date.now() + index, // unique id for each phone
+              phoneNumber: phoneObj.phoneModel?.phoneNumber || '',
+              isDefault: index === 0, // first one is default
+            }));
+            setPhoneNumbers(initialPhones);
+          } else {
+            // If no phones exist, create one default phone
+            setPhoneNumbers([
+              {
+                id: Date.now(),
+                phoneNumber: '',
+                isDefault: true,
+              },
+            ]);
+          }
+
+          console.log('Phone numbers', phoneNumbers);
+          console.log('Current user response:', profileData);
+        } else {
+          console.error('Error fetching current user:', response.message);
+        }
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching current user:', error);
+        setIsLoading(false);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
+
+  // Password validation functions
+  const validateCurrentPassword = (password: string) => {
+    if (!password.trim()) {
+      setCurrentPasswordError('Current password is required');
+      return false;
+    }
+    setCurrentPasswordError('');
+    return true;
+  };
+
+  const validateNewPassword = (password: string) => {
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+    if (password.length < minLength) {
+      setNewPasswordError('Password must be at least 8 characters long');
+      return false;
+    }
+    if (!hasUpperCase) {
+      setNewPasswordError('Password must contain at least 1 uppercase letter');
+      return false;
+    }
+    if (!hasLowerCase) {
+      setNewPasswordError('Password must contain at least 1 lowercase letter');
+      return false;
+    }
+    if (!hasNumbers) {
+      setNewPasswordError('Password must contain at least 1 number');
+      return false;
+    }
+    if (!hasSpecialChar) {
+      setNewPasswordError('Password must contain at least 1 special character');
+      return false;
+    }
+    setNewPasswordError('');
+    return true;
+  };
+
+  const validateConfirmPassword = (
+    confirmPassword: string,
+    newPassword: string,
+  ) => {
+    if (confirmPassword !== newPassword) {
+      setConfirmPasswordError('Passwords do not match');
+      return false;
+    }
+    setConfirmPasswordError('');
+    return true;
+  };
+
+  const addNewPhoneNumber = () => {
+    const newPhone = {
+      id: Date.now(),
+      phoneNumber: '',
+      isDefault: false,
+    };
+    setPhoneNumbers([...phoneNumbers, newPhone]);
+  };
+
+  const removePhoneNumber = id => {
+    setPhoneNumbers(phoneNumbers.filter(phone => phone.id !== id));
+  };
+
+  const updatePhoneNumber = (id, newPhoneNumber) => {
+    setPhoneNumbers(
+      phoneNumbers.map(phone =>
+        phone.id === id ? { ...phone, phoneNumber: newPhoneNumber } : phone,
+      ),
+    );
+  };
 
   const handleLogout = async () => {
     await logoutMutation.mutateAsync();
@@ -48,8 +264,190 @@ const ProfileScreen = ({ navigation }) => {
     setIsEditMode(true);
   };
 
-  const handleUpdatePress = () => {
+  const handleGeneralInfoUpdate = async () => {
+    try {
+      // Create payload from form state
+      const updatePayload = {
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        language: language,
+        timezone: timezone,
+        birthday: profileData?.birthday,
+        startDate: profileData?.startDate,
+        clientId: profileData?.clientId,
+        endDate: profileData?.endDate,
+      };
+
+      const response = await apiService.put<ProfileData>(
+        `/api/security/userAccounts/${profileData.updatedById}`,
+        updatePayload,
+      );
+
+      if (response.success && response.data) {
+        console.log('Updated Payload', updatePayload);
+        console.log('Update profile response:', response.data);
+        // Optionally update the profileData state with the returned data
+        setProfileData(response.data);
+      } else {
+        console.error('Error updating profile:', response.message);
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
+    console.log('General Info updated');
     setIsEditMode(false);
+  };
+
+  const handleChangePasswordUpdate = async () => {
+    // Validate all fields
+    const isCurrentPasswordValid =
+      validateCurrentPassword(currentPasswordField);
+    const isNewPasswordValid = validateNewPassword(newPasswordField);
+    const isConfirmPasswordValid = validateConfirmPassword(
+      confirmNewPasswordField,
+      newPasswordField,
+    );
+
+    if (
+      !isCurrentPasswordValid ||
+      !isNewPasswordValid ||
+      !isConfirmPasswordValid
+    ) {
+      return; // Don't proceed if validation fails
+    }
+
+    try {
+      const updatePayload = {
+        firstName: profileData?.firstName,
+        lastName: profileData?.lastName,
+        email: profileData?.email,
+        language: profileData?.language,
+        endDate: profileData?.endDate,
+        timeZone: profileData?.timezone,
+        birthday: profileData?.birthday,
+        startDate: profileData?.startDate,
+        clientId: profileData?.clientId,
+        password: newPasswordField,
+        currentPassword: currentPasswordField,
+      };
+
+      const response = await apiService.put<ProfileData>(
+        `/api/security/userAccounts/${profileData.updatedById}`,
+        updatePayload,
+      );
+
+      if (response.success && response.data) {
+        console.log('Password update payload:', updatePayload);
+        console.log('Password update response:', response.data);
+
+        // Clear password fields after successful update
+        setCurrentPasswordField('');
+        setNewPasswordField('');
+        setConfirmNewPasswordField('');
+        setCurrentPasswordError('');
+        setNewPasswordError('');
+        setConfirmPasswordError('');
+      } else {
+        console.error('Error updating password:', response.message);
+      }
+    } catch (error) {
+      console.error('Error updating password:', error);
+    }
+    setIsEditMode(false);
+  };
+  // const handleContactDetailsUpdate = () => {
+  //   // Add your contact details update logic here
+  //   console.log('Contact Details updated');
+  //   setIsEditMode(false);
+  // };
+
+  const handleContactDetailsUpdate = async () => {
+    try {
+      // Create payload from form state
+      const updatePayload = {
+        addressModel: {
+          street: street,
+          postalCode: postalCode,
+          state: state,
+        },
+      };
+
+      const response = await apiService.post(
+        `/api/security/contactDetails`,
+        updatePayload,
+      );
+
+      if (response.success && response.data) {
+        console.log('Updated Payload', updatePayload);
+        console.log('Update contact details response:', response.data);
+      } else {
+        console.error('Error updating contact details:', response.message);
+      }
+    } catch (error) {
+      console.error('Error updating contact details:', error);
+    }
+    console.log('Contact Details updated');
+    setIsEditMode(false);
+  };
+
+  const handlePhoneDetailsUpdate = async () => {
+    try {
+      // Create dynamic payload from phoneNumbers state
+      const updatePayload = phoneNumbers
+        .filter(phone => phone.phoneNumber.trim() !== '') // Only include phones with numbers
+        .map(phone => ({
+          phoneNumber: phone.phoneNumber,
+          type: 'CALL',
+          webId: phone.webId,
+          defaultPhone: phone.isDefault,
+        }));
+
+      const updateStaticPayload = [
+        {
+          phoneNumber: '+923089907111',
+          type: 'CALL',
+          webId: profileData?.webId,
+          defaultPhone: false,
+        },
+        {
+          phoneNumber: '+376643111',
+          type: 'CALL',
+          webId: profileData?.webId,
+          defaultPhone: true,
+        },
+        {
+          phoneNumber: '+923089905111',
+          type: 'CALL',
+          webId: profileData?.webId,
+          defaultPhone: false,
+        },
+      ];
+      console.log(updateStaticPayload);
+
+      const response = await apiService.put(
+        `/api/security/userAccounts/userAccount/${profileData.updatedById}/updatePhone`,
+        updatePayload,
+      );
+
+      console.log('phone payload', updatePayload);
+      console.log('phone response', response);
+    } catch (error) {
+      console.error('Error updating Phone details:', error);
+    }
+    console.log('Phone Details updated');
+    setIsEditMode(false);
+  };
+
+  const handleUpdatePress = () => {
+    if (activeTab === 'General Info') {
+      handleGeneralInfoUpdate();
+    } else if (activeTab === 'Change Password') {
+      handleChangePasswordUpdate();
+    } else if (activeTab === 'Contact Details') {
+      handleContactDetailsUpdate();
+      handlePhoneDetailsUpdate();
+    }
   };
 
   const handleResetPress = () => {
@@ -98,16 +496,19 @@ const ProfileScreen = ({ navigation }) => {
     secureTextEntry = false,
     showPassword,
     onTogglePassword,
+    onChangeText,
+    errorMessage,
   }) => (
-    <View style={styles.inputContainer}>
+    <View style={styles.phoneNumberContainer}>
       <Text style={styles.inputLabel}>{label}</Text>
-      <View style={styles.inputWrapper}>
+      <View style={styles.phoneInputWrapper}>
         <TextInput
-          style={styles.textInput}
+          style={styles.phoneInput}
           value={value}
           placeholder={placeholder}
           secureTextEntry={secureTextEntry && !showPassword}
           placeholderTextColor="#999"
+          onChangeText={onChangeText}
         />
         {secureTextEntry && (
           <TouchableOpacity style={styles.eyeIcon} onPress={onTogglePassword}>
@@ -121,6 +522,9 @@ const ProfileScreen = ({ navigation }) => {
           </TouchableOpacity>
         )}
       </View>
+      {errorMessage ? (
+        <Text style={styles.errorText}>{errorMessage}</Text>
+      ) : null}
     </View>
   );
 
@@ -140,32 +544,130 @@ const ProfileScreen = ({ navigation }) => {
 
   const renderGeneralInfo = () => (
     <View style={styles.tabContent}>
-      <InputField
-        label="First Name"
-        value="Dan"
-        placeholder="Enter first name"
-      />
-      <InputField
-        label="Last Name"
-        value="Smith"
-        placeholder="Enter last name"
-      />
-      <InputField
-        label="Email"
-        value="dansmith.vyzor@gmail.com"
-        placeholder="Enter email"
-      />
-      <InputField
-        label="Language"
-        value="French"
-        placeholder="Select language"
-      />
-      <InputField
-        label="Time Zone"
-        value="UTC-12:00"
-        placeholder="Select timezone"
-      />
-
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>First Name</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={firstName}
+            placeholder="Enter first name"
+            placeholderTextColor="#999"
+            onChangeText={setFirstName}
+          />
+        </View>
+      </View>
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Last Name</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={lastName}
+            placeholder="Enter last name"
+            placeholderTextColor="#999"
+            onChangeText={setLastName}
+          />
+        </View>
+      </View>
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Email</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={email}
+            placeholder="Enter email"
+            placeholderTextColor="#999"
+            onChangeText={setEmail}
+          />
+        </View>
+      </View>
+      {/* Language as select */}
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Language</Text>
+        <View
+          style={{
+            borderBottomWidth: 1,
+            borderBottomColor: '#B0B0B0',
+            marginBottom: 10,
+          }}
+        >
+          <Picker
+            selectedValue={language}
+            style={{
+              height: 55,
+              color: '#1A1A1A',
+              backgroundColor: 'transparent',
+              borderWidth: 0,
+              borderRadius: 0,
+              padding: 0,
+            }}
+            dropdownIconColor="#007AFF"
+            onValueChange={itemValue => setLanguage(itemValue)}
+          >
+            <Picker.Item label="Select language" value="" color="#999" />
+            <Picker.Item label="English" value="English" />
+            <Picker.Item label="French" value="French" />
+            <Picker.Item label="Spanish" value="Spanish" />
+          </Picker>
+        </View>
+      </View>
+      {/* Time Zone as select */}
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Time Zone</Text>
+        <View
+          style={{
+            borderBottomWidth: 1,
+            borderBottomColor: '#B0B0B0',
+            marginBottom: 10,
+          }}
+        >
+          <Picker
+            selectedValue={timezone}
+            style={{
+              height: 55,
+              color: '#1A1A1A',
+              backgroundColor: 'transparent',
+              borderWidth: 0,
+              borderRadius: 0,
+              padding: 0,
+            }}
+            dropdownIconColor="#007AFF"
+            onValueChange={itemValue => setTimezone(itemValue)}
+          >
+            <Picker.Item label="Select time zone" value="" color="#999" />
+            <Picker.Item label="UTC" value="UTC" />
+            <Picker.Item label="GMT+1 (Central European Time)" value="GMT+1" />
+            <Picker.Item label="GMT+2 (Eastern European Time)" value="GMT+2" />
+            <Picker.Item label="GMT+3 (Moscow Time)" value="GMT+3" />
+            <Picker.Item label="GMT+5 (Pakistan Standard Time)" value="GMT+5" />
+            <Picker.Item
+              label="GMT+5:30 (India Standard Time)"
+              value="GMT+5:30"
+            />
+            <Picker.Item label="GMT+8 (China Standard Time)" value="GMT+8" />
+            <Picker.Item label="GMT+9 (Japan Standard Time)" value="GMT+9" />
+            <Picker.Item
+              label="GMT+10 (Australian Eastern Time)"
+              value="GMT+10"
+            />
+            <Picker.Item
+              label="GMT-5 (Eastern Time US & Canada)"
+              value="GMT-5"
+            />
+            <Picker.Item
+              label="GMT-6 (Central Time US & Canada)"
+              value="GMT-6"
+            />
+            <Picker.Item
+              label="GMT-7 (Mountain Time US & Canada)"
+              value="GMT-7"
+            />
+            <Picker.Item
+              label="GMT-8 (Pacific Time US & Canada)"
+              value="GMT-8"
+            />
+          </Picker>
+        </View>
+      </View>
       <TouchableOpacity
         style={styles.checkboxContainer}
         onPress={() => setUseDefaultTimeZone(!useDefaultTimeZone)}
@@ -185,100 +687,210 @@ const ProfileScreen = ({ navigation }) => {
 
   const renderChangePassword = () => (
     <View style={styles.tabContent}>
-      <InputField
-        label="Current Password"
-        value="••••••••••••••"
-        placeholder="Enter current password"
-        secureTextEntry={true}
-        showPassword={showCurrentPassword}
-        onTogglePassword={() => setShowCurrentPassword(!showCurrentPassword)}
-      />
-      <InputField
-        label="New Password"
-        value="••••••••••••••"
-        placeholder="Enter new password"
-        secureTextEntry={true}
-        showPassword={showNewPassword}
-        onTogglePassword={() => setShowNewPassword(!showNewPassword)}
-      />
-      <InputField
-        label="Confirm New Password"
-        value="••••••••••••••"
-        placeholder="Confirm new password"
-        secureTextEntry={true}
-        showPassword={showConfirmPassword}
-        onTogglePassword={() => setShowConfirmPassword(!showConfirmPassword)}
-      />
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Current Password</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={currentPasswordField}
+            placeholder="Enter current password"
+            secureTextEntry={!showCurrentPassword}
+            placeholderTextColor="#999"
+            onChangeText={text => {
+              setCurrentPasswordField(text);
+              if (currentPasswordError) {
+                validateCurrentPassword(text);
+              }
+            }}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowCurrentPassword(!showCurrentPassword)}
+          >
+            <Text style={styles.eyeIconText}>
+              {showCurrentPassword ? (
+                '👁️‍🗨️'
+              ) : (
+                <EyeSlash style={styles.editIcon} height={20} width={20} />
+              )}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {currentPasswordError ? (
+          <Text style={styles.errorText}>{currentPasswordError}</Text>
+        ) : null}
+      </View>
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>New Password</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={newPasswordField}
+            placeholder="Enter new password"
+            secureTextEntry={!showNewPassword}
+            placeholderTextColor="#999"
+            onChangeText={text => {
+              setNewPasswordField(text);
+              if (newPasswordError) {
+                validateNewPassword(text);
+              }
+              if (confirmNewPasswordField) {
+                validateConfirmPassword(confirmNewPasswordField, text);
+              }
+            }}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowNewPassword(!showNewPassword)}
+          >
+            <Text style={styles.eyeIconText}>
+              {showNewPassword ? (
+                '👁️‍🗨️'
+              ) : (
+                <EyeSlash style={styles.editIcon} height={20} width={20} />
+              )}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {newPasswordError ? (
+          <Text style={styles.errorText}>{newPasswordError}</Text>
+        ) : null}
+      </View>
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Confirm New Password</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={confirmNewPasswordField}
+            placeholder="Confirm new password"
+            secureTextEntry={!showConfirmPassword}
+            placeholderTextColor="#999"
+            onChangeText={text => {
+              setConfirmNewPasswordField(text);
+              if (confirmPasswordError) {
+                validateConfirmPassword(text, newPasswordField);
+              }
+            }}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          >
+            <Text style={styles.eyeIconText}>
+              {showConfirmPassword ? (
+                '👁️‍🗨️'
+              ) : (
+                <EyeSlash style={styles.editIcon} height={20} width={20} />
+              )}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {confirmPasswordError ? (
+          <Text style={styles.errorText}>{confirmPasswordError}</Text>
+        ) : null}
+      </View>
     </View>
   );
 
   const renderContactDetails = () => (
     <View style={styles.tabContent}>
+      {phoneNumbers.map((phone, index) => (
+        <View style={styles.phoneNumberContainer} key={phone.id}>
+          <View style={styles.phoneHeaderRow}>
+            <Text
+              style={[
+                styles.inputLabel,
+                index === 0
+                  ? styles.defaultPhoneLabel
+                  : styles.inputLabelAddNewNumber,
+              ]}
+            >
+              {index === 0
+                ? 'Phone Number (Default)'
+                : 'Additional Phone Number'}
+            </Text>
+            {index > 0 && (
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => removePhoneNumber(phone.id)}
+              >
+                <Text style={styles.deleteButtonText}>Delete</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.phoneInputWrapper}>
+            <TextInput
+              style={styles.phoneInput}
+              value={phone.phoneNumber}
+              placeholder="Enter phone number"
+              placeholderTextColor="#999"
+              onChangeText={text => updatePhoneNumber(phone.id, text)}
+            />
+          </View>
+        </View>
+      ))}
+
+      <TouchableOpacity
+        style={styles.addNumberButton}
+        onPress={addNewPhoneNumber}
+      >
+        <Text style={styles.addNumberText}>+ Add New Number</Text>
+      </TouchableOpacity>
+
       <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabel}>Phone Number</Text>
+        <Text style={styles.inputLabel}>State/Province/Region</Text>
         <View style={styles.phoneInputWrapper}>
           <TextInput
             style={styles.phoneInput}
-            value="(223)-334-4444"
-            placeholder="Enter phone number"
+            value={state}
+            placeholder="Enter state/province/region"
             placeholderTextColor="#999"
+            onChangeText={setState}
           />
-          {/* <TouchableOpacity style={styles.phoneEditIcon}>
-            <Text style={styles.phoneEditIconText}>✎</Text>
-          </TouchableOpacity> */}
         </View>
       </View>
-
-      {/* <TouchableOpacity style={styles.addNumberButton}>
-        <Text style={styles.addNumberText}>Add New Number</Text>
-      </TouchableOpacity> */}
-
-      {/* <View style={styles.countryCodeContainer}>
-        <Text style={styles.inputLabel}>Country Code</Text>
-        <TouchableOpacity style={styles.dropdownInput}>
-          <Text style={styles.dropdownInputText}>+44 | 334-4444</Text>
-          <Text style={styles.dropdownArrowText}>▾</Text>
-        </TouchableOpacity>
-      </View> */}
-
       <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabelAddNewNumber}>Add New Number</Text>
+        <Text style={styles.inputLabel}>Street</Text>
         <View style={styles.phoneInputWrapper}>
           <TextInput
             style={styles.phoneInput}
-            value="(223)-334-4444"
-            placeholder="Enter phone number"
+            value={street}
+            placeholder="Enter street address"
             placeholderTextColor="#999"
+            onChangeText={setStreet}
           />
-          {/* <TouchableOpacity style={styles.phoneEditIcon}>
-            <Text style={styles.phoneEditIconText}>✎</Text>
-          </TouchableOpacity> */}
         </View>
       </View>
-
-      <InputField
-        label="State/Province/Region"
-        value="Punjab"
-        placeholder="Enter state/province/region"
-      />
-      <InputField
-        label="Street"
-        value="Valencia Town"
-        placeholder="Enter street address"
-      />
-      <InputField
-        label="Zip/Postal Code"
-        value="0423"
-        placeholder="Enter zip/postal code"
-      />
+      <View style={styles.phoneNumberContainer}>
+        <Text style={styles.inputLabel}>Zip/Postal Code</Text>
+        <View style={styles.phoneInputWrapper}>
+          <TextInput
+            style={styles.phoneInput}
+            value={postalCode}
+            placeholder="Enter zip/postal code"
+            placeholderTextColor="#999"
+            onChangeText={setPostalCode}
+          />
+        </View>
+      </View>
     </View>
   );
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.loaderContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={{ color: '#007AFF', marginTop: 16, fontSize: 16 }}>
+          Loading, please wait...
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   if (isEditMode) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
         <StatusBar barStyle="light-content" backgroundColor="#007AFF" />
-
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerRow}>
@@ -291,7 +903,6 @@ const ProfileScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
-
         {/* Profile Content */}
         <View style={styles.profileContainer}>
           <ScrollView
@@ -303,15 +914,16 @@ const ProfileScreen = ({ navigation }) => {
               <View style={styles.avatarContainer}>
                 <Image
                   source={{
-                    uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+                    uri: 'https://avatar.iran.liara.run/public/41',
                   }}
                   style={styles.avatar}
                 />
               </View>
-              <Text style={styles.userName}>Dan Smith</Text>
-              <Text style={styles.userRole}>Technical Lead</Text>
+              <Text style={styles.userName}>{profileData?.firstName}</Text>
+              <Text style={styles.userRole}>
+                {profileData?.role ? profileData.role : 'Role not assigned'}
+              </Text>
             </View>
-
             {/* Tab Navigation */}
             <View style={styles.tabContainer}>
               <TabButton
@@ -330,12 +942,10 @@ const ProfileScreen = ({ navigation }) => {
                 onPress={() => setActiveTab('Contact Details')}
               />
             </View>
-
             {/* Tab Content */}
             {activeTab === 'General Info' && renderGeneralInfo()}
             {activeTab === 'Change Password' && renderChangePassword()}
             {activeTab === 'Contact Details' && renderContactDetails()}
-
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
               <TouchableOpacity
@@ -348,12 +958,19 @@ const ProfileScreen = ({ navigation }) => {
                 style={styles.updateButton}
                 onPress={handleUpdatePress}
               >
-                <Text style={styles.updateButtonText}>Update</Text>
+                <Text style={styles.updateButtonText}>
+                  {activeTab === 'General Info'
+                    ? 'Update'
+                    : activeTab === 'Change Password'
+                    ? 'Update Password'
+                    : activeTab === 'Contact Details'
+                    ? 'Update'
+                    : 'Update'}
+                </Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
         </View>
-
         {/* Dropdown Modal */}
         <Modal
           isVisible={showDropdown}
@@ -370,7 +987,7 @@ const ProfileScreen = ({ navigation }) => {
               style={styles.dropdownItem}
               onPress={() => {
                 setShowDropdown(false);
-                navigation.navigate('Profile');
+                setIsEditMode(false);
               }}
             >
               <Text style={styles.dropdownText}>Profile</Text>
@@ -391,8 +1008,6 @@ const ProfileScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
       <StatusBar barStyle="light-content" backgroundColor="#007AFF" />
-
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -404,35 +1019,28 @@ const ProfileScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* Profile Content */}
       <View style={styles.profileContainer}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Profile Header */}
           <View style={styles.profileHeader}>
             <View style={styles.avatarContainer}>
               <Image
                 source={{
-                  uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+                  uri: 'https://avatar.iran.liara.run/public/41',
                 }}
                 style={styles.avatar}
               />
-              <TouchableOpacity
-                style={styles.editIconContainer}
-                onPress={handleEditPress}
-              >
-                {/* <Text style={styles.editIcon}>✎</Text> */}
+              <TouchableOpacity style={styles.editIconContainer}>
                 <EditIcon style={styles.editIcon} height={20} width={20} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.userName}>Dan Smith</Text>
-            <Text style={styles.userRole}>Technical Lead</Text>
+            <Text style={styles.userName}>{profileData?.firstName}</Text>
+            <Text style={styles.userRole}>
+              {profileData?.role ? profileData.role : 'Role not assigned'}
+            </Text>
           </View>
-
-          {/* Profile Details */}
           <View style={styles.profileDetails}>
             <ProfileItem
               icon={
@@ -445,9 +1053,8 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               }
               title="Email"
-              subtitle="dansmith.vyzor@gmail.com"
+              subtitle={profileData.email}
             />
-
             <ProfileItem
               icon={
                 <View
@@ -459,10 +1066,9 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               }
               title="Language"
-              subtitle="French"
+              subtitle={profileData?.language || 'Not Assigned'}
               showDropdown={true}
             />
-
             <ProfileItem
               icon={
                 <View
@@ -474,10 +1080,9 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               }
               title="Time Zone"
-              subtitle="UTC+2:00"
+              subtitle={profileData?.timezone || 'Not Assigned'}
               showDropdown={true}
             />
-
             <ProfileItem
               icon={
                 <View
@@ -489,9 +1094,9 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               }
               title="Phone Number"
-              subtitle="+92 | 334 444 4221"
+              // subtitle={phoneNumbers[0].phoneNumber || 'Not Assigned'}
+              subtitle={phoneNumbers[0].phoneNumber || 'Not Assigned'}
             />
-
             <ProfileItem
               icon={
                 <View
@@ -508,8 +1113,6 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </ScrollView>
       </View>
-
-      {/* Dropdown Modal */}
       <Modal
         isVisible={showDropdown}
         onBackdropPress={() => setShowDropdown(false)}
@@ -525,10 +1128,10 @@ const ProfileScreen = ({ navigation }) => {
             style={styles.dropdownItem}
             onPress={() => {
               setShowDropdown(false);
-              navigation.navigate('Profile');
+              handleEditPress();
             }}
           >
-            <Text style={styles.dropdownText}>Profile</Text>
+            <Text style={styles.dropdownText}>Settings</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.dropdownItem} onPress={handleLogout}>
             <Text style={styles.dropdownText}>Logout</Text>
@@ -540,6 +1143,12 @@ const ProfileScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  loaderContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffffff',
+  },
   header: {
     backgroundColor: '#007AFF',
     paddingTop: Platform.OS === 'ios' ? 12 : 12,
@@ -687,7 +1296,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   dropdownMenu: {
-    marginTop: Platform.OS === 'ios' ? 90 : 82,
+    marginTop: Platform.OS === 'ios' ? 90 : 52,
     marginRight: 24,
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -800,7 +1409,7 @@ const styles = StyleSheet.create({
   eyeIcon: {
     position: 'absolute',
     right: 16,
-    top: 4,
+    top: 8,
     padding: 4,
   },
   eyeIconText: {
@@ -968,6 +1577,34 @@ const styles = StyleSheet.create({
   updateButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#FF3B30',
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  phoneHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  defaultPhoneLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: '600',
   },
 });

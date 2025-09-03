@@ -25,7 +25,7 @@ const apiClient = new ApiClient('https://vyzor.app/api');
 export const authApi = {
   async login(
     email: string,
-    password: string
+    password: string,
   ): Promise<ApiResponse<LoginResponse>> {
     console.log('🔐 [AUTH] Starting login for:', email);
 
@@ -92,7 +92,7 @@ export const authApi = {
     password: string,
     confirmPassword: string,
     phoneNumber: string,
-    dateOfBirth?: string
+    dateOfBirth?: string,
   ): Promise<ApiResponse<RegisterResponse>> {
     console.log('🔗 [API] Starting registration request...');
 
@@ -208,10 +208,10 @@ export const authApi = {
   },
 
   async forgotPassword(
-    email: string
+    email: string,
   ): Promise<ApiResponse<{ message: string }>> {
     const response = await apiClient.get<{ message: string }>(
-      `/forgetPassword?email=${encodeURIComponent(email)}`
+      `/forgetPassword?email=${encodeURIComponent(email)}`,
     );
 
     if (response.success) {
@@ -235,7 +235,7 @@ export const authApi = {
   async resetPassword(
     token: string,
     password: string,
-    confirmPassword: string
+    confirmPassword: string,
   ): Promise<ApiResponse<{ message: string }>> {
     const response = await apiClient.post<{ message: string }>(
       '/resetPassword',
@@ -243,7 +243,7 @@ export const authApi = {
         token,
         password,
         confirmPassword,
-      }
+      },
     );
 
     return response.success
