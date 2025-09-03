@@ -1095,7 +1095,7 @@ const ProfileScreen = ({ navigation }) => {
               }
               title="Phone Number"
               // subtitle={phoneNumbers[0].phoneNumber || 'Not Assigned'}
-              subtitle={phoneNumbers[0].phoneNumber || 'Not Assigned'}
+              subtitle="Not Assigned"
             />
             <ProfileItem
               icon={
