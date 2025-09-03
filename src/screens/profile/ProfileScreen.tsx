@@ -914,7 +914,7 @@ const ProfileScreen = ({ navigation }) => {
               <View style={styles.avatarContainer}>
                 <Image
                   source={{
-                    uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+                    uri: 'https://avatar.iran.liara.run/public/41',
                   }}
                   style={styles.avatar}
                 />
@@ -1028,7 +1028,7 @@ const ProfileScreen = ({ navigation }) => {
             <View style={styles.avatarContainer}>
               <Image
                 source={{
-                  uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+                  uri: 'https://avatar.iran.liara.run/public/41',
                 }}
                 style={styles.avatar}
               />
