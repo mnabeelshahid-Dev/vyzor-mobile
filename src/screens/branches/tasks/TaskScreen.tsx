@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar } from 'react-native-calendars';
-import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { fetchTasks } from '../../../api/tasks';
 import { apiClient } from '../../../utils/apiHelpers';
+import { apiService } from '../../../services/api';
+import { useAuthStore } from '../../../store/authStore';
 import {
   View,
   Text,
@@ -12,14 +13,16 @@ import {
   SafeAreaView,
   TextInput,
   TouchableOpacity,
-  FlatList,
   ScrollView,
   StatusBar,
-  Platform
+  Platform,
+  FlatList
 } from 'react-native';
 import Modal from 'react-native-modal';
 import ArrowUpIcon from '../../../assets/svgs/arrowUpWard.svg';
-import ArrowDownWard from '../../../assets/svgs/arrowDown.svg';
+import LocationIcon from '../../../assets/svgs/locationIcon.svg';
+import ArrowDownWard from '../../../assets/svgs/arrowDownward.svg';
+import ArrowDown from '../../../assets/svgs/arrowDown.svg';
 import FilterIcon from '../../../assets/svgs/filterIcon.svg';
 import SearchIcon from '../../../assets/svgs/searchIcon.svg';
 import BackArrowIcon from '../../../assets/svgs/backArrowIcon.svg';
@@ -31,6 +34,7 @@ import NotesIcon from '../../../assets/svgs/notesIcon.svg';
 import UserIcon from '../../../assets/svgs/user.svg';
 import SortIcon from '../../../assets/svgs/sortIcon.svg';
 import { useLogout } from '../../../hooks/useAuth';
+import Spinner from 'react-native-loading-spinner-overlay';
 
 
 
@@ -50,6 +54,9 @@ const STATUS_BG_COLORS: Record<string, string> = {
 
 
 export default function TaskScreen({ navigation }) {
+  // Get access token from auth store
+  // Fix: use correct property for accessToken
+  const accessToken = useAuthStore((state) => state.user?.accessToken);
   // Add missing state for dropdown and date picker
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -62,7 +69,13 @@ export default function TaskScreen({ navigation }) {
   const [userModal, setUserModal] = useState(false);
   const [sectionsModal, setSectionsModal] = useState(false);
   const [notesModal, setNotesModal] = useState(false);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [notesError, setNotesError] = useState('');
   const [devicesModal, setDevicesModal] = useState(false);
+  const [devices, setDevices] = useState<any[]>([]);
+  const [loadingDevices, setLoadingDevices] = useState(false);
+  const [devicesError, setDevicesError] = useState('');
   const [search, setSearch] = useState('');
   const [showSortModal, setShowSortModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -70,10 +83,15 @@ export default function TaskScreen({ navigation }) {
   const [sortField, setSortField] = useState<'name' | 'number'>('name');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDate, setFilterDate] = useState('');
+  // Add startDate and endDate for API params
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [datePickerValue, setDatePickerValue] = useState<Date | null>(null);
   const [calendarDate, setCalendarDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [filterUser, setFilterUser] = useState('');
   const [searchUser, setSearchUser] = useState('');
+  // Add missing selectedSiteId for user modal API
+  const [selectedSiteId, setSelectedSiteId] = useState<string | number | null>(null);
   interface UserType {
     id?: string | number;
     name?: string;
@@ -98,6 +116,26 @@ export default function TaskScreen({ navigation }) {
     size: 20,
   });
 
+  // Fetch notes when modal opens
+  useEffect(() => {
+    if (notesModal) {
+      setLoadingNotes(true);
+      setNotesError('');
+      apiService.get('/api/document/notes/sqlite')
+        .then((response) => {
+          // Debug log for API response
+          console.log('Notes API response:', response);
+          const data = response.data as { content?: any[] };
+          if (response.success && Array.isArray(data?.content)) {
+            setNotes(data.content);
+          } else {
+            setNotesError('Failed to fetch notes');
+          }
+        })
+        .catch(() => setNotesError('Failed to fetch notes'))
+        .finally(() => setLoadingNotes(false));
+    }
+  }, [notesModal]);
   useEffect(() => {
     setTasksParams((prev) => ({
       ...prev,
@@ -106,9 +144,11 @@ export default function TaskScreen({ navigation }) {
       sort: sortOrder,
       sortField,
       scheduleStatus: filterStatus,
+      startDate,
+      endDate,
       // Add other filter params as needed
     }));
-  }, [branchId, search, sortOrder, sortField, filterStatus]);
+  }, [branchId, search, sortOrder, sortField, filterStatus, startDate, endDate]);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['tasks', tasksParams],
@@ -138,9 +178,8 @@ export default function TaskScreen({ navigation }) {
     await logoutMutation.mutateAsync();
     setShowDropdown(false);
   };
-
   // Keep original openModal for single modal logic
-  const openModal = async (type: string) => {
+  const openModal = async (type: string, siteId?: string | number) => {
     setFilterModal(type === 'filter');
     setUserModal(type === 'user');
     setSectionsModal(type === 'sections');
@@ -149,17 +188,22 @@ export default function TaskScreen({ navigation }) {
     setShowDropdown(type === 'dropdown');
     setShowSortModal(type === 'sort');
     if (type === 'user') {
+      setSelectedSiteId(siteId || branchId || null);
       setLoadingUsers(true);
       setUserError('');
       try {
-        const response = await apiClient.get('/users');
-        if (response.success && Array.isArray(response.data)) {
-          setUsers(response.data as UserType[]);
+        // Use apiService.get for consistent token handling
+        const response = await apiService.get(`/api/site/userSites?siteId=${siteId || branchId}`);
+        if (
+          response.success &&
+          Array.isArray((response.data as { content?: any[] })?.content)
+        ) {
+          setUsers(((response.data as { content?: any[] })?.content) ?? []);
         } else {
           setUserError(response.message || 'Failed to fetch users');
         }
       } catch (err) {
-        setUserError('Failed to fetch users');
+        setUserError('Request failed with status 401');
       }
       setLoadingUsers(false);
     }
@@ -182,10 +226,40 @@ export default function TaskScreen({ navigation }) {
     setShowSortModal(false);
   };
 
+  // Fetch devices when modal opens
+  useEffect(() => {
+    if (devicesModal) {
+      setLoadingDevices(true);
+      setDevicesError('');
+      apiService.get('/api/site/devices')
+        .then((response) => {
+          // Debug log for API response
+          console.log('Devices API response:', response);
+          const data = response.data as { content?: any[] };
+          if (response.success && Array.isArray(data?.content)) {
+            setDevices(data.content);
+          } else {
+            setDevicesError('Failed to fetch devices');
+          }
+        })
+        .catch(() => setDevicesError('Failed to fetch devices'))
+        .finally(() => setLoadingDevices(false));
+    }
+  }, [devicesModal]);
+
   const renderTask = ({ item }: any) => {
-    // Card status color logic
-    const statusColor = STATUS_COLORS[item.status] || '#0088E7';
-    const statusBg = STATUS_BG_COLORS[item.status] || '#E6F1FB';
+    // Normalize status string for color mapping
+    const normalizeStatus = (status: string = '') => {
+      const s = status.trim().toLowerCase();
+      if (s === 'schedule' || s === 'scheduled' || s === 'schedule') return 'Scheduled';
+      if (s === 'active') return 'Active';
+      if (s === 'expired') return 'Expired';
+      if (s === 'completed') return 'Completed';
+      return status;
+    };
+    const normalizedStatus = normalizeStatus(item.status);
+    const statusColor = STATUS_COLORS[normalizedStatus] || '#0088E7';
+    const statusBg = STATUS_BG_COLORS[normalizedStatus] || '#E6F1FB';
     const statusText = item.status;
     // Progress color same as statusColor
     return (
@@ -194,56 +268,56 @@ export default function TaskScreen({ navigation }) {
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
           <Text style={{ color: statusColor, fontWeight: '500', fontSize: 15 }}>#{item.webId}</Text>
           <View style={{ flex: 1 }} />
-          <View style={{ backgroundColor: statusColor, borderRadius: 6, paddingHorizontal: 16, paddingVertical: 4 }}>
-            <Text style={{ color: '#fff', fontSize: 16 }}>{statusText}</Text>
+          <View style={{ backgroundColor: statusColor, borderRadius: 6, paddingHorizontal: 16 }}>
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '400' }}>{statusText}</Text>
           </View>
         </View>
         {/* Title */}
         <Text style={{ color: '#222E44', fontWeight: '600', fontSize: 17, marginBottom: 2 }}>{item.documentName}</Text>
         {/* Date Row */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-          <CalendarIcon width={20} height={20} style={{ opacity: 0.7 }} />
-          <Text style={{ color: '#AAB3BB', fontSize: 11, marginLeft: 8, fontWeight: '500' }}>{item.startDate} --- {item.endDate}</Text>
+          <CalendarIcon width={15} height={15} style={{ opacity: 0.7 }} />
+          <Text style={{ color: '#676869ff', fontSize: 10, marginLeft: 8, fontWeight: '400' }}>{item.startDate} --- {item.endDate}</Text>
         </View>
         {/* Progress Bar */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-          <View style={{ flex: 1, height: 6, backgroundColor: '#E6F1FB', borderRadius: 6, overflow: 'hidden', marginRight: 8 }}>
-            <View style={{ height: 6, width: `${item.percentage}%`, backgroundColor: statusColor, borderRadius: 6 }} />
+          <View style={{ flex: 1, height: 6, backgroundColor: statusBg, borderRadius: 6, overflow: 'hidden', marginRight: 8 }}>
+            <View style={{ height: 6, width: `${item.percentage ? item.percentage : '0'}%`, backgroundColor: statusColor, borderRadius: 6 }} />
           </View>
-          <Text style={{ color: '#222E44', fontWeight: '600', fontSize: 14 }}>{item.percentage}%</Text>
+          <Text style={{ color: '#222E44', fontWeight: '400', fontSize: 12 }}>{item.percentage ? `${item.percentage}%` : '0.00%'}</Text>
         </View>
         {/* Button Row */}
         <View style={{ backgroundColor: '#F7F9FC', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0' }}>
           <View style={{ flexDirection: 'row', padding: 12, marginBottom: 16, }}>
             {/* Reassign */}
-            <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => openModal('user')}>
-              <UserIcon width={20} height={20} color={'#1292E6'} />
-              <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 15, marginLeft: 8 }}>Reassign</Text>
+            <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => openModal('user', branchId)}>
+              <UserIcon width={14} height={14} color={'#1292E6'} />
+              <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Reassign</Text>
             </TouchableOpacity>
             {/* Devices */}
             <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', opacity: 0.5 }} onPress={() => openModal('devices')}>
-              <SettingsIcon width={20} height={20} />
-              <Text style={{ color: '#888', fontWeight: '500', fontSize: 15, marginLeft: 8 }}>Devices</Text>
-              <View style={{ backgroundColor: '#F1F1F6', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#888', fontWeight: 'bold', fontSize: 16 }}>{item.devices ?? 0}</Text>
+              <SettingsIcon width={14} height={14} />
+              <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Devices</Text>
+              <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{item.devices ?? 0}</Text>
               </View>
             </TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', padding: 12, marginBottom: 16, marginTop: -28 }}>
             {/* Sections */}
             <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => openModal('sections')}>
-              <MenuIcon width={20} height={20} />
-              <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 15, marginLeft: 8 }}>Sections</Text>
-              <View style={{ backgroundColor: '#E6F1FB', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: 16 }}>{tasks.length ?? 0}</Text>
+              <MenuIcon width={14} height={14} />
+              <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Sections</Text>
+              <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>{tasks.length ?? 0}</Text>
               </View>
             </TouchableOpacity>
             {/* Notes */}
             <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', opacity: 0.5 }} onPress={() => openModal('notes')}>
-              <NotesIcon width={22} height={22} />
-              <Text style={{ color: '#888', fontWeight: '500', fontSize: 17, marginLeft: 8 }}>Notes</Text>
-              <View style={{ backgroundColor: '#F1F1F6', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#888', fontWeight: 'bold', fontSize: 16 }}>{item.notes ?? 0}</Text>
+              <NotesIcon width={14} height={14} />
+              <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Notes</Text>
+              <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{item.notes ?? 0}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -260,14 +334,25 @@ export default function TaskScreen({ navigation }) {
   const FilterModal = (
     <Modal
       isVisible={filterModal}
+      hasBackdrop={true}
+      backdropColor="#000"
       backdropOpacity={0.18}
+      backdropTransitionInTiming={300}
+      backdropTransitionOutTiming={300}
       animationIn="fadeIn"
       animationOut="fadeOut"
       animationInTiming={300}
       animationOutTiming={300}
       avoidKeyboard={true}
       coverScreen={true}
-      style={{ margin: 0 }}>
+      style={{ margin: 0 }}
+      useNativeDriver={true}
+      hideModalContentWhileAnimating={false}
+      propagateSwipe={false}
+      deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
+      deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
+      onBackdropPress={closeModal}
+    >
       <View style={styles.modalOverlay}>
         <View style={styles.modalBox}>
           <View style={styles.modalHeader}>
@@ -286,7 +371,7 @@ export default function TaskScreen({ navigation }) {
                 {filterStatus ? filterStatus : 'Status'}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 14 }}>
-                <ArrowDownWard width={18} height={18} style={{ marginLeft: 6 }} />
+                <ArrowDown width={18} height={18} style={{ marginLeft: 6 }} />
               </View>
             </TouchableOpacity>
             {/* Status Dropdown List */}
@@ -331,6 +416,8 @@ export default function TaskScreen({ navigation }) {
               hasBackdrop={true}
               backdropColor="#000"
               backdropOpacity={0.18}
+              backdropTransitionInTiming={300}
+              backdropTransitionOutTiming={300}
               animationIn="fadeIn"
               animationOut="fadeOut"
               animationInTiming={300}
@@ -340,10 +427,10 @@ export default function TaskScreen({ navigation }) {
               style={{ margin: 0 }}
               onBackdropPress={() => setShowDatePicker(false)}
               useNativeDriver={true}
-              deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
-              deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
               hideModalContentWhileAnimating={false}
               propagateSwipe={false}
+              deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
+              deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
             >
               <View style={{ justifyContent: 'center', alignItems: 'center', flex: 1 }}>
                 <View style={{ backgroundColor: '#fff', borderRadius: 16, width: '90%', paddingBottom: 16 }}>
@@ -397,7 +484,14 @@ export default function TaskScreen({ navigation }) {
             >
               <Text style={styles.modalBtnClearText}>Clear</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.modalBtnApply} onPress={closeModal}>
+            <TouchableOpacity style={styles.modalBtnApply} onPress={() => {
+              // Apply filter changes and trigger refetch
+              setStartDate(filterDate ? filterDate : '');
+              setEndDate(filterDate ? filterDate : '');
+              // Optionally, you can parse filterDate to API format if needed
+              closeModal();
+              refetch();
+            }}>
               <Text style={styles.modalBtnApplyText}>Apply Filters</Text>
             </TouchableOpacity>
           </View>
@@ -410,14 +504,24 @@ export default function TaskScreen({ navigation }) {
     setLoadingUsers(true);
     setUserError('');
     try {
-      const response = await apiClient.get(`/users?search=${encodeURIComponent(searchUser)}`);
-      if (response.success && Array.isArray(response.data)) {
-        setUsers(response.data as UserType[]);
+      // Use apiService.get for consistent token handling
+      const response = await apiService.get(`/api/site/userSites?siteId=${selectedSiteId}&search=${encodeURIComponent(searchUser)}`);
+      if (
+        response.success &&
+        Array.isArray((response.data as { content?: any[] })?.content)
+      ) {
+        setUsers(((response.data as { content?: UserType[] })?.content) ?? []);
+        if (
+          Array.isArray((response.data as { content?: any[] })?.content) &&
+          ((response.data as { content?: any[] })?.content.length === 0)
+        ) {
+          setUserError('No users found');
+        }
       } else {
         setUserError(response.message || 'Failed to fetch users');
       }
     } catch (err) {
-      setUserError('Failed to fetch users');
+      setUserError('Request failed with status 401');
     }
     setLoadingUsers(false);
   };
@@ -430,7 +534,11 @@ export default function TaskScreen({ navigation }) {
   const UserModal = (
     <Modal
       isVisible={userModal}
+      hasBackdrop={true}
+      backdropColor="#000"
       backdropOpacity={0.18}
+      backdropTransitionInTiming={300}
+      backdropTransitionOutTiming={300}
       animationIn="fadeIn"
       animationOut="fadeOut"
       animationInTiming={300}
@@ -438,55 +546,93 @@ export default function TaskScreen({ navigation }) {
       avoidKeyboard={true}
       coverScreen={true}
       style={{ margin: 0 }}
-      onBackdropPress={closeModal}
       useNativeDriver={true}
       hideModalContentWhileAnimating={false}
       propagateSwipe={false}
+      deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
+      deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
+      onBackdropPress={closeModal}
     >
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalBox, { borderRadius: 18, padding: 0 }]}> 
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
-            <Text style={{ fontWeight: '700', fontSize: 22, color: '#222E44' }}>Users</Text>
-            <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ fontSize: 22, color: '#AAB3BB' }}>✕</Text>
-            </TouchableOpacity>
+      <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, justifyContent: 'flex-start', width: '90%', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 8 , minHeight: '60%'}}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
+        <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Users</Text>
+        <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 16, color: '#0088E7' }}>✕</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20, paddingBottom: 0 }}>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F7F9FC', borderRadius: 12, paddingHorizontal: 14, height: 48 }}>
-              <SearchIcon width={22} height={22} style={{ marginRight: 8, opacity: 0.6 }} />
-              <TextInput
-                placeholder="Search username"
-                style={{ flex: 1, fontSize: 17, color: '#363942', fontWeight: '500' }}
-                value={searchUser}
-                onChangeText={setSearchUser}
-                onSubmitEditing={handleUserSearch}
-                returnKeyType="search"
-              />
-            </View>
-            <TouchableOpacity style={{ marginLeft: 12, backgroundColor: '#0088E7', borderRadius: 12, paddingHorizontal: 22, height: 48, justifyContent: 'center', alignItems: 'center' }} onPress={handleUserSearch}>
-              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 19 }}>Search</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={{ marginTop: 18, paddingHorizontal: 20, flex: 1 }}>
-            {loadingUsers ? (
-              <Text style={{ textAlign: 'center', color: '#888', marginTop: 24 }}>Loading...</Text>
-            ) : userError ? (
-              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 24 }}>{userError}</Text>
-            ) : filteredUsers.length === 0 ? (
-              <Text style={{ textAlign: 'center', color: '#888', marginTop: 24 }}>No users found</Text>
-            ) : (
-              filteredUsers.map((u, idx) => (
-                <View key={u.id || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 18, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
-                  <Text style={{ fontWeight: '700', fontSize: 18, color: '#222E44', marginBottom: 2 }}>{u.name || u.username || u.email}</Text>
-                  <Text style={{ color: '#0088E7', fontSize: 16, textDecorationLine: 'underline' }}>{u.email}</Text>
-                </View>
-              ))
-            )}
-          </View>
+        </TouchableOpacity>
         </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 18, paddingBottom: 0 }}>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderTopLeftRadius: 12, borderBottomLeftRadius: 12, paddingHorizontal: 12, height: 44 }}>
+          <SearchIcon width={22} height={22} style={{ marginRight: 8, opacity: 0.6 }} />
+          <TextInput
+          placeholder="Search ..."
+          style={{ flex: 1, fontSize: 16, color: '#363942', fontWeight: '500', padding: 0 }}
+          value={searchUser}
+          onChangeText={setSearchUser}
+          onSubmitEditing={handleUserSearch}
+          returnKeyType="search"
+          />
+        </View>
+        <TouchableOpacity style={{ backgroundColor: '#0088E7', borderBottomRightRadius: 12, borderTopRightRadius: 12, paddingHorizontal: 18, height: 44, justifyContent: 'center', alignItems: 'center', shadowColor: '#0088E7', shadowOpacity: 0.15, shadowRadius: 4, elevation: 2 }} onPress={handleUserSearch}>
+          <Text style={{ color: '#fff', fontWeight: '500', fontSize: 16 }}>Search</Text>
+        </TouchableOpacity>
+        </View>
+        <View style={{ marginTop: 14, paddingHorizontal: 18, flex: 1, paddingVertical: 8 }}>
+        {loadingUsers ? (
+          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+        ) : userError ? (
+          <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{userError}</Text>
+        ) : filteredUsers.length > 0 ? (
+          <FlatList
+          data={filteredUsers}
+          keyExtractor={(item, idx) => (item.id ? item.id.toString() : idx.toString())}
+          renderItem={({ item }) => (
+            <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 10, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
+            <Text style={{ fontWeight: '500', fontSize: 16, color: '#222E44' }}>{item.name || item.username || item.storeEmail}</Text>
+            <Text style={{ color: '#0088E7', fontSize: 14 }}>
+              {item.email ? item.email : <Text style={{ color: '#0088E7' }}>email@example.com</Text>}
+            </Text>
+            </View>
+          )}
+          ListEmptyComponent={
+            <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No users found</Text>
+          }
+          showsVerticalScrollIndicator={false}
+          />
+        ) : (
+          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No users found</Text>
+        )}
+        </View>
+      </View>
       </View>
     </Modal>
   );
+
+  // Sections modal state
+  const [sections, setSections] = useState<any[]>([]);
+  const [loadingSections, setLoadingSections] = useState(false);
+  const [sectionsError, setSectionsError] = useState('');
+
+  // Fetch sections when modal opens
+  useEffect(() => {
+    if (sectionsModal) {
+      setLoadingSections(true);
+      setSectionsError('');
+      apiService.get('/api/forms/sections/all')
+        .then((response) => {
+          const data = response.data as { content?: any[] };
+          if (response.success && Array.isArray(data?.content)) {
+            setSections(data.content);
+          } else {
+            setSectionsError('Failed to fetch sections');
+          }
+        })
+        .catch(() => setSectionsError('Failed to fetch sections'))
+        .finally(() => setLoadingSections(false));
+    }
+  }, [sectionsModal]);
 
   const SectionsModal = (
     <Modal
@@ -503,23 +649,54 @@ export default function TaskScreen({ navigation }) {
       avoidKeyboard={true}
       coverScreen={true}
       style={{ margin: 0 }}
-      onBackdropPress={closeModal}
       useNativeDriver={true}
-      deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
-      deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
       hideModalContentWhileAnimating={false}
       propagateSwipe={false}
+      deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
+      deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
+      onBackdropPress={closeModal}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalBox}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Sections</Text>
-            <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ backgroundColor: '#0088E71A', borderRadius: 50, justifyContent: 'center', alignItems: 'center', padding: 2 }}>
               <Text style={styles.closeBtn}>✕</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView style={{ marginTop: 12 }}>
-            {/* TODO: Replace with API sections if available */}
+          <ScrollView style={{ marginTop: 12 }} showsVerticalScrollIndicator={false}>
+            {loadingSections ? (
+              <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+            ) : sectionsError ? (
+              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{sectionsError}</Text>
+            ) : sections.length > 0 ? (
+              sections.map((section, idx) => (
+                <View key={section.webId || idx} style={{ backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#F1F1F6', padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2, marginHorizontal: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontWeight: '500', fontSize: 15, color: '#222E44', marginBottom: 2 }}>{section.name || 'Cleaning'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                      <LocationIcon width={16} height={16} style={{ opacity: 0.7 }} />
+                      <Text style={{ color: '#676869', fontSize: 12, marginLeft: 8, fontWeight: '400' }}>
+                        {section.location ? section.location : 'No Location Available'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ marginLeft: 12 }}>
+                    {section.location ? (
+                      <View style={{ backgroundColor: '#E6FAEF', borderRadius: 50, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: '#11A330', fontSize: 14 }}>✓</Text>
+                      </View>
+                    ) : (
+                      <View style={{ backgroundColor: '#FDEBEB', borderRadius: 50, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: '#E4190A', fontSize: 14 }}>✕</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No sections found</Text>
+            )}
           </ScrollView>
         </View>
       </View>
@@ -541,24 +718,50 @@ export default function TaskScreen({ navigation }) {
       avoidKeyboard={true}
       coverScreen={true}
       style={{ margin: 0 }}
-      onBackdropPress={closeModal}
       useNativeDriver={true}
-      deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
-      deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
       hideModalContentWhileAnimating={false}
       propagateSwipe={false}
+      deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
+      deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
+      onBackdropPress={closeModal}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalBox}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Devices</Text>
+        <View style={[styles.modalBox, { padding: 0, minHeight: 320 }]}> 
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6', borderTopLeftRadius: 18, borderTopRightRadius: 18 }}>
+            <Text style={{ fontWeight: '700', fontSize: 20, color: '#222E44' }}>Devices</Text>
             <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.closeBtn}>✕</Text>
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, color: '#0088E7' }}>✕</Text>
+              </View>
             </TouchableOpacity>
           </View>
-          <ScrollView style={{ marginTop: 12 }}>
-            {/* TODO: Replace with API devices if available */}
-          </ScrollView>
+          <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 12 }}>
+            {loadingDevices ? (
+              <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+            ) : devicesError ? (
+              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{devicesError}</Text>
+            ) : Array.isArray(devices) && devices.length > 0 ? (
+              <FlatList
+                data={devices}
+                keyExtractor={(item, idx) => (item.uuid ? String(item.uuid) : idx.toString())}
+                renderItem={({ item }) => (
+                  <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: '700', fontSize: 17, color: '#222E44', marginBottom: 2 }}>Sensor</Text>
+                      <Text style={{ color: '#0088E7', fontSize: 16, fontWeight: '500', marginBottom: 2 }}>{item.uuid || ''}</Text>
+                    </View>
+                    <Text style={{ color: '#AAB3BB', fontSize: 15, fontWeight: '500' }}>uuid # {item.id || item.deviceId || ''}</Text>
+                  </View>
+                )}
+                ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No devices found</Text>}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 24 }}
+                style={{ flex: 1 }}
+              />
+            ) : (
+              <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No devices found</Text>
+            )}
+          </View>
         </View>
       </View>
     </Modal>
@@ -579,24 +782,53 @@ export default function TaskScreen({ navigation }) {
       avoidKeyboard={true}
       coverScreen={true}
       style={{ margin: 0 }}
-      onBackdropPress={closeModal}
       useNativeDriver={true}
-      deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
-      deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
       hideModalContentWhileAnimating={false}
       propagateSwipe={false}
+      deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
+      deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
+      onBackdropPress={closeModal}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalBox}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Notes</Text>
+        <View style={[styles.modalBox, { padding: 0, minHeight: 320 }]}> 
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6', borderTopLeftRadius: 18, borderTopRightRadius: 18 }}>
+            <Text style={{ fontWeight: '700', fontSize: 20, color: '#222E44' }}>Notes</Text>
             <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.closeBtn}>✕</Text>
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, color: '#0088E7' }}>✕</Text>
+              </View>
             </TouchableOpacity>
           </View>
-          <ScrollView style={{ marginTop: 12 }}>
-            {/* TODO: Replace with API notes if available */}
-          </ScrollView>
+          <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 12 }}>
+            {loadingNotes ? (
+              <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+            ) : notesError ? (
+              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{notesError}</Text>
+            ) : Array.isArray(notes) && notes.length > 0 ? (
+              <FlatList
+                data={notes}
+                keyExtractor={(item, idx) => (item.id ? String(item.id) : idx.toString())}
+                renderItem={({ item }) => (
+                  <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
+                    <Text style={{ color: '#222E44', fontSize: 16, fontWeight: '600' }}>{item.text || item.note || ''}</Text>
+                  </View>
+                )}
+                ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No notes found</Text>}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 24 }}
+                style={{ flex: 1 }}
+              />
+            ) : (
+              <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1, marginTop: 32 }}>
+                <Text style={{ color: '#888', fontSize: 18, fontWeight: '500', textAlign: 'center' }}>
+                  No notes found for this task.
+                </Text>
+                <Text style={{ color: '#AAB3BB', fontSize: 15, marginTop: 8, textAlign: 'center' }}>
+                  You can add notes to help track important details or instructions.
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
       </View>
     </Modal>
@@ -621,12 +853,12 @@ export default function TaskScreen({ navigation }) {
         justifyContent: 'flex-start',
         alignItems: 'flex-end',
       }}
-      onBackdropPress={() => setShowDropdown(false)}
       useNativeDriver={true}
-      deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
-      deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
       hideModalContentWhileAnimating={false}
       propagateSwipe={false}
+      deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
+      deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
+      onBackdropPress={() => setShowDropdown(false)}
     >
       <View style={styles.dropdownMenu}>
         <TouchableOpacity
@@ -648,53 +880,53 @@ export default function TaskScreen({ navigation }) {
   const SortModal = () => (
     // Redesigned Dropdown Sort Modal
     showSortModal ? (
-      <View style={[styles.dropdownCard, { position: 'absolute', top: 170, right: 24, zIndex: 100 }]}> {/* Adjust top/right for placement */}
-        <View style={styles.sortModalHeader}>
-          <Text style={styles.sortModalTitle}>Sort By</Text>
-          <TouchableOpacity
-            onPress={() => setShowSortModal(false)}
-            style={styles.sortModalCloseBtn}
-          >
-            <View style={styles.sortModalCloseCircle}>
-              <Text style={{ fontSize: 18, color: '#007AFF', bottom: 2 }}>x</Text>
+         <View style={[styles.dropdownCard, { position: 'absolute', top: 170, right: 24, zIndex: 100 }]}> {/* Adjust top/right for placement */}
+          <View style={styles.sortModalHeader}>
+            <Text style={styles.sortModalTitle}>Sort By</Text>
+            <TouchableOpacity
+              onPress={() => setShowSortModal(false)}
+              style={styles.sortModalCloseBtn}
+            >
+              <View style={styles.sortModalCloseCircle}>
+                <Text style={{ fontSize: 18, color: '#007AFF', bottom: 2 }}>x</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.sortModalBody}>
+            <Text style={styles.sortModalField}>Name</Text>
+            <View style={styles.sortModalOrderBtns}>
+              <TouchableOpacity
+                style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+                onPress={() => handleSort('name', 'desc')}
+              >
+                <ArrowDownWard width={15} height={15} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+                onPress={() => handleSort('name', 'asc')}
+              >
+                <ArrowUpIcon width={15} height={15} />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.sortModalBody}>
-          <Text style={styles.sortModalField}>Name</Text>
-          <View style={styles.sortModalOrderBtns}>
-            <TouchableOpacity
-              style={styles.filterBtnFloat}
-              onPress={() => setShowSortModal(true)}
-            >
-              <SortIcon width={32} height={32} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.filterBtnFloat}
-              onPress={() => setFilterModal(true)}
-            >
-              <FilterIcon width={32} height={32} />
-            </TouchableOpacity>
+          </View>
+          <View style={[styles.sortModalBody, { marginTop: 14 }]}>
+            <Text style={styles.sortModalField}>Number</Text>
+            <View style={styles.sortModalOrderBtns}>
+              <TouchableOpacity
+                style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+                onPress={() => handleSort('number', 'desc')}
+              >
+                <ArrowDownWard width={18} height={18} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+                onPress={() => handleSort('number', 'asc')}
+              >
+                <ArrowUpIcon width={18} height={18} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-        <View style={[styles.sortModalBody, { marginTop: 14 }]}>
-          <Text style={styles.sortModalField}>Number</Text>
-          <View style={styles.sortModalOrderBtns}>
-            <TouchableOpacity
-              style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
-              onPress={() => handleSort('number', 'desc')}
-            >
-              <ArrowDownWard width={18} height={18} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
-              onPress={() => handleSort('number', 'asc')}
-            >
-              <ArrowUpIcon width={18} height={18} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
     ) : null
   );
 
@@ -724,7 +956,13 @@ export default function TaskScreen({ navigation }) {
               placeholder="Search..."
               placeholderTextColor="#8E8E93"
               value={search}
-              onChangeText={setSearch}
+              onChangeText={(text) => {
+                setSearch(text);
+                // Trigger refetch on search
+                setTimeout(() => refetch(), 0);
+              }}
+              returnKeyType="search"
+              onSubmitEditing={() => refetch()}
             />
           </View>
           <TouchableOpacity
@@ -743,7 +981,14 @@ export default function TaskScreen({ navigation }) {
         {/* Task List */}
         <View style={{ flex: 1, backgroundColor: '#F2F2F2', borderTopLeftRadius: 30, borderTopRightRadius: 30 }}>
           {isLoading ? (
-            <Text style={{ color: '#007AFF', fontSize: 18, textAlign: 'center', marginTop: 40 }}>Loading tasks...</Text>
+            <Spinner
+              visible={true}
+              animation='fade'
+              textContent={''}
+              textStyle={{ color: '#FFF' }}
+              color="#0088E7"
+              overlayColor="rgba(0,0,0,0.15)"
+            />
           ) : isError ? (
             <Text style={{ color: 'red', fontSize: 18, textAlign: 'center', marginTop: 40 }}>Error loading tasks</Text>
           ) : tasks.length === 0 ? (
@@ -759,47 +1004,7 @@ export default function TaskScreen({ navigation }) {
               showsVerticalScrollIndicator={false}
             />
           )}
-          {/* Modals */}
-          {/* <Modal visible={filterModal} transparent animationType="slide" onRequestClose={closeModal}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, minWidth: 300 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 18 }}>Filter Modal</Text>
-              <TouchableOpacity onPress={closeModal}><Text>Close</Text></TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-        <Modal visible={userModal} transparent animationType="slide" onRequestClose={closeModal}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, minWidth: 300 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 18 }}>User Modal</Text>
-              <TouchableOpacity onPress={closeModal}><Text>Close</Text></TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-        <Modal visible={sectionsModal} transparent animationType="slide" onRequestClose={closeModal}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, minWidth: 300 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 18 }}>Sections Modal</Text>
-              <TouchableOpacity onPress={closeModal}><Text>Close</Text></TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-        <Modal visible={devicesModal} transparent animationType="slide" onRequestClose={closeModal}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, minWidth: 300 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 18 }}>Devices Modal</Text>
-              <TouchableOpacity onPress={closeModal}><Text>Close</Text></TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-        <Modal visible={notesModal} transparent animationType="slide" onRequestClose={closeModal}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, minWidth: 300 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 18 }}>Notes Modal</Text>
-              <TouchableOpacity onPress={closeModal}><Text>Close</Text></TouchableOpacity>
-            </View>
-          </View>
-        </Modal> */}
+
           {FilterModal}
           {UserModal}
           {SectionsModal}
@@ -1092,7 +1297,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 18,
     padding: 20,
-    maxHeight: '80%',
+    maxHeight: '60%',
   },
   modalHeader: {
     flexDirection: 'row',

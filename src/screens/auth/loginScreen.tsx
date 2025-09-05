@@ -27,6 +27,7 @@ import GoogleIcon from '../../assets/svgs/googleIcon.svg';
 type RootStackParamList = {
   Login: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
 };
 
 

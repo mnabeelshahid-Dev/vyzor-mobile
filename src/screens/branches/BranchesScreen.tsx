@@ -227,7 +227,7 @@ const BranchesScreen = ({ navigation }) => {
                 style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
                 onPress={() => handleSort('number', 'desc')}
               >
-                <ArrowDownWard width={18} height={18} />
+                <ArrowDownWard width={15} height={15} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
