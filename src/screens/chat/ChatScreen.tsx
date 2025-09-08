@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ActivityIndicator } from 'react-native';
 import {
   View,
   Text,
@@ -12,14 +13,81 @@ import {
   Platform,
   ScrollView,
   Dimensions,
-  StatusBar
+  StatusBar,
 } from 'react-native';
+import { apiService } from '../../services/api';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import MessegeIcon from '../../assets/svgs/chatMessageIcon.svg';
 
 const { width, height } = Dimensions.get('window');
+
+// Define the expected properties on profileData
+interface ChatList {
+  content: { title: string; status: string }[];
+}
+
+interface ApiResponse {
+  content: Conversation[];
+  pageable: any;
+  totalPages: number;
+  totalElements: number;
+  last: boolean;
+  size: number;
+  number: number;
+  sort: any;
+  numberOfElements: number;
+  first: boolean;
+  empty: boolean;
+}
+
+interface Conversation {
+  webId: number;
+  title: string;
+  status: string;
+  createdDate: string;
+  createdBy: string;
+  participants: Array<{
+    webId: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+  }>;
+}
+
+interface AvailableUser {
+  value: string;
+  text: string;
+}
+
+interface Message {
+  webId: number;
+  createdDate: string;
+  createdBy: string;
+  createdById: number;
+  body: string;
+  author: string;
+  sentDate: string;
+  status: string;
+  userId: number;
+  conversationId: number;
+  type: string;
+}
+
+interface MessagesApiResponse {
+  content: Message[];
+  pageable: any;
+  totalPages: number;
+  totalElements: number;
+  last: boolean;
+  size: number;
+  number: number;
+  sort: any;
+  numberOfElements: number;
+  first: boolean;
+  empty: boolean;
+}
 
 // Mock Data
 const mockChats = [
@@ -72,15 +140,11 @@ const mockChats = [
   },
 ];
 
-const mockParticipants = [
-  'Jack Alex',
-  'Waqar khan',
-  'John Alex'
-];
+const mockParticipants = ['Jack Alex', 'Waqar khan', 'John Alex'];
 
-export default function ChatScreen({navigation}) {
+export default function ChatScreen({ navigation }) {
   // State
-  const [chats, setChats] = useState(mockChats);
+  const [chats, setChats] = useState<Conversation[]>([]);
   const [selectedChat, setSelectedChat] = useState<any>(null);
   const [groupModal, setGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
@@ -88,28 +152,387 @@ export default function ChatScreen({navigation}) {
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
   const scrollViewRef = useRef<any>(null);
+  const [isLoadings, setIsLoadings] = useState(true);
+
+  const [conversationDetails, setConversationDetails] = useState<any>(null);
+  const [isLoadingsDetails, setIsLoadingsDetails] = useState(false);
+
+  const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([]);
+  const [currentUserClientId, setCurrentUserClientId] = useState<number | null>(
+    null,
+  );
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Filtered chats
   const filteredChats = chats.filter(
     c =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase())
+      c.title.toLowerCase().includes(search.toLowerCase()) ||
+      c.participants.some(
+        p =>
+          p.email.toLowerCase().includes(search.toLowerCase()) ||
+          `${p.firstName} ${p.lastName}`
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+      ),
   );
 
   // Chat List UI
-  const renderChatItem = ({ item }: any) => (
-    <TouchableOpacity
-      style={styles.chatCard}
-      onPress={() => setSelectedChat(item)}
-      activeOpacity={0.7}
-    >
-      <View>
-        <Text style={styles.chatTitle}>{item.name}</Text>
-        <Text style={styles.chatEmail}>{item.email}</Text>
+  const renderChatItem = ({ item }: { item: Conversation }) => {
+    const getParticipantText = () => {
+      if (item.participants.length === 0) return '';
+      if (item.participants.length === 1) {
+        return `${item.participants[0].firstName} ${item.participants[0].lastName}`;
+      }
+      const firstName = `${item.participants[0].firstName} ${item.participants[0].lastName}`;
+      const remainingCount = item.participants.length - 1;
+      return `${firstName} + ${remainingCount} more`;
+    };
+
+    return (
+      <TouchableOpacity
+        style={styles.chatCard}
+        onPress={() => {
+          setSelectedChat(item);
+          fetchConversationById(item.webId);
+          fetchMessagesByConversationId(item.webId); // Add this line
+        }}
+        activeOpacity={0.7}
+      >
+        <View>
+          <Text style={styles.chatTitle}>{item.title}</Text>
+          <Text style={styles.chatEmail}>{getParticipantText()}</Text>
+        </View>
+        <Text style={styles.chatTime}>
+          {new Date(item.createdDate).toLocaleDateString()} at{' '}
+          {new Date(item.createdDate).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderMessage = (message: Message, index: number) => {
+    // Check if message is from current user using createdById
+    const isMe = message.createdById === currentUserClientId;
+
+    return (
+      <View
+        key={message.webId}
+        style={[
+          styles.chatBubbleRow,
+          isMe
+            ? { justifyContent: 'flex-end' }
+            : { justifyContent: 'flex-start' },
+        ]}
+      >
+        <View
+          style={[
+            styles.chatBubble,
+            isMe ? { backgroundColor: '#1292E6' } : { backgroundColor: '#fff' },
+          ]}
+        >
+          {!isMe && (
+            <Text
+              style={[
+                styles.chatBubbleUser,
+                { color: isMe ? '#fff' : '#1292E6' },
+              ]}
+            >
+              {message.author}
+            </Text>
+          )}
+          <Text
+            style={[
+              styles.chatBubbleText,
+              { color: isMe ? '#fff' : '#222E44' },
+            ]}
+          >
+            {message.body}
+          </Text>
+          <Text
+            style={[
+              styles.chatBubbleTime,
+              { color: isMe ? '#E6F1FB' : '#7A8194' },
+            ]}
+          >
+            {new Date(message.sentDate).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+        </View>
       </View>
-      <Text style={styles.chatTime}>{item.time}</Text>
-    </TouchableOpacity>
-  );
+    );
+  };
+
+  useEffect(() => {
+    const fetchCurrentChats = async () => {
+      try {
+        setIsLoadings(true);
+        const response = await apiService.get(
+          '/api/notification/conversations?status=OPEN',
+        );
+
+        console.log('Current chats', response.data);
+
+        const apiResponse = response.data as ApiResponse;
+        if (apiResponse && apiResponse.content) {
+          setChats(apiResponse.content);
+        }
+
+        setIsLoadings(false);
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+        setIsLoadings(false);
+      }
+    };
+
+    fetchCurrentChats();
+  }, []);
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await apiService.get(
+          '/api/security/userAccounts/currentUser/',
+        );
+
+        console.log('Current User Data', response.data);
+
+        const clientID = response.data.clientId;
+        setCurrentUserClientId(clientID);
+        setCurrentUser(response.data); // Store full user data
+      } catch (error) {
+        console.error('Error fetching users data:', error);
+        setIsLoadings(false);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
+
+  useEffect(() => {
+    const fetchAvailableUsers = async () => {
+      if (groupModal) {
+        try {
+          setIsLoadingUsers(true);
+          const response = await apiService.get('/api/security/filter/USERS');
+
+          console.log('Available users', response.data);
+          setAvailableUsers(response.data);
+          setIsLoadingUsers(false);
+        } catch (error) {
+          console.error('Error fetching available users:', error);
+          setIsLoadingUsers(false);
+        }
+      }
+    };
+
+    fetchAvailableUsers();
+  }, [groupModal]);
+
+  const fetchConversationById = async (webId: number) => {
+    try {
+      setIsLoadingsDetails(true);
+      const response = await apiService.get(
+        `/api/notification/conversations/${webId}`,
+      );
+
+      console.log('Conversation details', response.data);
+      setConversationDetails(response.data);
+      setIsLoadingsDetails(false);
+    } catch (error) {
+      console.error('Error fetching conversation details:', error);
+      setIsLoadingsDetails(false);
+    }
+  };
+
+  const fetchMessagesByConversationId = async (webId: number) => {
+    try {
+      setIsLoadingMessages(true);
+      const response = await apiService.get(
+        `/api/notification/sms?conversationId=${webId}&body=&sort=createdDate,desc`,
+      );
+
+      console.log('Messages for conversation', webId, response.data);
+
+      const messagesResponse = response.data as MessagesApiResponse;
+      if (messagesResponse && messagesResponse.content) {
+        // Sort messages by createdDate in ascending order for proper chat display
+        const sortedMessages = messagesResponse.content.sort(
+          (a, b) =>
+            new Date(a.createdDate).getTime() -
+            new Date(b.createdDate).getTime(),
+        );
+        setMessages(sortedMessages);
+      }
+      setIsLoadingMessages(false);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      setIsLoadingMessages(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    console.log('Send button clicked');
+    if (!message.trim() || !selectedChat || !currentUser) {
+      return;
+    }
+
+    try {
+      // Generate UUID using crypto random method
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(
+          /[xy]/g,
+          function (c) {
+            const r = (Math.random() * 16) | 0;
+            const v = c == 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+          },
+        );
+      };
+
+      const messageUuid = generateUUID();
+
+      const payload = {
+        operationName: 'SmsPostMutation',
+        variables: {
+          author: `${currentUser.firstName} ${currentUser.lastName}`,
+          body: message.trim(),
+          clientId: currentUser.clientId.toString(),
+          conversationId: selectedChat.webId.toString(),
+          sentDate: new Date().toISOString(),
+          status: 'SENT',
+          receiveDate: '',
+          type: 'SMS',
+          url: '',
+          userId: currentUser.webId.toString(),
+          id: '',
+          uuid: messageUuid,
+          token: '',
+        },
+        query:
+          'mutation SmsPostMutation($body: String, $author: String, $uuid: String, $userId: String, $url: String, $type: String, $token: String, $sentDate: String, $status: String, $receiveDate: String, $clientId: String, $conversationId: ID, $id: String) {\n  smsPost(\n    body: {conversationId: $conversationId, body: $body, author: $author, clientId: $clientId, uuid: $uuid, userId: $userId, url: $url, type: $type, token: $token, sentDate: $sentDate, status: $status, receiveDate: $receiveDate, id: $id}\n    query: {}\n  ) {\n    conversationId\n    body\n    author\n    clientId\n    uuid\n    userId\n    url\n    type\n    token\n    sentDate\n    status\n    receiveDate\n    __typename\n  }\n}',
+      };
+
+      const response = await fetch(
+        'https://agxlhr3v7nfdnhfv3ssxsfdcpe.appsync-api.us-east-1.amazonaws.com/graphql',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: '*/*',
+            'x-api-key': 'da2-jrr6ci5j6jhh3jiop4kv3gbtem',
+            'x-amz-user-agent': 'aws-amplify/3.0.7',
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      const result = await response.json();
+
+      if (result.data && result.data.smsPost) {
+        console.log('Message sent successfully:', result.data.smsPost);
+
+        // Clear the input
+        setMessage('');
+
+        // Refresh messages
+        await fetchMessagesByConversationId(selectedChat.webId);
+        console.log('Page refresh after sending messages');
+
+        // Scroll to bottom
+        setTimeout(() => {
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollToEnd({ animated: true });
+          }
+        }, 100);
+      } else {
+        console.error('Error sending message:', result);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  };
+
+  // useEffect(() => {
+  //   const fetchCurrentChats = async () => {
+  //     try {
+  //       const response = await apiService.get(
+  //         '/api/notification/conversations?status=OPEN',
+  //       );
+
+  //       console.log('Current chats', response.data);
+
+  //       setIsLoadings(false);
+  //     } catch (error) {
+  //       console.error('Error fetching current user:', error);
+  //       setIsLoadings(false);
+  //     }
+  //   };
+
+  //   fetchCurrentChats();
+
+  //   const fetchAvailableUsers = async () => {
+  //     try {
+  //       const response = await apiService.get('/api/security/filter/USERS');
+
+  //       console.log('Available users', response.data);
+
+  //       setIsLoadings(false);
+  //     } catch (error) {
+  //       console.error('Error fetching available users:', error);
+  //       setIsLoadings(false);
+  //     }
+  //   };
+
+  //   fetchAvailableUsers();
+  // }, []);
+
+  const handleAddConversation = async () => {
+    try {
+      if (!currentUserClientId) {
+        console.error('Client ID not available');
+        return;
+      }
+
+      const participants = groupParticipants.map(participantValue => ({
+        webId: parseInt(participantValue),
+      }));
+
+      const updatePayload = {
+        title: groupName,
+        status: 'OPEN',
+        clientId: currentUserClientId,
+        participants: participants,
+      };
+
+      const response = await apiService.post(
+        '/api/notification/conversations/',
+        updatePayload,
+      );
+
+      console.log('Add conversations response', response.data);
+
+      // Refresh the conversations list
+      const refreshResponse = await apiService.get(
+        '/api/notification/conversations?status=OPEN',
+      );
+
+      const apiResponse = refreshResponse.data as ApiResponse;
+      if (apiResponse && apiResponse.content) {
+        setChats(apiResponse.content);
+      }
+    } catch (error) {
+      console.error('Error Adding conversations:', error);
+    }
+  };
 
   // Group Modal UI
   const renderGroupModal = (
@@ -131,29 +554,42 @@ export default function ChatScreen({navigation}) {
           />
           <Text style={styles.inputLabel}>Participants</Text>
           <ScrollView style={styles.participantList}>
-            {mockParticipants.map((p, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[
-                  styles.participantItem,
-                  groupParticipants.includes(p) && styles.participantItemSelected,
-                ]}
-                onPress={() =>
-                  setGroupParticipants(prev =>
-                    prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
-                  )
-                }
-              >
-                <Text
-                  style={[
-                    styles.participantText,
-                    groupParticipants.includes(p) && styles.participantTextSelected,
-                  ]}
-                >
-                  {p}
+            {isLoadingUsers ? (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#1292E6" />
+                <Text style={{ color: '#7A8194', marginTop: 8 }}>
+                  Loading users...
                 </Text>
-              </TouchableOpacity>
-            ))}
+              </View>
+            ) : (
+              availableUsers.map((user, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.participantItem,
+                    groupParticipants.includes(user.value) &&
+                      styles.participantItemSelected,
+                  ]}
+                  onPress={() =>
+                    setGroupParticipants(prev =>
+                      prev.includes(user.value)
+                        ? prev.filter(x => x !== user.value)
+                        : [...prev, user.value],
+                    )
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.participantText,
+                      groupParticipants.includes(user.value) &&
+                        styles.participantTextSelected,
+                    ]}
+                  >
+                    {user.text}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            )}
           </ScrollView>
           <View style={styles.modalBtnRow}>
             <TouchableOpacity
@@ -167,20 +603,20 @@ export default function ChatScreen({navigation}) {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.modalBtnSave}
-              onPress={() => {
+              onPress={async () => {
+                if (!groupName.trim()) {
+                  alert('Please enter a group name');
+                  return;
+                }
+
+                if (groupParticipants.length === 0) {
+                  alert('Please select at least one participant');
+                  return;
+                }
+
+                await handleAddConversation();
+
                 setGroupModal(false);
-                // Add group to chats (mock)
-                setChats([
-                  ...chats,
-                  {
-                    id: Date.now().toString(),
-                    name: groupName,
-                    email: '',
-                    lastMessage: '',
-                    time: new Date().toLocaleString(),
-                    messages: [],
-                  },
-                ]);
                 setGroupName('');
                 setGroupParticipants([]);
               }}
@@ -198,68 +634,83 @@ export default function ChatScreen({navigation}) {
     <SafeAreaView style={{ flex: 1, backgroundColor: '#1292E6' }}>
       {/* Header */}
       <View style={styles.detailHeader}>
-        <TouchableOpacity onPress={() => setSelectedChat(null)}>
+        <TouchableOpacity
+          onPress={() => {
+            setSelectedChat(null);
+            setConversationDetails(null);
+            setMessages([]); // Clear messages when going back
+          }}
+        >
           <Text style={{ color: '#fff', fontSize: 28 }}>{'←'}</Text>
         </TouchableOpacity>
-        <Text style={styles.detailHeaderTitle}>{selectedChat?.name}</Text>
+        <Text style={styles.detailHeaderTitle}>
+          {conversationDetails?.title || selectedChat?.title || 'Loading...'}
+        </Text>
         <View style={{ marginLeft: 'auto' }}>
           <Text style={{ color: '#fff', fontSize: 26 }}>⋮</Text>
         </View>
       </View>
-      {/* Chat Bubbles */}
+      {/* Chat Content */}
       <View style={styles.chatDetailCard}>
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 12 }}
-          ref={scrollViewRef}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-        >
-          {selectedChat?.messages.map((msg: any, idx: number) => (
-            <View
-              key={msg.id || idx}
-              style={[
-                styles.chatBubbleRow,
-                msg.isMe ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' },
-              ]}
-            >
+        {isLoadingsDetails || isLoadingMessages ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#1292E6" />
+            <Text style={styles.loadingText}>
+              {isLoadingsDetails
+                ? 'Loading conversation...'
+                : 'Loading messages...'}
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingBottom: 12,
+              flexGrow: 1,
+            }}
+            ref={scrollViewRef}
+            onContentSizeChange={() => {
+              // Auto scroll to bottom when new messages are loaded
+              if (scrollViewRef.current) {
+                scrollViewRef.current.scrollToEnd({ animated: true });
+              }
+            }}
+          >
+            {messages.length === 0 ? (
               <View
-                style={[
-                  styles.chatBubble,
-                  msg.isMe
-                    ? { backgroundColor: '#1292E6', alignItems: 'flex-end' }
-                    : { backgroundColor: '#ECECEC', alignItems: 'flex-start' },
-                ]}
+                style={{
+                  flex: 1,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
               >
-                <Text
-                  style={[
-                    styles.chatBubbleUser,
-                    msg.isMe ? { color: '#fff' } : { color: '#19233C' },
-                  ]}
-                >
-                  {msg.user}
-                </Text>
-                <Text
-                  style={[
-                    styles.chatBubbleText,
-                    msg.isMe ? { color: '#fff' } : { color: '#19233C' },
-                  ]}
-                >
-                  {msg.text}
-                </Text>
-                <Text
-                  style={[
-                    styles.chatBubbleTime,
-                    msg.isMe ? { color: '#fff' } : { color: '#6F7A8A' },
-                  ]}
-                >
-                  {msg.time}
-                </Text>
+                <Text style={styles.emptyText}>No messages available yet</Text>
+                {conversationDetails && (
+                  <View style={{ marginTop: 20, paddingHorizontal: 20 }}>
+                    <Text style={styles.conversationInfo}>
+                      Participants:{' '}
+                      {conversationDetails.participants?.length || 0}
+                    </Text>
+                    <Text style={styles.conversationInfo}>
+                      Created by: {conversationDetails.createdBy}
+                    </Text>
+                    <Text style={styles.conversationInfo}>
+                      Status: {conversationDetails.status}
+                    </Text>
+                  </View>
+                )}
               </View>
-            </View>
-          ))}
-        </ScrollView>
+            ) : (
+              <View style={{ paddingTop: 10 }}>
+                {messages.map((message, index) =>
+                  renderMessage(message, index),
+                )}
+              </View>
+            )}
+          </ScrollView>
+        )}
       </View>
-      {/* Input */}
+      {/* Input -  send message API */}
       <KeyboardAvoidingView
         behavior={Platform.select({ ios: 'padding', android: undefined })}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
@@ -267,51 +718,16 @@ export default function ChatScreen({navigation}) {
         <View style={styles.inputBar}>
           <TextInput
             style={styles.inputMessage}
-            placeholder="Type a message"
+            placeholder="Type a message..."
             value={message}
             onChangeText={setMessage}
             placeholderTextColor="#AAB3BB"
+            multiline
           />
           <TouchableOpacity
-            style={styles.inputSend}
+            style={[styles.inputSend, { opacity: message.trim() ? 1 : 0.5 }]}
+            onPress={sendMessage}
             disabled={!message.trim()}
-            onPress={() => {
-              if (!message.trim()) return;
-              // Add message to chat (mock)
-              setChats((prev) =>
-                prev.map((c) =>
-                  c.id === selectedChat.id
-                    ? {
-                        ...c,
-                        messages: [
-                          ...c.messages,
-                          {
-                            id: Date.now().toString(),
-                            user: 'John Alex',
-                            text: message,
-                            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            isMe: true,
-                          },
-                        ],
-                      }
-                    : c
-                )
-              );
-              setSelectedChat((prev: any) => ({
-                ...prev,
-                messages: [
-                  ...prev.messages,
-                  {
-                    id: Date.now().toString(),
-                    user: 'John Alex',
-                    text: message,
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    isMe: true,
-                  },
-                ],
-              }));
-              setMessage('');
-            }}
           >
             <Text style={{ fontSize: 23, color: '#1292E6' }}>➤</Text>
           </TouchableOpacity>
@@ -324,7 +740,7 @@ export default function ChatScreen({navigation}) {
   return selectedChat ? (
     renderChatDetail()
   ) : (
-   <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#007AFF" />
       {/* Header */}
       <View style={styles.header}>
@@ -338,7 +754,7 @@ export default function ChatScreen({navigation}) {
           </TouchableOpacity>
         </View>
       </View>
-  {/* Floating Search Bar */}
+      {/* Floating Search Bar */}
       <View style={styles.searchBarFloatWrap}>
         <View style={styles.searchBarFloat}>
           <SearchIcon width={25} height={25} style={{ marginLeft: 8 }} />
@@ -361,13 +777,25 @@ export default function ChatScreen({navigation}) {
           paddingTop: 50,
         }}
       >
-      <FlatList
-        data={filteredChats}
-        renderItem={renderChatItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 60, paddingTop: 6 }}
-        showsVerticalScrollIndicator={false}
-      />
+        {isLoadings ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#1292E6" />
+            <Text style={styles.loadingText}>Loading conversations...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredChats}
+            renderItem={renderChatItem}
+            keyExtractor={item => item.webId.toString()}
+            contentContainerStyle={{ paddingBottom: 60, paddingTop: 6 }}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No conversations found</Text>
+              </View>
+            }
+          />
+        )}
       </View>
       {/* Floating Group Button */}
       <TouchableOpacity
@@ -732,5 +1160,34 @@ const styles = StyleSheet.create({
     padding: 6,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#7A8194',
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#7A8194',
+    fontWeight: '500',
+  },
+  conversationInfo: {
+    fontSize: 14,
+    color: '#7A8194',
+    marginBottom: 4,
+    textAlign: 'center',
   },
 });
