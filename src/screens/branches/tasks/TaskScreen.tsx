@@ -56,13 +56,15 @@ const STATUS_BG_COLORS: Record<string, string> = {
 export default function TaskScreen({ navigation }) {
   // Get access token from auth store
   // Fix: use correct property for accessToken
-  const accessToken = useAuthStore((state) => state.user?.accessToken);
   // Add missing state for dropdown and date picker
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const route = useRoute<RouteProp<{ params: { branchId?: string } }, 'params'>>();
-  const branchId = route.params?.branchId;
+  const route: any = useRoute();
+  const branchId =
+    route.params?.branchId ||
+    route.params?.params?.branchId ||
+    route.params?.params?.params?.branchId;
 
   // State
   const [filterModal, setFilterModal] = useState(false);
@@ -117,25 +119,24 @@ export default function TaskScreen({ navigation }) {
   });
 
   // Fetch notes when modal opens
-  useEffect(() => {
-    if (notesModal) {
-      setLoadingNotes(true);
-      setNotesError('');
-      apiService.get('/api/document/notes/sqlite')
-        .then((response) => {
-          // Debug log for API response
-          console.log('Notes API response:', response);
-          const data = response.data as { content?: any[] };
-          if (response.success && Array.isArray(data?.content)) {
-            setNotes(data.content);
-          } else {
-            setNotesError('Failed to fetch notes');
-          }
-        })
-        .catch(() => setNotesError('Failed to fetch notes'))
-        .finally(() => setLoadingNotes(false));
-    }
-  }, [notesModal]);
+  // useEffect(() => {
+  //   setLoadingNotes(true);
+  //   setNotesError('');
+  //   apiService.get('/api/document/notes/sqlite')
+  //     .then((response) => {
+  //       // Debug log for API response
+  //       console.log('Notes API response:', response);
+  //       const data = (response?.data as { list?: any[] })?.list;
+  //       if (response.success && Array.isArray(data)) {
+  //         setNotes(data);
+  //       } else {
+  //         setNotesError('Failed to fetch notes');
+  //       }
+  //     })
+  //     .catch(() => setNotesError('Failed to fetch notes'))
+  //     .finally(() => setLoadingNotes(false));
+
+  // }, []);
   useEffect(() => {
     setTasksParams((prev) => ({
       ...prev,
@@ -226,26 +227,42 @@ export default function TaskScreen({ navigation }) {
     setShowSortModal(false);
   };
 
-  // Fetch devices when modal opens
-  useEffect(() => {
-    if (devicesModal) {
-      setLoadingDevices(true);
-      setDevicesError('');
-      apiService.get('/api/site/devices')
-        .then((response) => {
-          // Debug log for API response
-          console.log('Devices API response:', response);
-          const data = response.data as { content?: any[] };
-          if (response.success && Array.isArray(data?.content)) {
-            setDevices(data.content);
-          } else {
-            setDevicesError('Failed to fetch devices');
-          }
-        })
-        .catch(() => setDevicesError('Failed to fetch devices'))
-        .finally(() => setLoadingDevices(false));
-    }
-  }, [devicesModal]);
+  // // Fetch devices when modal opens
+  // useEffect(() => {
+  //   setLoadingDevices(true);
+  //   setDevicesError('');
+  //   apiService.get('/api/site/devices')
+  //     .then((response) => {
+  //       // Debug log for API response
+  //       console.log('Devices API response:', response);
+  //       const data = (response?.data as { content?: any[] })?.content;
+  //       if (response.success && Array.isArray(data)) {
+  //         setDevices(data);
+  //       } else {
+  //         setDevicesError('Failed to fetch devices');
+  //       }
+  //     })
+  //     .catch(() => setDevicesError('Failed to fetch devices'))
+  //     .finally(() => setLoadingDevices(false));
+  // }, []);
+
+  // // Fetch sections when modal opens
+  // useEffect(() => {
+  //   setLoadingSections(true);
+  //   setSectionsError('');
+  //   apiService.get('/api/forms/sections/all')
+  //     .then((response) => {
+  //       const data = response.data as { content?: any[] };
+  //       if (response.success && Array.isArray(data?.content)) {
+  //         setSections(data.content);
+  //       } else {
+  //         setSectionsError('Failed to fetch sections');
+  //       }
+  //     })
+  //     .catch(() => setSectionsError('Failed to fetch sections'))
+  //     .finally(() => setLoadingSections(false));
+  // }, []);
+
 
   const renderTask = ({ item }: any) => {
     // Normalize status string for color mapping
@@ -261,9 +278,23 @@ export default function TaskScreen({ navigation }) {
     const statusColor = STATUS_COLORS[normalizedStatus] || '#0088E7';
     const statusBg = STATUS_BG_COLORS[normalizedStatus] || '#E6F1FB';
     const statusText = item.status;
+    function formatTaskDateRange(startDate: any, endDate: any) {
+      if (!startDate && !endDate) return 'No date';
+      const format = (date: any) => {
+        if (!date) return '';
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      };
+      if (startDate && endDate) {
+        if (startDate === endDate) return format(startDate);
+        return `${format(startDate)} - ${format(endDate)}`;
+      }
+      return format(startDate || endDate);
+    }
     // Progress color same as statusColor
     return (
-      <View style={[styles.taskCard, { borderRadius: 18, padding: 20, marginBottom: 22, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }]}> 
+      <View key={item?.webId} style={[styles.taskCard, { borderRadius: 18, padding: 20, marginBottom: 22, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }]}>
         {/* Top Row: Number, Status Badge */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
           <Text style={{ color: statusColor, fontWeight: '500', fontSize: 15 }}>#{item.webId}</Text>
@@ -277,7 +308,9 @@ export default function TaskScreen({ navigation }) {
         {/* Date Row */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
           <CalendarIcon width={15} height={15} style={{ opacity: 0.7 }} />
-          <Text style={{ color: '#676869ff', fontSize: 10, marginLeft: 8, fontWeight: '400' }}>{item.startDate} --- {item.endDate}</Text>
+          <Text style={{ color: '#676869ff', fontSize: 10, marginLeft: 8, fontWeight: '400' }}>
+            {formatTaskDateRange(item.startDate, item.endDate)}
+          </Text>
         </View>
         {/* Progress Bar */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
@@ -299,7 +332,7 @@ export default function TaskScreen({ navigation }) {
               <SettingsIcon width={14} height={14} />
               <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Devices</Text>
               <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{item.devices ?? 0}</Text>
+                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{devices.length ?? 0}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -309,7 +342,7 @@ export default function TaskScreen({ navigation }) {
               <MenuIcon width={14} height={14} />
               <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Sections</Text>
               <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>{tasks.length ?? 0}</Text>
+                <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>{sections.length ?? 0}</Text>
               </View>
             </TouchableOpacity>
             {/* Notes */}
@@ -317,7 +350,7 @@ export default function TaskScreen({ navigation }) {
               <NotesIcon width={14} height={14} />
               <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Notes</Text>
               <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{item.notes ?? 0}</Text>
+                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{notes.length ?? 0}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -436,7 +469,7 @@ export default function TaskScreen({ navigation }) {
                 <View style={{ backgroundColor: '#fff', borderRadius: 16, width: '90%', paddingBottom: 16 }}>
                   {/* Custom Header */}
                   <View style={{ backgroundColor: '#0088E7', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 18, alignItems: 'center' }}>
-                    <Text style={{ color: '#ffff', fontSize: 16, fontWeight: '500'}}>
+                    <Text style={{ color: '#ffff', fontSize: 16, fontWeight: '500' }}>
                       Select Date
                     </Text>
                   </View>
@@ -554,58 +587,58 @@ export default function TaskScreen({ navigation }) {
       onBackdropPress={closeModal}
     >
       <View style={styles.modalOverlay}>
-      <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, justifyContent: 'flex-start', width: '90%', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 8 , minHeight: '60%'}}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
-        <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Users</Text>
-        <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 16, color: '#0088E7' }}>✕</Text>
+        <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, justifyContent: 'flex-start', width: '90%', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 8, minHeight: '60%' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
+            <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Users</Text>
+            <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 16, color: '#0088E7' }}>✕</Text>
+              </View>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 18, paddingBottom: 0 }}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderTopLeftRadius: 12, borderBottomLeftRadius: 12, paddingHorizontal: 12, height: 44 }}>
-          <SearchIcon width={22} height={22} style={{ marginRight: 8, opacity: 0.6 }} />
-          <TextInput
-          placeholder="Search ..."
-          style={{ flex: 1, fontSize: 16, color: '#363942', fontWeight: '500', padding: 0 }}
-          value={searchUser}
-          onChangeText={setSearchUser}
-          onSubmitEditing={handleUserSearch}
-          returnKeyType="search"
-          />
-        </View>
-        <TouchableOpacity style={{ backgroundColor: '#0088E7', borderBottomRightRadius: 12, borderTopRightRadius: 12, paddingHorizontal: 18, height: 44, justifyContent: 'center', alignItems: 'center', shadowColor: '#0088E7', shadowOpacity: 0.15, shadowRadius: 4, elevation: 2 }} onPress={handleUserSearch}>
-          <Text style={{ color: '#fff', fontWeight: '500', fontSize: 16 }}>Search</Text>
-        </TouchableOpacity>
-        </View>
-        <View style={{ marginTop: 14, paddingHorizontal: 18, flex: 1, paddingVertical: 8 }}>
-        {loadingUsers ? (
-          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
-        ) : userError ? (
-          <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{userError}</Text>
-        ) : filteredUsers.length > 0 ? (
-          <FlatList
-          data={filteredUsers}
-          keyExtractor={(item, idx) => (item.id ? item.id.toString() : idx.toString())}
-          renderItem={({ item }) => (
-            <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 10, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
-            <Text style={{ fontWeight: '500', fontSize: 16, color: '#222E44' }}>{item.name || item.username || item.storeEmail}</Text>
-            <Text style={{ color: '#0088E7', fontSize: 14 }}>
-              {item.email ? item.email : <Text style={{ color: '#0088E7' }}>email@example.com</Text>}
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 18, paddingBottom: 0 }}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderTopLeftRadius: 12, borderBottomLeftRadius: 12, paddingHorizontal: 12, height: 44 }}>
+              <SearchIcon width={22} height={22} style={{ marginRight: 8, opacity: 0.6 }} />
+              <TextInput
+                placeholder="Search ..."
+                style={{ flex: 1, fontSize: 16, color: '#363942', fontWeight: '500', padding: 0 }}
+                value={searchUser}
+                onChangeText={setSearchUser}
+                onSubmitEditing={handleUserSearch}
+                returnKeyType="search"
+              />
             </View>
-          )}
-          ListEmptyComponent={
-            <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No users found</Text>
-          }
-          showsVerticalScrollIndicator={false}
-          />
-        ) : (
-          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No users found</Text>
-        )}
+            <TouchableOpacity style={{ backgroundColor: '#0088E7', borderBottomRightRadius: 12, borderTopRightRadius: 12, paddingHorizontal: 18, height: 44, justifyContent: 'center', alignItems: 'center', shadowColor: '#0088E7', shadowOpacity: 0.15, shadowRadius: 4, elevation: 2 }} onPress={handleUserSearch}>
+              <Text style={{ color: '#fff', fontWeight: '500', fontSize: 16 }}>Search</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ marginTop: 14, paddingHorizontal: 18, flex: 1, paddingVertical: 8 }}>
+            {loadingUsers ? (
+              <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+            ) : userError ? (
+              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{userError}</Text>
+            ) : filteredUsers.length > 0 ? (
+              <FlatList
+                data={filteredUsers}
+                keyExtractor={(item, idx) => (item.id ? item.id.toString() : idx.toString())}
+                renderItem={({ item }) => (
+                  <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 10, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
+                    <Text style={{ fontWeight: '500', fontSize: 16, color: '#222E44' }}>{item.name || item.username || item.storeEmail}</Text>
+                    <Text style={{ color: '#0088E7', fontSize: 14 }}>
+                      {item.email ? item.email : <Text style={{ color: '#0088E7' }}>email@example.com</Text>}
+                    </Text>
+                  </View>
+                )}
+                ListEmptyComponent={
+                  <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No users found</Text>
+                }
+                showsVerticalScrollIndicator={false}
+              />
+            ) : (
+              <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No users found</Text>
+            )}
+          </View>
         </View>
-      </View>
       </View>
     </Modal>
   );
@@ -614,25 +647,6 @@ export default function TaskScreen({ navigation }) {
   const [sections, setSections] = useState<any[]>([]);
   const [loadingSections, setLoadingSections] = useState(false);
   const [sectionsError, setSectionsError] = useState('');
-
-  // Fetch sections when modal opens
-  useEffect(() => {
-    if (sectionsModal) {
-      setLoadingSections(true);
-      setSectionsError('');
-      apiService.get('/api/forms/sections/all')
-        .then((response) => {
-          const data = response.data as { content?: any[] };
-          if (response.success && Array.isArray(data?.content)) {
-            setSections(data.content);
-          } else {
-            setSectionsError('Failed to fetch sections');
-          }
-        })
-        .catch(() => setSectionsError('Failed to fetch sections'))
-        .finally(() => setLoadingSections(false));
-    }
-  }, [sectionsModal]);
 
   const SectionsModal = (
     <Modal
@@ -726,7 +740,7 @@ export default function TaskScreen({ navigation }) {
       onBackdropPress={closeModal}
     >
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalBox, { padding: 0, minHeight: 320 }]}> 
+        <View style={[styles.modalBox, { padding: 0, minHeight: 320 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6', borderTopLeftRadius: 18, borderTopRightRadius: 18 }}>
             <Text style={{ fontWeight: '700', fontSize: 20, color: '#222E44' }}>Devices</Text>
             <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -747,10 +761,12 @@ export default function TaskScreen({ navigation }) {
                 renderItem={({ item }) => (
                   <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: '700', fontSize: 17, color: '#222E44', marginBottom: 2 }}>Sensor</Text>
-                      <Text style={{ color: '#0088E7', fontSize: 16, fontWeight: '500', marginBottom: 2 }}>{item.uuid || ''}</Text>
+                      <Text style={{ fontWeight: '700', fontSize: 17, color: '#222E44', marginBottom: 2 }}>{item.name || ''}</Text>
+                      <Text style={{ color: '#0088E7', fontSize: 12, fontWeight: '400', marginBottom: 2 }}>{item.macAddress || ''}</Text>
                     </View>
-                    <Text style={{ color: '#AAB3BB', fontSize: 15, fontWeight: '500' }}>uuid # {item.id || item.deviceId || ''}</Text>
+                    <View style={{flex:1}}>
+                      <Text style={{ color: '#AAB3BB', fontSize: 12, fontWeight: '400' }}>uuid # {item.uuId ?? ''}</Text>
+                    </View>
                   </View>
                 )}
                 ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No devices found</Text>}
@@ -790,9 +806,9 @@ export default function TaskScreen({ navigation }) {
       onBackdropPress={closeModal}
     >
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalBox, { padding: 0, minHeight: 320 }]}> 
+        <View style={[styles.modalBox, { padding: 0, minHeight: 320 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6', borderTopLeftRadius: 18, borderTopRightRadius: 18 }}>
-            <Text style={{ fontWeight: '700', fontSize: 20, color: '#222E44' }}>Notes</Text>
+            <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Notes</Text>
             <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 18, color: '#0088E7' }}>✕</Text>
@@ -822,9 +838,6 @@ export default function TaskScreen({ navigation }) {
               <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1, marginTop: 32 }}>
                 <Text style={{ color: '#888', fontSize: 18, fontWeight: '500', textAlign: 'center' }}>
                   No notes found for this task.
-                </Text>
-                <Text style={{ color: '#AAB3BB', fontSize: 15, marginTop: 8, textAlign: 'center' }}>
-                  You can add notes to help track important details or instructions.
                 </Text>
               </View>
             )}
@@ -880,55 +893,103 @@ export default function TaskScreen({ navigation }) {
   const SortModal = () => (
     // Redesigned Dropdown Sort Modal
     showSortModal ? (
-         <View style={[styles.dropdownCard, { position: 'absolute', top: 170, right: 24, zIndex: 100 }]}> {/* Adjust top/right for placement */}
-          <View style={styles.sortModalHeader}>
-            <Text style={styles.sortModalTitle}>Sort By</Text>
+      <View style={[styles.dropdownCard, { position: 'absolute', top: 170, right: 24, zIndex: 100 }]}> {/* Adjust top/right for placement */}
+        <View style={styles.sortModalHeader}>
+          <Text style={styles.sortModalTitle}>Sort By</Text>
+          <TouchableOpacity
+            onPress={() => setShowSortModal(false)}
+            style={styles.sortModalCloseBtn}
+          >
+            <View style={styles.sortModalCloseCircle}>
+              <Text style={{ fontSize: 18, color: '#007AFF', bottom: 2 }}>x</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.sortModalBody}>
+          <Text style={styles.sortModalField}>Name</Text>
+          <View style={styles.sortModalOrderBtns}>
             <TouchableOpacity
-              onPress={() => setShowSortModal(false)}
-              style={styles.sortModalCloseBtn}
+              style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+              onPress={() => handleSort('name', 'desc')}
             >
-              <View style={styles.sortModalCloseCircle}>
-                <Text style={{ fontSize: 18, color: '#007AFF', bottom: 2 }}>x</Text>
-              </View>
+              <ArrowDownWard width={15} height={15} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+              onPress={() => handleSort('name', 'asc')}
+            >
+              <ArrowUpIcon width={15} height={15} />
             </TouchableOpacity>
           </View>
-          <View style={styles.sortModalBody}>
-            <Text style={styles.sortModalField}>Name</Text>
-            <View style={styles.sortModalOrderBtns}>
-              <TouchableOpacity
-                style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
-                onPress={() => handleSort('name', 'desc')}
-              >
-                <ArrowDownWard width={15} height={15} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
-                onPress={() => handleSort('name', 'asc')}
-              >
-                <ArrowUpIcon width={15} height={15} />
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={[styles.sortModalBody, { marginTop: 14 }]}>
-            <Text style={styles.sortModalField}>Number</Text>
-            <View style={styles.sortModalOrderBtns}>
-              <TouchableOpacity
-                style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
-                onPress={() => handleSort('number', 'desc')}
-              >
-                <ArrowDownWard width={18} height={18} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
-                onPress={() => handleSort('number', 'asc')}
-              >
-                <ArrowUpIcon width={18} height={18} />
-              </TouchableOpacity>
-            </View>
+        </View>
+        <View style={[styles.sortModalBody, { marginTop: 14 }]}>
+          <Text style={styles.sortModalField}>Number</Text>
+          <View style={styles.sortModalOrderBtns}>
+            <TouchableOpacity
+              style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+              onPress={() => handleSort('number', 'desc')}
+            >
+              <ArrowDownWard width={18} height={18} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+              onPress={() => handleSort('number', 'asc')}
+            >
+              <ArrowUpIcon width={18} height={18} />
+            </TouchableOpacity>
           </View>
         </View>
+      </View>
     ) : null
   );
+
+  // Fetch devices, sections, and notes on mount
+  useEffect(() => {
+    // Fetch devices
+    setLoadingDevices(true);
+    setDevicesError('');
+    apiService.get('/api/site/devices')
+      .then((response) => {
+        console.log('Devices API response:', response);
+        const data = (response?.data as { content?: any[] })?.content;
+        if (response.success && Array.isArray(data)) {
+          setDevices(data);
+        } else {
+          setDevicesError('Failed to fetch devices');
+        }
+      })
+      .catch(() => setDevicesError('Failed to fetch devices'))
+      .finally(() => setLoadingDevices(false));
+
+    // Fetch sections
+    apiService.get('/api/forms/sections/all')
+      .then((response) => {
+        console.log('Sections API response:', response);
+        const data = (response?.data as { content?: any[] })?.content;
+        if (response.success && Array.isArray(data)) {
+          setSections(data);
+        } else {
+          setSectionsError('Failed to fetch sections');
+        }
+      })
+      .catch(() => setSectionsError('Failed to fetch sections'));
+
+    // Fetch notes
+    setLoadingNotes(true);
+    setNotesError('');
+    apiService.get('/api/document/notes/sqlite')
+      .then((response) => {
+        console.log('Notes API response:', response);
+        const data = (response?.data as { list?: any[] })?.list;
+        if (response.success) {
+          setNotes(data ?? []);
+        } else {
+          setNotesError('Failed to fetch notes');
+        }
+      })
+      .catch(() => setNotesError('Failed to fetch notes'))
+      .finally(() => setLoadingNotes(false));
+  }, []);
 
   return (
     <>

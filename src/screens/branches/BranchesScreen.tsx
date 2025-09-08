@@ -63,15 +63,17 @@ const BranchesScreen = ({ navigation }) => {
     setShowDropdown(false);
   };
 
-  const navigateToTask = () => {
-    navigation.navigate('Task');
-  };
-
   // Extract branches from paginated response
   const branches = data?.data?.content || [];
   const renderBranch = ({ item = { name: '', code: '', webId: '' } }) => (
     <TouchableOpacity
-      onPress={() => navigation.navigate('Task', { branchId: item.webId })}
+      onPress={() => navigation.navigate('Main', {
+        screen: 'Task',
+        params: {
+          screen: 'Task',
+          params: { branchId: item.webId }
+        }
+      })}
       style={styles.branchCard}
     >
       <View style={{ width: '80%' }}>
@@ -94,9 +96,9 @@ const BranchesScreen = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          {/* <TouchableOpacity onPress={() => navigation.goBack()}>
             <BackArrowIcon width={17} height={17} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           <Text style={styles.headerTitle}>Branches</Text>
           <TouchableOpacity onPress={() => setShowDropdown(true)}>
             <ThreeDotIcon width={20} height={20} />
@@ -175,8 +177,7 @@ const BranchesScreen = ({ navigation }) => {
         ) : branches.length === 0 ? (
           <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
             {/* Replace below with Lottie or SVG animation if available */}
-            <Text style={{ fontSize: 24, color: '#888', marginBottom: 12 }}>No branches yet</Text>
-            <Text style={{ fontSize: 16, color: '#aaa' }}>Branches you create will show up here.</Text>
+            <Text style={{ fontSize: 24, color: '#888', marginBottom: 12 }}>No branches found</Text>
           </View>
         ) : (
           <FlatList

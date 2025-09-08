@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar, Platform } from 'react-native';
 import {
   View,
@@ -19,50 +19,15 @@ import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import FilterIcon from '../../assets/svgs/filterIcon.svg';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
+import { useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from '@react-navigation/native';
+import { apiService } from '../../services/api';
 
 const STATUS_COLORS = {
-  Success: '#28B446',
-  Failed: '#E4190A',
-  Pending: '#9C528B',
+  SUCCESS: '#28B446',
+  FAILED: '#E4190A',
+  PENDING: '#9C528B',
 };
-
-const EMAILS = [
-  {
-    id: '1',
-    title: 'Document Created',
-    email: 'jack@vyzor.com',
-    date: '11-08-2025 at 4:14 pm',
-    status: 'Success',
-  },
-  {
-    id: '2',
-    title: 'Document Created',
-    email: 'jack@vyzor.com',
-    date: '11-08-2025 at 4:14 pm',
-    status: 'Failed',
-  },
-  {
-    id: '3',
-    title: 'Document Created',
-    email: 'jack@vyzor.com',
-    date: '11-08-2025 at 4:14 pm',
-    status: 'Pending',
-  },
-  {
-    id: '4',
-    title: 'Document Created',
-    email: 'jack@vyzor.com',
-    date: '11-08-2025 at 4:14 pm',
-    status: 'Success',
-  },
-  {
-    id: '5',
-    title: 'Document Created',
-    email: 'jack@vyzor.com',
-    date: '11-08-2025 at 4:14 pm',
-    status: 'Failed',
-  },
-];
 
 const FILTER_OPTIONS = {
   to: ['All', 'jack@vyzor.com', 'jill@vyzor.com'],
@@ -75,16 +40,32 @@ const FILTER_OPTIONS = {
     'Document Expired',
     'Document Deleted',
     'Document Created',
+    'Password Reset',
+    'User Updated'
   ],
   status: ['All', 'Pending', 'Failed', 'Success'],
 };
 
-function formatDate(dateObj) {
-  if (!dateObj) return '';
+function formatDate(dateStrOrObj: string | Date = ""): string {
+  if (!dateStrOrObj) return '';
+  let dateObj: Date;
+  if (typeof dateStrOrObj === 'string') {
+    dateObj = new Date(dateStrOrObj);
+    if (isNaN(dateObj.getTime())) return '';
+  } else {
+    dateObj = dateStrOrObj;
+  }
   const dd = String(dateObj.getDate()).padStart(2, '0');
   const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
   const yyyy = dateObj.getFullYear();
-  return `${dd}-${mm}-${yyyy}`;
+
+  let hours = dateObj.getHours();
+  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // 0 should be 12
+
+  return `${dd}-${mm}-${yyyy} at ${hours}:${minutes} ${ampm}`;
 }
 
 export default function EmailNotificationsScreen({ navigation }) {
@@ -105,8 +86,54 @@ export default function EmailNotificationsScreen({ navigation }) {
   const containerPadding = Math.max(12, width * 0.04);
   const modalWidth = Math.min(420, width - 2 * containerPadding);
 
+  const getEmailParams = () => {
+    const params = new URLSearchParams();
+    params.append('page', '0');
+    params.append('size', '20');
+    params.append('search', search || '');
+    params.append('sort', 'createdDate,desc');
+    if (filters.to && filters.to !== 'All') params.append('to', filters.to);
+    if (filters.type && filters.type !== 'All') params.append('emailType', filters.type);
+    if (filters.status && filters.status !== 'All') {
+      // Map status to uppercase enum value
+      params.append('status', filters.status.toUpperCase());
+    }
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    return params.toString();
+  };
+
+  const {
+    data: emailData,
+    isLoading: loadingEmails,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['emails', filters, search],
+    queryFn: async () => {
+      const params = getEmailParams();
+      try {
+        const response = await apiService.get(`/api/notification/emails?${params}`);
+        if (Array.isArray(response.data)) return response.data;
+        if (response.data && Array.isArray((response.data as { content?: unknown[] }).content)) return (response.data as { content: unknown[] }).content;
+        if (response.data && Array.isArray((response.data as { content?: unknown[] }).content)) return (response.data as { content: unknown[] }).content;
+        return [];
+      } catch (err) {
+        console.error('Emails API fetch error:', err);
+        return [];
+      }
+    },
+  });
+  const emails = Array.isArray(emailData) ? emailData : [];
+
+  useEffect(() => {
+      refetch();
+    }, [refetch]
+  );
+
   // Filtering logic
-  const filteredEmails = EMAILS.filter(item => {
+  const filteredEmails = emails.filter(item => {
     if (filters.to !== 'All' && item.email !== filters.to) return false;
     if (filters.type !== 'All' && item.title !== filters.type) return false;
     if (filters.status !== 'All' && item.status !== filters.status) return false;
@@ -133,24 +160,24 @@ export default function EmailNotificationsScreen({ navigation }) {
     return true;
   });
 
-  const renderEmail = ({ item }) => (
+  const renderEmail = ({ item: { subject = "", recipientEmails = "", startDate = "", status = "" } }) => (
     <View style={[styles.emailRow, { padding: containerPadding }]}>
       <View style={styles.emailTextBlock}>
-        <Text style={styles.emailTitle}>{item.title}</Text>
-        <Text style={styles.emailAddress}>{item.email}</Text>
+        <Text style={styles.emailTitle}>{subject}</Text>
+        <Text style={styles.emailAddress}>{recipientEmails}</Text>
       </View>
       <View style={styles.emailMetaBlock}>
-        <Text style={styles.emailDate}>{item.date}</Text>
+        <Text style={styles.emailDate}>{formatDate(startDate)}</Text>
         <View
           style={[
             styles.statusPill,
             {
-              backgroundColor: STATUS_COLORS[item.status],
-              borderColor: STATUS_COLORS[item.status],
+              backgroundColor: STATUS_COLORS[status],
+              borderColor: STATUS_COLORS[status],
             },
           ]}
         >
-          <Text style={[styles.statusText]}>{item.status}</Text>
+          <Text style={[styles.statusText]}>{status}</Text>
         </View>
       </View>
     </View>
@@ -161,32 +188,52 @@ export default function EmailNotificationsScreen({ navigation }) {
   const inputHeight = isSmall ? 38 : 44;
 
   // Dropdown menu (now: overlays just under input, no red dot, matches Figma)
-  const renderDropdown = (field) =>
-    dropdown.visible && dropdown.field === field ? (
+  const getToOptions = () => {
+    // Always start with 'All'
+    const userNames = emails
+      .flatMap(email => Array.isArray(email.emailRecipientModel) ? email.emailRecipientModel.map(r => r.name) : [])
+      .filter(Boolean);
+    // Remove duplicates
+    const uniqueNames = Array.from(new Set(userNames));
+    return [ ...uniqueNames];
+  };
+
+  const renderDropdown = (field) => {
+    if (!(dropdown.visible && dropdown.field === field)) return null;
+    let options = FILTER_OPTIONS[field];
+    if (field === 'to') {
+      options = getToOptions();
+    }
+    return (
       <View style={styles.dropdownOverlay}>
-        <View style={styles.dropdownMenu}>
-          {FILTER_OPTIONS[field].map((option) => (
-            <TouchableOpacity
-              key={option}
-              style={styles.dropdownItem}
-              onPress={() => {
-                setFilters((f) => ({ ...f, [field]: option }));
-                setDropdown({ field: null, visible: false });
-              }}
-            >
-              <Text
-                style={[
-                  styles.dropdownText,
-                  filters[field] === option && { color: '#1292E6', fontWeight: 'bold' },
-                ]}
+        <View style={[styles.dropdownMenu, { maxHeight: 260 }]}> {/* Increased maxHeight for more scrollable area */}
+          <FlatList
+            data={options}
+            keyExtractor={(item) => item}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                key={item}
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setFilters((f) => ({ ...f, [field]: item }));
+                  setDropdown({ field: null, visible: false });
+                }}
               >
-                {option}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[styles.dropdownText, filters[field] === item && { color: '#1292E6', fontWeight: 'bold' }]}
+                  numberOfLines={1}
+                >
+                  {item}
+                </Text>
+              </TouchableOpacity>
+            )}
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={{ paddingBottom: 8 }}
+          />
         </View>
       </View>
-    ) : null;
+    );
+  };
 
   // Date picker (native)
   const renderDatePicker = (field) =>
@@ -214,34 +261,21 @@ export default function EmailNotificationsScreen({ navigation }) {
   // Helper to show value or placeholder for dropdowns & dates
   const getInputText = (field, isDate = false) => {
     if (isDate) {
-      return filters[field]
-        ? <Text style={{
-            fontSize: labelFont,
-            color: '#184B74',
-            flex: 1,
-            textAlign: 'left',
-          }}>{filters[field]}</Text>
-        : <Text style={{
-            fontSize: labelFont,
-            color: '#7A8194',
-            flex: 1,
-            textAlign: 'left',
-          }}>{field === 'startDate' ? 'Start Date' : 'End Date'}</Text>
+      if (filters[field]) {
+        return <Text style={{ fontSize: labelFont, color: '#184B74', flex: 1, textAlign: 'left' }}>{filters[field]}</Text>;
+      } else {
+        return <Text style={{ fontSize: labelFont, color: '#7A8194', flex: 1, textAlign: 'left' }}>{field === 'startDate' ? 'Start Date' : 'End Date'}</Text>;
+      }
     }
-    return (
-      <Text
-        style={{
-          fontSize: labelFont,
-          color: filters[field] === 'All' ? '#1292E6' : '#184B74',
-          fontWeight: filters[field] === 'All' ? 'bold' : '600',
-          flex: 1,
-          textAlign: 'left',
-        }}
-        numberOfLines={1}
-      >
-        {filters[field]}
-      </Text>
-    );
+    // Dropdown fields
+    let placeholder = '';
+    if (field === 'to') placeholder = 'To';
+    if (field === 'type') placeholder = 'Email Type';
+    if (field === 'status') placeholder = 'Status';
+    if (!filters[field] || filters[field] === 'All') {
+      return <Text style={{ fontSize: labelFont, color: '#7A8194', flex: 1, textAlign: 'left', fontWeight: '400' }}>{placeholder}</Text>;
+    }
+    return <Text style={{ fontSize: labelFont, color: '#184B74', flex: 1, textAlign: 'left', fontWeight: '600' }}>{filters[field]}</Text>;
   };
 
   return (
@@ -323,7 +357,7 @@ export default function EmailNotificationsScreen({ navigation }) {
             onPress={(e) => e.stopPropagation()}
           >
             <ScrollView
-              style={{ maxHeight: 420 }}
+              // style={{ maxHeight: 420 }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
@@ -546,7 +580,7 @@ const styles = StyleSheet.create({
   },
   emailAddress: {
     color: '#1292E6',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '400',
   },
   emailMetaBlock: {

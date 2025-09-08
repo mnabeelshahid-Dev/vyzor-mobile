@@ -76,10 +76,10 @@ import LoginScreen from '../screens/auth/loginScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 
-const BranchesStack = () => {
+const TaskStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Branches" component={BranchesScreen} />
+      {/* <Stack.Screen name="Branches" component={BranchesScreen} /> */}
       <Stack.Screen name="Task" component={TasksScreen} />
       <Stack.Screen name="Section" component={SectionsScreen} />
     </Stack.Navigator>
@@ -90,7 +90,7 @@ const BranchesStack = () => {
 const MainNavigator = () => {
   return (
     <MainTab.Navigator
-      initialRouteName="Branches"
+      initialRouteName="Task"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
@@ -99,15 +99,14 @@ const MainNavigator = () => {
           borderTopColor: '#E5E5E5',
           paddingTop: 8,
           paddingBottom: 8,
-          height: 80,
         },
         tabBarActiveTintColor: '#007AFF',
         tabBarInactiveTintColor: '#8E8E93',
       }}
     >
       <MainTab.Screen
-        name="Branches"
-        component={BranchesStack}
+        name="Task"
+        component={TaskStack}
         options={{
           tabBarIcon: ({ focused, color, size }) => (
             <View style={{ alignItems: 'center' }}>
@@ -262,6 +261,9 @@ const RootNavigator = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {isAuthenticated ? (
         <>
+          <Stack.Screen
+            name="Branches" component={BranchesScreen} options={{ headerShown: false }}
+          />
           <Stack.Screen
             name="Main"
             component={MainNavigator}
