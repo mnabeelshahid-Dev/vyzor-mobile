@@ -20,6 +20,7 @@ import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import MessegeIcon from '../../assets/svgs/chatMessageIcon.svg';
+import { realtimeService } from '../../services/realtimeService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -167,6 +168,8 @@ export default function ChatScreen({ navigation }) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
+  const [isRealTimeActive, setIsRealTimeActive] = useState(false);
+
   // Filtered chats
   const filteredChats = chats.filter(
     c =>
@@ -198,7 +201,7 @@ export default function ChatScreen({ navigation }) {
         onPress={() => {
           setSelectedChat(item);
           fetchConversationById(item.webId);
-          fetchMessagesByConversationId(item.webId); // Add this line
+          fetchMessagesByConversationId(item.webId);
         }}
         activeOpacity={0.7}
       >
@@ -206,13 +209,21 @@ export default function ChatScreen({ navigation }) {
           <Text style={styles.chatTitle}>{item.title}</Text>
           <Text style={styles.chatEmail}>{getParticipantText()}</Text>
         </View>
-        <Text style={styles.chatTime}>
-          {new Date(item.createdDate).toLocaleDateString()} at{' '}
-          {new Date(item.createdDate).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Text>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={styles.chatTime}>
+            {new Date(item.createdDate).toLocaleDateString()} at{' '}
+            {new Date(item.createdDate).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+          {selectedChat?.webId === item.webId && isRealTimeActive && (
+            <View style={styles.realtimeIndicator}>
+              <View style={styles.realtimeDot} />
+              <Text style={styles.realtimeText}>Live</Text>
+            </View>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -336,6 +347,72 @@ export default function ChatScreen({ navigation }) {
 
     fetchAvailableUsers();
   }, [groupModal]);
+
+  useEffect(() => {
+    if (selectedChat && currentUserClientId) {
+      console.log('Setting up real-time for conversation:', selectedChat.webId);
+
+      setIsRealTimeActive(true);
+
+      // Start polling for new messages
+      realtimeService.startPolling(selectedChat.webId);
+
+      // Listen for new messages
+      realtimeService.addListener('newMessages', data => {
+        console.log('Received new messages via polling:', data.messages);
+
+        if (data.messages && data.messages.length > 0) {
+          setMessages(prevMessages => {
+            const existingMessageIds = new Set(
+              prevMessages.map(msg => msg.webId),
+            );
+            const newUniqueMessages = data.messages.filter(
+              (msg: Message) => !existingMessageIds.has(msg.webId),
+            );
+
+            if (newUniqueMessages.length > 0) {
+              // Add new messages and sort
+              const updatedMessages = [
+                ...prevMessages,
+                ...newUniqueMessages,
+              ].sort(
+                (a, b) =>
+                  new Date(a.createdDate).getTime() -
+                  new Date(b.createdDate).getTime(),
+              );
+
+              // Auto scroll to bottom when new message arrives
+              setTimeout(() => {
+                if (scrollViewRef.current) {
+                  scrollViewRef.current.scrollToEnd({ animated: true });
+                }
+              }, 100);
+
+              return updatedMessages;
+            }
+            return prevMessages;
+          });
+        }
+      });
+
+      // Cleanup function
+      return () => {
+        realtimeService.removeListener('newMessages');
+        realtimeService.stopPolling();
+        setIsRealTimeActive(false);
+      };
+    } else {
+      // Stop polling when no chat is selected
+      realtimeService.stopPolling();
+      setIsRealTimeActive(false);
+    }
+  }, [selectedChat, currentUserClientId]);
+
+  useEffect(() => {
+    return () => {
+      realtimeService.stopPolling();
+    };
+  }, []);
 
   const fetchConversationById = async (webId: number) => {
     try {
@@ -1189,5 +1266,22 @@ const styles = StyleSheet.create({
     color: '#7A8194',
     marginBottom: 4,
     textAlign: 'center',
+  },
+  realtimeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  realtimeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#00C851',
+    marginRight: 4,
+  },
+  realtimeText: {
+    fontSize: 10,
+    color: '#00C851',
+    fontWeight: '600',
   },
 });
