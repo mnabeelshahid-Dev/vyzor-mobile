@@ -316,8 +316,9 @@ export default function ChatScreen({ navigation }) {
 
         console.log('Current User Data', response.data);
 
-        const clientID = response.data.clientId;
-        setCurrentUserClientId(clientID);
+        // Fix: Use webId instead of clientId for user identification
+        const currentUserId = response.data.webId;
+        setCurrentUserClientId(currentUserId);
         setCurrentUser(response.data); // Store full user data
       } catch (error) {
         console.error('Error fetching users data:', error);
