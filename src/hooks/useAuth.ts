@@ -39,7 +39,8 @@ export const useLogin = () => {
       );
     },
     onError: (error: Error) => {
-      showErrorToast('Login Failed', error.message);
+      console.log('Login error:', error);
+      // showErrorToast('Login Failed', error.message);
     },
   });
 };

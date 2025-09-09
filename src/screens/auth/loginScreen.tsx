@@ -1,3 +1,4 @@
+import ErrorModal from '../../components/ErrorModal';
 import React, { useState } from 'react';
 import {
   View,
@@ -29,10 +30,8 @@ type RootStackParamList = {
   ForgotPassword: undefined;
 };
 
-type LoginScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
-  'Login'
->;
+
+type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
 interface LoginScreenProps {
   navigation: LoginScreenNavigationProp;
@@ -45,6 +44,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   // Password strength indicator removed
 
@@ -96,18 +96,35 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   const handleLogin = async () => {
-    const isFormValid = await validateForm();
-    if (!isFormValid) {
-      return;
+    let valid = true;
+    if (!email.trim()) {
+      setEmailError('Email is required');
+      valid = false;
+    } else if (!isValidEmail(email.trim())) {
+      setEmailError('Please enter a valid email address');
+      valid = false;
+    } else {
+      setEmailError('');
     }
+    if (!password.trim()) {
+      setPasswordError('Password is required');
+      valid = false;
+    } else {
+      setPasswordError('');
+    }
+    if (!valid) return;
 
     try {
       await loginMutation.mutateAsync({
         email: email.trim(),
         password: password.trim(),
       });
+      // If login is successful, modal stays hidden
+      setErrorModalVisible(false);
     } catch (error) {
-      console.error('Login error:', error);
+      // Show modal only if login fails
+      setErrorModalVisible(true);
+      console.log('Login error:', error);
     }
   };
 
@@ -194,269 +211,278 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     return true;
   };
 
-  // Password validation on blur removed
-
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-    >
-      <StatusBar backgroundColor="#0088E7" barStyle="light-content" />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
-        scrollEnabled={true}
+    <>
+      <ErrorModal
+        visible={errorModalVisible}
+        onClose={() => setErrorModalVisible(false)}
+        message={'Your email/password is incorrect'}
+      />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        {/* Blue Gradient Background */}
-        <View style={styles.gradientBackground}>
-          {/* Logo Section - Updated to match UI */}
-          <View style={styles.logoSection}>
-            <View style={styles.logoContainer}>
-              <View style={styles.logoIconContainer}>
-                <LogoIconSvg width={50} height={50} />
+        <StatusBar backgroundColor="#0088E7" barStyle="light-content" />
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          scrollEnabled={true}
+        >
+          {/* Blue Gradient Background */}
+          <View style={styles.gradientBackground}>
+            {/* Logo Section - Updated to match UI */}
+            <View style={styles.logoSection}>
+              <View style={styles.logoContainer}>
+                <View style={styles.logoIconContainer}>
+                  <LogoIconSvg width={50} height={50} />
+                </View>
+                <Text style={styles.logoText}>vyzor</Text>
               </View>
-              <Text style={styles.logoText}>vyzor</Text>
             </View>
-          </View>
-
-          {/* Login Card */}
-          <View style={styles.loginCard}>
-            <Text style={styles.cardTitle}>Sign In</Text>
-            <Text style={styles.cardSubtitle}>Sign in to my account</Text>
-
-            <View style={styles.form}>
-              {/* Email Input */}
-              <View style={styles.floatingInputContainer}>
-                <View style={[styles.floatingInputWrapper]}>
-                  <View
-                    style={[
-                      styles.floatingLabelContainer,
-                      (emailFocused || email) &&
+            {/* Login Card */}
+            <View style={styles.loginCard}>
+              <Text style={styles.cardTitle}>Sign In</Text>
+              <Text style={styles.cardSubtitle}>Sign in to your account</Text>
+              <View style={styles.form}>
+                {/* Email Input */}
+                <View style={styles.floatingInputContainer}>
+                  <View style={[styles.floatingInputWrapper]}>
+                    <View
+                      style={[
+                        styles.floatingLabelContainer,
+                        (emailFocused || email) &&
                         styles.floatingLabelContainerActive,
-                    ]}
-                  >
-                    <EmailIcon
-                      height={20}
-                      width={20}
-                      style={[
-                        styles.floatingIcon,
-                        (emailFocused || email) && styles.floatingIconActive,
-                      ]}
-                      color={
-                        emailFocused || email
-                          ? emailFocused
-                            ? '#0088E7'
-                            : '#9CA3AF'
-                          : '#9CA3AF'
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.floatingLabel,
-                        (emailFocused || email) && styles.floatingLabelActive,
-                        emailFocused && styles.floatingLabelFocused,
                       ]}
                     >
-                      Email
-                    </Text>
-                  </View>
-                  <TextInput
-                    style={[
-                      styles.floatingInput,
-                      emailFocused && styles.floatingInputFocused,
-                      emailError && styles.floatingInputError,
-                    ]}
-                    value={email}
-                    onChangeText={handleEmailChange}
-                    onFocus={handleEmailFocus}
-                    onBlur={handleEmailBlur}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    textContentType="emailAddress"
-                    editable={!loginMutation.isPending}
-                  />
-                  <View
-                    style={[
-                      styles.underline,
-                      emailFocused && styles.underlineFocused,
-                      emailError && styles.underlineError,
-                    ]}
-                  />
-                </View>
-                {emailError ? (
-                  <Text style={styles.errorText}>{emailError}</Text>
-                ) : (
-                  (() => {
-                    return isValidEmail(email) ? (
-                      <View style={styles.validationIcon}>
-                        <CheckIcon width={20} height={20} />
-                      </View>
-                    ) : null;
-                  })()
-                )}
-              </View>
-
-              {/* Password Input */}
-              <View style={styles.floatingInputContainer}>
-                <View style={styles.floatingInputWrapper}>
-                  <View
-                    style={[
-                      styles.floatingLabelContainer,
-                      (passwordFocused || password) &&
-                        styles.floatingLabelContainerActive,
-                    ]}
-                  >
-                    <PasswordIcon
-                      height={20}
-                      width={20}
+                      <EmailIcon
+                        height={20}
+                        width={20}
+                        style={[
+                          styles.floatingIcon,
+                          (emailFocused || email) && styles.floatingIconActive,
+                        ]}
+                        color={
+                          emailFocused || email
+                            ? emailFocused
+                              ? '#0088E7'
+                              : '#9CA3AF'
+                            : '#9CA3AF'
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.floatingLabel,
+                          (emailFocused || email) && styles.floatingLabelActive,
+                          emailFocused && styles.floatingLabelFocused,
+                        ]}
+                      >
+                        Email
+                      </Text>
+                    </View>
+                    <TextInput
                       style={[
-                        styles.floatingIcon,
+                        styles.floatingInput,
+                        emailFocused && styles.floatingInputFocused,
+                        emailError && styles.floatingInputError,
+                      ]}
+                      value={email}
+                      onChangeText={handleEmailChange}
+                      onFocus={handleEmailFocus}
+                      onBlur={handleEmailBlur}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      textContentType="emailAddress"
+                      editable={!loginMutation.isPending}
+                    />
+                    <View
+                      style={[
+                        styles.underline,
+                        emailFocused && styles.underlineFocused,
+                        emailError && styles.underlineError,
+                      ]}
+                    />
+                  </View>
+                  {emailError ? (
+                    <Text style={styles.errorText}>{emailError}</Text>
+                  ) : (
+                    (() => {
+                      return isValidEmail(email) ? (
+                        <View style={styles.validationIcon}>
+                          <CheckIcon width={20} height={20} />
+                        </View>
+                      ) : null;
+                    })()
+                  )}
+                </View>
+
+                {/* Password Input */}
+                <View style={styles.floatingInputContainer}>
+                  <View style={styles.floatingInputWrapper}>
+                    <View
+                      style={[
+                        styles.floatingLabelContainer,
                         (passwordFocused || password) &&
+                        styles.floatingLabelContainerActive,
+                      ]}
+                    >
+                      <PasswordIcon
+                        height={20}
+                        width={20}
+                        style={[
+                          styles.floatingIcon,
+                          (passwordFocused || password) &&
                           styles.floatingIconActive,
-                      ]}
-                      color={
-                        passwordFocused || password
-                          ? passwordFocused
-                            ? '#0088E7'
+                        ]}
+                        color={
+                          passwordFocused || password
+                            ? passwordFocused
+                              ? '#0088E7'
+                              : '#9CA3AF'
                             : '#9CA3AF'
-                          : '#9CA3AF'
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.floatingLabel,
-                        (passwordFocused || password) &&
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.floatingLabel,
+                          (passwordFocused || password) &&
                           styles.floatingLabelActive,
-                        passwordFocused && styles.floatingLabelFocused,
+                          passwordFocused && styles.floatingLabelFocused,
+                        ]}
+                      >
+                        Password
+                      </Text>
+                    </View>
+                    <TextInput
+                      style={[
+                        styles.floatingInput,
+                        passwordFocused && styles.floatingInputFocused,
+                        passwordError && styles.floatingInputError,
+                        { paddingRight: 40 }, // Add space for toggle button
                       ]}
+                      value={password}
+                      onChangeText={handlePasswordChange}
+                      onFocus={handlePasswordFocus}
+                      onBlur={handlePasswordBlur}
+                      secureTextEntry={!isPasswordVisible}
+                      textContentType="password"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!loginMutation.isPending}
+                    />
+
+                    <TouchableOpacity
+                      style={styles.passwordToggle}
+                      onPress={togglePasswordVisibility}
+                      disabled={loginMutation.isPending}
                     >
-                      Password
-                    </Text>
+                      {isPasswordVisible ? (
+                        <Text style={styles.passwordToggleIcon}>👁️‍🗨️</Text>
+                      ) : (
+                        <EyeSlash width={20} height={20} />
+                      )}
+                    </TouchableOpacity>
+
+                    <View
+                      style={[
+                        styles.underline,
+                        passwordFocused && styles.underlineFocused,
+                        passwordError && styles.underlineError,
+                      ]}
+                    />
                   </View>
-                  <TextInput
-                    style={[
-                      styles.floatingInput,
-                      passwordFocused && styles.floatingInputFocused,
-                      passwordError && styles.floatingInputError,
-                      { paddingRight: 40 }, // Add space for toggle button
-                    ]}
-                    value={password}
-                    onChangeText={handlePasswordChange}
-                    onFocus={handlePasswordFocus}
-                    onBlur={handlePasswordBlur}
-                    secureTextEntry={!isPasswordVisible}
-                    textContentType="password"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!loginMutation.isPending}
-                  />
-                  <TouchableOpacity
-                    style={styles.passwordToggle}
-                    onPress={togglePasswordVisibility}
-                    disabled={loginMutation.isPending}
-                  >
-                    {isPasswordVisible ? (
-                      <Text style={styles.passwordToggleIcon}>👁️‍🗨️</Text>
-                    ) : (
-                      <EyeSlash width={20} height={20} />
-                    )}
-                  </TouchableOpacity>
-                  <View
-                    style={[
-                      styles.underline,
-                      passwordFocused && styles.underlineFocused,
-                      passwordError && styles.underlineError,
-                    ]}
-                  />
+                  {/* Password error removed, only email error shown */}
                 </View>
-                {/* Password error removed, only email error shown */}
-              </View>
-
-              {/* Forgot Password */}
-              <TouchableOpacity
-                style={styles.forgotPassword}
-                onPress={handleNavigateToForgotPassword}
-                disabled={loginMutation.isPending}
-              >
-                <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-                {forgotPasswordMutation.isPending && (
-                  <ActivityIndicator
-                    size="small"
-                    color="#0088E7"
-                    style={styles.forgotPasswordLoader}
-                  />
+                {passwordError && (
+                  <Text style={[styles.errorText,{marginTop: -10}]}>{passwordError}</Text>
                 )}
-              </TouchableOpacity>
 
-              {/* Login Button */}
-              <TouchableOpacity
-                style={[
-                  styles.loginButton,
-                  loginMutation.isPending && styles.loginButtonDisabled,
-                ]}
-                onPress={handleLogin}
-                disabled={loginMutation.isPending}
-              >
-                {loginMutation.isPending ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.loginButtonText}>Log In</Text>
-                )}
-              </TouchableOpacity>
-              {/* Divider */}
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <View style={styles.dividerTextContainer}>
-                  <Text style={styles.dividerText}> Or Log In with</Text>
-                </View>
-                <View style={styles.dividerLine} />
-              </View>
-
-              {/* Social Login Buttons */}
-              <View style={styles.socialButtons}>
-                <TouchableOpacity style={styles.socialButton}>
-                  <GoogleIcon width={28} height={28} />
-                </TouchableOpacity>
+                {/* Forgot Password */}
                 <TouchableOpacity
-                  style={[styles.socialButton, styles.facebookButton]}
-                >
-                  <View
-                    style={{
-                      backgroundColor: '#4267B2',
-                      height: 30,
-                      width: 30,
-                      borderRadius: 5,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Text style={styles.socialIconText}>f</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-
-              {/* Sign Up Link */}
-              <View style={styles.signUpContainer}>
-                <Text style={styles.signUpText}>Don't have an account? </Text>
-                <TouchableOpacity
-                  onPress={handleNavigateToRegister}
+                  style={styles.forgotPassword}
+                  onPress={handleNavigateToForgotPassword}
                   disabled={loginMutation.isPending}
                 >
-                  <Text style={styles.signUpLink}>Sign Up</Text>
+                  <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                  {forgotPasswordMutation.isPending && (
+                    <ActivityIndicator
+                      size="small"
+                      color="#0088E7"
+                      style={styles.forgotPasswordLoader}
+                    />
+                  )}
                 </TouchableOpacity>
+
+                {/* Login Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.loginButton,
+                    loginMutation.isPending && styles.loginButtonDisabled,
+                  ]}
+                  onPress={handleLogin}
+                  disabled={loginMutation.isPending}
+                  activeOpacity={loginMutation.isPending ? 1 : 0.7}
+                >
+                  {loginMutation.isPending ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.loginButtonText}>Log In</Text>
+                  )}
+                </TouchableOpacity>
+                {/* Divider */}
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <View style={styles.dividerTextContainer}>
+                    <Text style={styles.dividerText}> Or Login with</Text>
+                  </View>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {/* Social Login Buttons */}
+                <View style={styles.socialButtons}>
+                  <TouchableOpacity style={styles.socialButton}>
+                    <GoogleIcon width={28} height={28} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.socialButton, styles.facebookButton]}
+                  >
+                    <View
+                      style={{
+                        backgroundColor: '#4267B2',
+                        height: 30,
+                        width: 30,
+                        borderRadius: 5,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text style={styles.socialIconText}>f</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Sign Up Link */}
+                <View style={styles.signUpContainer}>
+                  <Text style={styles.signUpText}>Don't have an account? </Text>
+                  <TouchableOpacity
+                    onPress={handleNavigateToRegister}
+                    disabled={loginMutation.isPending}
+                  >
+                    <Text style={styles.signUpLink}>Create an account</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </>
   );
-};
+}
+
 
 const createStyles = (theme: {
   colors: Record<string, string>;
@@ -474,7 +500,7 @@ const createStyles = (theme: {
       backgroundColor: '#0088E7',
       paddingHorizontal: 20,
       paddingTop: 0,
-      flex:1
+      flex: 1
     },
     statusArea: {
       flexDirection: 'row',
@@ -518,25 +544,24 @@ const createStyles = (theme: {
       backgroundColor: '#FFFFFF',
       borderRadius: 25,
       paddingHorizontal: 30,
-      paddingVertical: 20,
-      height: '70%'
+      paddingVertical: 30,
     },
     cardTitle: {
-      fontSize: 22,
-      fontWeight: '500',
+      fontSize: 21,
+      fontWeight: '600',
       color: '#101828',
       textAlign: 'center',
       fontFamily: 'Poppins',
     },
     cardSubtitle: {
-      fontSize: 12,
-      fontWeight: '600',
+      fontSize: 13,
+      fontWeight: '400',
       color: '#475467',
       textAlign: 'center',
       fontFamily: 'Poppins',
     },
     form: {
-     marginTop: 30,
+      marginTop: 30,
     },
     floatingInputContainer: {
       marginBottom: 15,
@@ -547,7 +572,7 @@ const createStyles = (theme: {
     },
     floatingLabelContainer: {
       position: 'absolute',
-      left: -5,
+      left: -2,
       top: 16,
       flexDirection: 'row',
       alignItems: 'center',
@@ -556,16 +581,16 @@ const createStyles = (theme: {
       paddingHorizontal: 2,
     },
     floatingLabelContainerActive: {
-      top: -6,
+      top: -8,
       backgroundColor: '#FFFFFF',
-      paddingHorizontal: 4,
-      marginLeft: -2,
+      // paddingHorizontal: 4,
+      marginLeft: -3,
     },
     floatingLabel: {
       fontWeight: '400',
       color: '#475467',
       fontSize: 16,
-      marginLeft: 8,
+      marginLeft: 5,
       backgroundColor: 'transparent',
       fontFamily: 'Poppins',
     },
@@ -591,7 +616,7 @@ const createStyles = (theme: {
     floatingInput: {
       fontSize: 14,
       color: '#1F2937',
-      paddingVertical: 8,
+      paddingVertical: 4,
       paddingHorizontal: 0,
       backgroundColor: 'transparent',
       width: '100%',
@@ -716,7 +741,7 @@ const createStyles = (theme: {
     },
     dividerLine: {
       flex: 1,
-      height: 0.7,
+      height: 1.2,
       backgroundColor: '#0088E7',
     },
     dividerTextContainer: {
@@ -727,7 +752,7 @@ const createStyles = (theme: {
       color: '#000000',
       fontSize: 19,
       fontWeight: '500',
-      paddingHorizontal: 16,
+      paddingHorizontal: 7,
       fontFamily: 'Poppins',
     },
     socialButtons: {
@@ -834,7 +859,6 @@ const createStyles = (theme: {
       color: '#FF6B6B',
       fontFamily: 'Poppins',
       marginTop: 4,
-      marginLeft: 12,
     },
   });
 
