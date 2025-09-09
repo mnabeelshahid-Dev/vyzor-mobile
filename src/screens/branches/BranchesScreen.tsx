@@ -131,7 +131,7 @@ const BranchesScreen = ({ navigation }) => {
               navigation.navigate('Profile');
             }}
           >
-            <Text style={styles.dropdownText}>Profile</Text>
+            <Text style={styles.dropdownText}>Settings</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.dropdownItem} onPress={handleLogout}>
             <Text style={styles.dropdownText}>Logout</Text>

@@ -15,6 +15,7 @@ import {
   Dimensions,
   StatusBar,
 } from 'react-native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
@@ -90,62 +91,10 @@ interface MessagesApiResponse {
   empty: boolean;
 }
 
-// Mock Data
-const mockChats = [
-  {
-    id: '1',
-    name: 'Daily Updates',
-    email: 'jack@vyzor.com',
-    lastMessage: 'All task are done on the time.',
-    time: '08/12/2025 at 5:55pm',
-    messages: [
-      {
-        id: 'm1',
-        user: 'John Alex',
-        text: 'All task are done on the time.',
-        time: '5.55 pm',
-        isMe: true,
-      },
-      {
-        id: 'm2',
-        user: 'John Alex',
-        text: "okey that's great",
-        time: '5:58 pm',
-        isMe: false,
-      },
-    ],
-  },
-  {
-    id: '2',
-    name: 'Daily Updates',
-    email: 'jack@vyzor.com',
-    lastMessage: '',
-    time: '08/12/2025 at 5:55pm',
-    messages: [],
-  },
-  {
-    id: '3',
-    name: 'Daily Updates',
-    email: 'jack@vyzor.com',
-    lastMessage: '',
-    time: '08/12/2025 at 5:55pm',
-    messages: [],
-  },
-  {
-    id: '4',
-    name: 'Daily Updates',
-    email: 'jack@vyzor.com',
-    lastMessage: '',
-    time: '08/12/2025 at 5:55pm',
-    messages: [],
-  },
-];
-
-const mockParticipants = ['Jack Alex', 'Waqar khan', 'John Alex'];
-
 export default function ChatScreen({ navigation }) {
+  const queryClient = useQueryClient();
+
   // State
-  const [chats, setChats] = useState<Conversation[]>([]);
   const [selectedChat, setSelectedChat] = useState<any>(null);
   const [groupModal, setGroupModal] = useState(false);
   const [groupName, setGroupName] = useState('');
@@ -153,22 +102,203 @@ export default function ChatScreen({ navigation }) {
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
   const scrollViewRef = useRef<any>(null);
-  const [isLoadings, setIsLoadings] = useState(true);
-
-  const [conversationDetails, setConversationDetails] = useState<any>(null);
-  const [isLoadingsDetails, setIsLoadingsDetails] = useState(false);
-
-  const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([]);
-  const [currentUserClientId, setCurrentUserClientId] = useState<number | null>(
-    null,
-  );
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-
   const [isRealTimeActive, setIsRealTimeActive] = useState(false);
+
+  // Fetch conversations using React Query
+  const {
+    data: conversationsData,
+    isLoading: isLoadingConversations,
+    error: conversationsError,
+  } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: async () => {
+      const response = await apiService.get(
+        '/api/notification/conversations?status=OPEN',
+      );
+      console.log('Current chats', response.data);
+      return response.data as ApiResponse;
+    },
+  });
+
+  // Fetch current user using React Query
+  const {
+    data: currentUser,
+    isLoading: isLoadingCurrentUser,
+    error: currentUserError,
+  } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: async () => {
+      const response = await apiService.get(
+        '/api/security/userAccounts/currentUser/',
+      );
+      console.log('Current User Data', response.data);
+      return response.data;
+    },
+  });
+
+  // Fetch available users using React Query (only when modal is open)
+  const {
+    data: availableUsers = [],
+    isLoading: isLoadingUsers,
+    error: usersError,
+  } = useQuery({
+    queryKey: ['availableUsers'],
+    queryFn: async () => {
+      const response = await apiService.get('/api/security/filter/USERS');
+      console.log('Available users', response.data);
+      return response.data as AvailableUser[];
+    },
+    enabled: groupModal, // Only fetch when modal is open
+  });
+
+  // Fetch conversation details using React Query
+  const {
+    data: conversationDetails,
+    isLoading: isLoadingConversationDetails,
+    error: conversationDetailsError,
+  } = useQuery({
+    queryKey: ['conversationDetails', selectedChat?.webId],
+    queryFn: async () => {
+      if (!selectedChat?.webId) return null;
+      const response = await apiService.get(
+        `/api/notification/conversations/${selectedChat.webId}`,
+      );
+      console.log('Conversation details', response.data);
+      return response.data;
+    },
+    enabled: !!selectedChat?.webId,
+  });
+
+  // Fetch messages using React Query
+  const {
+    data: messagesData,
+    isLoading: isLoadingMessages,
+    error: messagesError,
+  } = useQuery({
+    queryKey: ['messages', selectedChat?.webId],
+    queryFn: async () => {
+      if (!selectedChat?.webId) return null;
+      const response = await apiService.get(
+        `/api/notification/sms?conversationId=${selectedChat.webId}&body=&sort=createdDate,desc`,
+      );
+      console.log(
+        'Messages for conversation',
+        selectedChat.webId,
+        response.data,
+      );
+      const messagesResponse = response.data as MessagesApiResponse;
+      if (messagesResponse && messagesResponse.content) {
+        const sortedMessages = messagesResponse.content.sort(
+          (a, b) =>
+            new Date(a.createdDate).getTime() -
+            new Date(b.createdDate).getTime(),
+        );
+        return sortedMessages;
+      }
+      return [];
+    },
+    enabled: !!selectedChat?.webId,
+  });
+
+  // Create conversation mutation
+  const createConversationMutation = useMutation({
+    mutationFn: async (conversationData: {
+      title: string;
+      status: string;
+      clientId: number;
+      participants: Array<{ webId: number }>;
+    }) => {
+      const response = await apiService.post(
+        '/api/notification/conversations/',
+        conversationData,
+      );
+      console.log('Add conversations response', response.data);
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate and refetch conversations
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+    onError: error => {
+      console.error('Error Adding conversations:', error);
+    },
+  });
+
+  // Send message mutation
+  const sendMessageMutation = useMutation({
+    mutationFn: async (messageData: {
+      author: string;
+      body: string;
+      clientId: string;
+      conversationId: string;
+      sentDate: string;
+      status: string;
+      receiveDate: string;
+      type: string;
+      url: string;
+      userId: string;
+      id: string;
+      uuid: string;
+      token: string;
+    }) => {
+      const payload = {
+        operationName: 'SmsPostMutation',
+        variables: messageData,
+        query:
+          'mutation SmsPostMutation($body: String, $author: String, $uuid: String, $userId: String, $url: String, $type: String, $token: String, $sentDate: String, $status: String, $receiveDate: String, $clientId: String, $conversationId: ID, $id: String) {\n  smsPost(\n    body: {conversationId: $conversationId, body: $body, author: $author, clientId: $clientId, uuid: $uuid, userId: $userId, url: $url, type: $type, token: $token, sentDate: $sentDate, status: $status, receiveDate: $receiveDate, id: $id}\n    query: {}\n  ) {\n    conversationId\n    body\n    author\n    clientId\n    uuid\n    userId\n    url\n    type\n    token\n    sentDate\n    status\n    receiveDate\n    __typename\n  }\n}',
+      };
+
+      const response = await fetch(
+        'https://agxlhr3v7nfdnhfv3ssxsfdcpe.appsync-api.us-east-1.amazonaws.com/graphql',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: '*/*',
+            'x-api-key': 'da2-jrr6ci5j6jhh3jiop4kv3gbtem',
+            'x-amz-user-agent': 'aws-amplify/3.0.7',
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      const result = await response.json();
+      if (!result.data?.smsPost) {
+        throw new Error('Failed to send message');
+      }
+      return result.data.smsPost;
+    },
+    onSuccess: () => {
+      // Clear the input
+      setMessage('');
+      // Invalidate and refetch messages
+      queryClient.invalidateQueries({
+        queryKey: ['messages', selectedChat?.webId],
+      });
+      // Scroll to bottom
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollToEnd({ animated: true });
+        }
+      }, 100);
+    },
+    onError: error => {
+      console.error('Error sending message:', error);
+    },
+  });
+
+  // Extract data and loading states
+  const chats = conversationsData?.content || [];
+  const currentUserClientId = currentUser?.webId || null;
+  const isLoadings = isLoadingConversations;
+
+  // Update messages state when query data changes
+  useEffect(() => {
+    if (messagesData) {
+      setMessages(messagesData);
+    }
+  }, [messagesData]);
 
   // Filtered chats
   const filteredChats = chats.filter(
@@ -182,6 +312,73 @@ export default function ChatScreen({ navigation }) {
             .includes(search.toLowerCase()),
       ),
   );
+
+  // Real-time messaging effect
+  useEffect(() => {
+    if (selectedChat && currentUserClientId) {
+      console.log('Setting up real-time for conversation:', selectedChat.webId);
+
+      setIsRealTimeActive(true);
+
+      // Start polling for new messages
+      realtimeService.startPolling(selectedChat.webId);
+
+      // Listen for new messages
+      realtimeService.addListener('newMessages', data => {
+        console.log('Received new messages via polling:', data.messages);
+
+        if (data.messages && data.messages.length > 0) {
+          setMessages(prevMessages => {
+            const existingMessageIds = new Set(
+              prevMessages.map(msg => msg.webId),
+            );
+            const newUniqueMessages = data.messages.filter(
+              (msg: Message) => !existingMessageIds.has(msg.webId),
+            );
+
+            if (newUniqueMessages.length > 0) {
+              // Add new messages and sort
+              const updatedMessages = [
+                ...prevMessages,
+                ...newUniqueMessages,
+              ].sort(
+                (a, b) =>
+                  new Date(a.createdDate).getTime() -
+                  new Date(b.createdDate).getTime(),
+              );
+
+              // Auto scroll to bottom when new message arrives
+              setTimeout(() => {
+                if (scrollViewRef.current) {
+                  scrollViewRef.current.scrollToEnd({ animated: true });
+                }
+              }, 100);
+
+              return updatedMessages;
+            }
+            return prevMessages;
+          });
+        }
+      });
+
+      // Cleanup function
+      return () => {
+        realtimeService.removeListener('newMessages');
+        realtimeService.stopPolling();
+        setIsRealTimeActive(false);
+      };
+    } else {
+      // Stop polling when no chat is selected
+      realtimeService.stopPolling();
+      setIsRealTimeActive(false);
+    }
+  }, [selectedChat, currentUserClientId]);
+
+  useEffect(() => {
+    return () => {
+      realtimeService.stopPolling();
+    };
+  }, []);
 
   // Chat List UI
   const renderChatItem = ({ item }: { item: Conversation }) => {
@@ -200,8 +397,6 @@ export default function ChatScreen({ navigation }) {
         style={styles.chatCard}
         onPress={() => {
           setSelectedChat(item);
-          fetchConversationById(item.webId);
-          fetchMessagesByConversationId(item.webId);
         }}
         activeOpacity={0.7}
       >
@@ -282,178 +477,27 @@ export default function ChatScreen({ navigation }) {
     );
   };
 
-  useEffect(() => {
-    const fetchCurrentChats = async () => {
-      try {
-        setIsLoadings(true);
-        const response = await apiService.get(
-          '/api/notification/conversations?status=OPEN',
-        );
-
-        console.log('Current chats', response.data);
-
-        const apiResponse = response.data as ApiResponse;
-        if (apiResponse && apiResponse.content) {
-          setChats(apiResponse.content);
-        }
-
-        setIsLoadings(false);
-      } catch (error) {
-        console.error('Error fetching conversations:', error);
-        setIsLoadings(false);
+  const handleAddConversation = async () => {
+    try {
+      if (!currentUserClientId) {
+        console.error('Client ID not available');
+        return;
       }
-    };
 
-    fetchCurrentChats();
-  }, []);
+      const participants = groupParticipants.map(participantValue => ({
+        webId: parseInt(participantValue),
+      }));
 
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const response = await apiService.get(
-          '/api/security/userAccounts/currentUser/',
-        );
-
-        console.log('Current User Data', response.data);
-
-        // Fix: Use webId instead of clientId for user identification
-        const currentUserId = response.data.webId;
-        setCurrentUserClientId(currentUserId);
-        setCurrentUser(response.data); // Store full user data
-      } catch (error) {
-        console.error('Error fetching users data:', error);
-        setIsLoadings(false);
-      }
-    };
-
-    fetchCurrentUser();
-  }, []);
-
-  useEffect(() => {
-    const fetchAvailableUsers = async () => {
-      if (groupModal) {
-        try {
-          setIsLoadingUsers(true);
-          const response = await apiService.get('/api/security/filter/USERS');
-
-          console.log('Available users', response.data);
-          setAvailableUsers(response.data);
-          setIsLoadingUsers(false);
-        } catch (error) {
-          console.error('Error fetching available users:', error);
-          setIsLoadingUsers(false);
-        }
-      }
-    };
-
-    fetchAvailableUsers();
-  }, [groupModal]);
-
-  useEffect(() => {
-    if (selectedChat && currentUserClientId) {
-      console.log('Setting up real-time for conversation:', selectedChat.webId);
-
-      setIsRealTimeActive(true);
-
-      // Start polling for new messages
-      realtimeService.startPolling(selectedChat.webId);
-
-      // Listen for new messages
-      realtimeService.addListener('newMessages', data => {
-        console.log('Received new messages via polling:', data.messages);
-
-        if (data.messages && data.messages.length > 0) {
-          setMessages(prevMessages => {
-            const existingMessageIds = new Set(
-              prevMessages.map(msg => msg.webId),
-            );
-            const newUniqueMessages = data.messages.filter(
-              (msg: Message) => !existingMessageIds.has(msg.webId),
-            );
-
-            if (newUniqueMessages.length > 0) {
-              // Add new messages and sort
-              const updatedMessages = [
-                ...prevMessages,
-                ...newUniqueMessages,
-              ].sort(
-                (a, b) =>
-                  new Date(a.createdDate).getTime() -
-                  new Date(b.createdDate).getTime(),
-              );
-
-              // Auto scroll to bottom when new message arrives
-              setTimeout(() => {
-                if (scrollViewRef.current) {
-                  scrollViewRef.current.scrollToEnd({ animated: true });
-                }
-              }, 100);
-
-              return updatedMessages;
-            }
-            return prevMessages;
-          });
-        }
-      });
-
-      // Cleanup function
-      return () => {
-        realtimeService.removeListener('newMessages');
-        realtimeService.stopPolling();
-        setIsRealTimeActive(false);
+      const updatePayload = {
+        title: groupName,
+        status: 'OPEN',
+        clientId: currentUserClientId,
+        participants: participants,
       };
-    } else {
-      // Stop polling when no chat is selected
-      realtimeService.stopPolling();
-      setIsRealTimeActive(false);
-    }
-  }, [selectedChat, currentUserClientId]);
 
-  useEffect(() => {
-    return () => {
-      realtimeService.stopPolling();
-    };
-  }, []);
-
-  const fetchConversationById = async (webId: number) => {
-    try {
-      setIsLoadingsDetails(true);
-      const response = await apiService.get(
-        `/api/notification/conversations/${webId}`,
-      );
-
-      console.log('Conversation details', response.data);
-      setConversationDetails(response.data);
-      setIsLoadingsDetails(false);
+      await createConversationMutation.mutateAsync(updatePayload);
     } catch (error) {
-      console.error('Error fetching conversation details:', error);
-      setIsLoadingsDetails(false);
-    }
-  };
-
-  const fetchMessagesByConversationId = async (webId: number) => {
-    try {
-      setIsLoadingMessages(true);
-      const response = await apiService.get(
-        `/api/notification/sms?conversationId=${webId}&body=&sort=createdDate,desc`,
-      );
-
-      console.log('Messages for conversation', webId, response.data);
-
-      const messagesResponse = response.data as MessagesApiResponse;
-      if (messagesResponse && messagesResponse.content) {
-        // Sort messages by createdDate in ascending order for proper chat display
-        const sortedMessages = messagesResponse.content.sort(
-          (a, b) =>
-            new Date(a.createdDate).getTime() -
-            new Date(b.createdDate).getTime(),
-        );
-        setMessages(sortedMessages);
-      }
-      setIsLoadingMessages(false);
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-      setIsLoadingMessages(false);
+      console.error('Error in handleAddConversation:', error);
     }
   };
 
@@ -478,137 +522,25 @@ export default function ChatScreen({ navigation }) {
 
       const messageUuid = generateUUID();
 
-      const payload = {
-        operationName: 'SmsPostMutation',
-        variables: {
-          author: `${currentUser.firstName} ${currentUser.lastName}`,
-          body: message.trim(),
-          clientId: currentUser.clientId.toString(),
-          conversationId: selectedChat.webId.toString(),
-          sentDate: new Date().toISOString(),
-          status: 'SENT',
-          receiveDate: '',
-          type: 'SMS',
-          url: '',
-          userId: currentUser.webId.toString(),
-          id: '',
-          uuid: messageUuid,
-          token: '',
-        },
-        query:
-          'mutation SmsPostMutation($body: String, $author: String, $uuid: String, $userId: String, $url: String, $type: String, $token: String, $sentDate: String, $status: String, $receiveDate: String, $clientId: String, $conversationId: ID, $id: String) {\n  smsPost(\n    body: {conversationId: $conversationId, body: $body, author: $author, clientId: $clientId, uuid: $uuid, userId: $userId, url: $url, type: $type, token: $token, sentDate: $sentDate, status: $status, receiveDate: $receiveDate, id: $id}\n    query: {}\n  ) {\n    conversationId\n    body\n    author\n    clientId\n    uuid\n    userId\n    url\n    type\n    token\n    sentDate\n    status\n    receiveDate\n    __typename\n  }\n}',
+      const messageData = {
+        author: `${currentUser.firstName} ${currentUser.lastName}`,
+        body: message.trim(),
+        clientId: currentUser.clientId.toString(),
+        conversationId: selectedChat.webId.toString(),
+        sentDate: new Date().toISOString(),
+        status: 'SENT',
+        receiveDate: '',
+        type: 'SMS',
+        url: '',
+        userId: currentUser.webId.toString(),
+        id: '',
+        uuid: messageUuid,
+        token: '',
       };
 
-      const response = await fetch(
-        'https://agxlhr3v7nfdnhfv3ssxsfdcpe.appsync-api.us-east-1.amazonaws.com/graphql',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: '*/*',
-            'x-api-key': 'da2-jrr6ci5j6jhh3jiop4kv3gbtem',
-            'x-amz-user-agent': 'aws-amplify/3.0.7',
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-
-      const result = await response.json();
-
-      if (result.data && result.data.smsPost) {
-        console.log('Message sent successfully:', result.data.smsPost);
-
-        // Clear the input
-        setMessage('');
-
-        // Refresh messages
-        await fetchMessagesByConversationId(selectedChat.webId);
-        console.log('Page refresh after sending messages');
-
-        // Scroll to bottom
-        setTimeout(() => {
-          if (scrollViewRef.current) {
-            scrollViewRef.current.scrollToEnd({ animated: true });
-          }
-        }, 100);
-      } else {
-        console.error('Error sending message:', result);
-      }
+      await sendMessageMutation.mutateAsync(messageData);
     } catch (error) {
-      console.error('Error sending message:', error);
-    }
-  };
-
-  // useEffect(() => {
-  //   const fetchCurrentChats = async () => {
-  //     try {
-  //       const response = await apiService.get(
-  //         '/api/notification/conversations?status=OPEN',
-  //       );
-
-  //       console.log('Current chats', response.data);
-
-  //       setIsLoadings(false);
-  //     } catch (error) {
-  //       console.error('Error fetching current user:', error);
-  //       setIsLoadings(false);
-  //     }
-  //   };
-
-  //   fetchCurrentChats();
-
-  //   const fetchAvailableUsers = async () => {
-  //     try {
-  //       const response = await apiService.get('/api/security/filter/USERS');
-
-  //       console.log('Available users', response.data);
-
-  //       setIsLoadings(false);
-  //     } catch (error) {
-  //       console.error('Error fetching available users:', error);
-  //       setIsLoadings(false);
-  //     }
-  //   };
-
-  //   fetchAvailableUsers();
-  // }, []);
-
-  const handleAddConversation = async () => {
-    try {
-      if (!currentUserClientId) {
-        console.error('Client ID not available');
-        return;
-      }
-
-      const participants = groupParticipants.map(participantValue => ({
-        webId: parseInt(participantValue),
-      }));
-
-      const updatePayload = {
-        title: groupName,
-        status: 'OPEN',
-        clientId: currentUserClientId,
-        participants: participants,
-      };
-
-      const response = await apiService.post(
-        '/api/notification/conversations/',
-        updatePayload,
-      );
-
-      console.log('Add conversations response', response.data);
-
-      // Refresh the conversations list
-      const refreshResponse = await apiService.get(
-        '/api/notification/conversations?status=OPEN',
-      );
-
-      const apiResponse = refreshResponse.data as ApiResponse;
-      if (apiResponse && apiResponse.content) {
-        setChats(apiResponse.content);
-      }
-    } catch (error) {
-      console.error('Error Adding conversations:', error);
+      console.error('Error in sendMessage:', error);
     }
   };
 
@@ -699,7 +631,9 @@ export default function ChatScreen({ navigation }) {
                 setGroupParticipants([]);
               }}
             >
-              <Text style={styles.modalBtnSaveText}>Save</Text>
+              <Text style={styles.modalBtnSaveText}>
+                {createConversationMutation.isPending ? 'Saving...' : 'Save'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -715,7 +649,6 @@ export default function ChatScreen({ navigation }) {
         <TouchableOpacity
           onPress={() => {
             setSelectedChat(null);
-            setConversationDetails(null);
             setMessages([]); // Clear messages when going back
           }}
         >
@@ -730,11 +663,11 @@ export default function ChatScreen({ navigation }) {
       </View>
       {/* Chat Content */}
       <View style={styles.chatDetailCard}>
-        {isLoadingsDetails || isLoadingMessages ? (
+        {isLoadingConversationDetails || isLoadingMessages ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#1292E6" />
             <Text style={styles.loadingText}>
-              {isLoadingsDetails
+              {isLoadingConversationDetails
                 ? 'Loading conversation...'
                 : 'Loading messages...'}
             </Text>
@@ -803,11 +736,21 @@ export default function ChatScreen({ navigation }) {
             multiline
           />
           <TouchableOpacity
-            style={[styles.inputSend, { opacity: message.trim() ? 1 : 0.5 }]}
+            style={[
+              styles.inputSend,
+              {
+                opacity:
+                  message.trim() && !sendMessageMutation.isPending ? 1 : 0.5,
+              },
+            ]}
             onPress={sendMessage}
-            disabled={!message.trim()}
+            disabled={!message.trim() || sendMessageMutation.isPending}
           >
-            <Text style={{ fontSize: 23, color: '#1292E6' }}>➤</Text>
+            {sendMessageMutation.isPending ? (
+              <ActivityIndicator size="small" color="#1292E6" />
+            ) : (
+              <Text style={{ fontSize: 23, color: '#1292E6' }}>➤</Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
