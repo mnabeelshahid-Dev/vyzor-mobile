@@ -59,19 +59,14 @@ const BranchesScreen = ({ navigation }) => {
     .sort((a, b) =>
       sortOrder === 'asc'
         ? a.name.localeCompare(b.name)
-        : b.name.localeCompare(a.name)
+        : b.name.localeCompare(a.name),
     );
 
   const renderBranch = ({ item }) => (
-    <TouchableOpacity
-      onPress={navigateToTask}
-      style={styles.branchCard}
-    >
+    <TouchableOpacity onPress={navigateToTask} style={styles.branchCard}>
       <View style={{ flex: 1 }}>
         <Text style={styles.branchName}>{item.name}</Text>
-        <Text style={styles.branchNumber}>
-          Branch #; {item.number}
-        </Text>
+        <Text style={styles.branchNumber}>Branch #; {item.number}</Text>
       </View>
       <View style={styles.rightCircleWrap}>
         <View style={styles.rightCircle}>
@@ -116,7 +111,7 @@ const BranchesScreen = ({ navigation }) => {
               navigation.navigate('Profile');
             }}
           >
-            <Text style={styles.dropdownText}>Profile</Text>
+            <Text style={styles.dropdownText}>Settings</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.dropdownItem} onPress={handleLogout}>
             <Text style={styles.dropdownText}>Logout</Text>

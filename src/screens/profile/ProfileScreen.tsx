@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,24 +6,16 @@ import {
   TouchableOpacity,
   Platform,
   Image,
-  // Picker,
   ScrollView,
   TextInput,
   ActivityIndicator,
 } from 'react-native';
 import Modal from 'react-native-modal';
 import { Picker } from '@react-native-picker/picker';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 
-import { useAuthStore } from '../../store/authStore';
-
-import {
-  useLogout,
-  // useCurrentUser,
-  // useNewCurrentUser,
-} from '../../hooks/useAuth';
-// import { profileApi } from '../../api/profile';
-// import { useCurrentUserProfile } from '../../hooks/useAuth';
+import { useLogout } from '../../hooks/useAuth';
 
 // Define the expected properties on profileData
 interface ProfileData {
@@ -65,43 +57,75 @@ import { SafeAreaView } from 'react-native';
 import { StatusBar } from 'react-native';
 
 const ProfileScreen = ({ navigation }) => {
+  const queryClient = useQueryClient();
+
   const logoutMutation = useLogout({
     onSuccess: () => {
       navigation.navigate('Auth', { screen: 'Login' });
     },
   });
 
+  // Fetch current user data using React Query
+  const {
+    data: profileData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: async (): Promise<ProfileData> => {
+      const response = await apiService.get<ProfileData>(
+        '/api/security/userAccounts/currentUser/',
+      );
+
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Error fetching current user');
+      }
+    },
+  });
+
   const [showDropdown, setShowDropdown] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
   const [activeTab, setActiveTab] = useState('General Info');
   const [useDefaultTimeZone, setUseDefaultTimeZone] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [profileData, setProfileData] = useState<ProfileData>({
-    firstName: '',
-    lastName: '',
-    role: '',
-    email: '',
-    location: '',
-    timezone: '',
-    phone: '',
-    language: '',
-    updatedById: '',
-    webId: '',
-    clientId: '',
-    birthday: '',
-    endDate: '',
-    startDate: '',
-    addressModel: {
-      city: '',
-      street: '',
-      postalCode: '',
-      state: '',
-    },
-    userPhoneModels: [{ phoneModel: { phoneNumber: '', webId: '' } }],
+
+  // Form states initialized with profileData
+  const [firstName, setFirstName] = useState(profileData?.firstName || '');
+  const [lastName, setLastName] = useState(profileData?.lastName || '');
+  const [email, setEmail] = useState(profileData?.email || '');
+  const [language, setLanguage] = useState(profileData?.language || '');
+  const [timezone, setTimezone] = useState(profileData?.timezone || '');
+
+  const [street, setStreet] = useState(profileData?.addressModel?.street || '');
+  const [state, setState] = useState(profileData?.addressModel?.state || '');
+  const [postalCode, setPostalCode] = useState(
+    profileData?.addressModel?.postalCode || '',
+  );
+
+  const [phoneNumbers, setPhoneNumbers] = useState(() => {
+    if (
+      profileData?.userPhoneModels &&
+      profileData.userPhoneModels.length > 0
+    ) {
+      return profileData.userPhoneModels.map((phoneObj, index) => ({
+        id: Date.now() + index,
+        phoneNumber: phoneObj.phoneModel?.phoneNumber || '',
+        isDefault: index === 0,
+      }));
+    }
+    return [
+      {
+        id: Date.now(),
+        phoneNumber: '',
+        isDefault: true,
+      },
+    ];
   });
+
   const [currentPasswordField, setCurrentPasswordField] = useState('');
   const [newPasswordField, setNewPasswordField] = useState('');
   const [confirmNewPasswordField, setConfirmNewPasswordField] = useState('');
@@ -110,76 +134,129 @@ const ProfileScreen = ({ navigation }) => {
   const [newPasswordError, setNewPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [language, setLanguage] = useState('');
-  const [timezone, setTimezone] = useState('');
+  // Update form states when profileData changes
+  React.useEffect(() => {
+    if (profileData) {
+      setFirstName(profileData.firstName || '');
+      setLastName(profileData.lastName || '');
+      setEmail(profileData.email || '');
+      setLanguage(profileData.language || '');
+      setTimezone(profileData.timezone || '');
+      setStreet(profileData.addressModel?.street || '');
+      setState(profileData.addressModel?.state || '');
+      setPostalCode(profileData.addressModel?.postalCode || '');
 
-  const [street, setStreet] = useState('');
-  const [state, setState] = useState('');
-  const [postalCode, setPostalCode] = useState('');
-
-  const [phoneNumbers, setPhoneNumbers] = useState([]);
-
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const response = await apiService.get<ProfileData>(
-          '/api/security/userAccounts/currentUser/',
-        );
-
-        if (response.success && response.data) {
-          const profileData = response.data;
-          setProfileData(profileData);
-
-          // Initialize form fields with fetched data
-          setFirstName(profileData.firstName || '');
-          setLastName(profileData.lastName || '');
-          setEmail(profileData.email || '');
-          setLanguage(profileData.language || '');
-          setTimezone(profileData.timezone || '');
-
-          // Initialize contact details states
-          setStreet(profileData.addressModel?.street || '');
-          setState(profileData.addressModel?.state || '');
-          setPostalCode(profileData.addressModel?.postalCode || '');
-
-          // Initialize phone numbers - first one as default, others as non-default
-          const userPhones = profileData.userPhoneModels || [];
-          if (userPhones.length > 0) {
-            const initialPhones = userPhones.map((phoneObj, index) => ({
-              id: Date.now() + index, // unique id for each phone
-              phoneNumber: phoneObj.phoneModel?.phoneNumber || '',
-              isDefault: index === 0, // first one is default
-            }));
-            setPhoneNumbers(initialPhones);
-          } else {
-            // If no phones exist, create one default phone
-            setPhoneNumbers([
-              {
-                id: Date.now(),
-                phoneNumber: '',
-                isDefault: true,
-              },
-            ]);
-          }
-
-          console.log('Phone numbers', phoneNumbers);
-          console.log('Current user response:', profileData);
-        } else {
-          console.error('Error fetching current user:', response.message);
-        }
-
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching current user:', error);
-        setIsLoading(false);
+      // Initialize phone numbers
+      const userPhones = profileData.userPhoneModels || [];
+      if (userPhones.length > 0) {
+        const initialPhones = userPhones.map((phoneObj, index) => ({
+          id: Date.now() + index,
+          phoneNumber: phoneObj.phoneModel?.phoneNumber || '',
+          isDefault: index === 0,
+        }));
+        setPhoneNumbers(initialPhones);
       }
-    };
+    }
+  }, [profileData]);
 
-    fetchCurrentUser();
-  }, []);
+  // Mutation for updating general info
+  const updateGeneralInfoMutation = useMutation({
+    mutationFn: async (updatePayload: any) => {
+      const response = await apiService.put<ProfileData>(
+        `/api/security/userAccounts/${profileData?.updatedById}`,
+        updatePayload,
+      );
+
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Error updating profile');
+      }
+    },
+    onSuccess: data => {
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      console.log('Update profile response:', data);
+    },
+    onError: error => {
+      console.error('Error updating profile:', error);
+    },
+  });
+
+  // Mutation for updating password
+  const updatePasswordMutation = useMutation({
+    mutationFn: async (updatePayload: any) => {
+      const response = await apiService.put<ProfileData>(
+        `/api/security/userAccounts/${profileData?.updatedById}`,
+        updatePayload,
+      );
+
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Error updating password');
+      }
+    },
+    onSuccess: data => {
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      console.log('Password update response:', data);
+      // Clear password fields after successful update
+      setCurrentPasswordField('');
+      setNewPasswordField('');
+      setConfirmNewPasswordField('');
+      setCurrentPasswordError('');
+      setNewPasswordError('');
+      setConfirmPasswordError('');
+    },
+    onError: error => {
+      console.error('Error updating password:', error);
+    },
+  });
+
+  // Mutation for updating contact details
+  const updateContactDetailsMutation = useMutation({
+    mutationFn: async (updatePayload: any) => {
+      const response = await apiService.post(
+        `/api/security/contactDetails`,
+        updatePayload,
+      );
+
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Error updating contact details');
+      }
+    },
+    onSuccess: data => {
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      console.log('Update contact details response:', data);
+    },
+    onError: error => {
+      console.error('Error updating contact details:', error);
+    },
+  });
+
+  // Mutation for updating phone details
+  const updatePhoneDetailsMutation = useMutation({
+    mutationFn: async (updatePayload: any) => {
+      const response = await apiService.put(
+        `/api/security/userAccounts/userAccount/${profileData?.updatedById}/updatePhone`,
+        updatePayload,
+      );
+
+      if (response.success) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Error updating phone details');
+      }
+    },
+    onSuccess: data => {
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      console.log('Phone update response:', data);
+    },
+    onError: error => {
+      console.error('Error updating Phone details:', error);
+    },
+  });
 
   // Password validation functions
   const validateCurrentPassword = (password: string) => {
@@ -260,43 +337,21 @@ const ProfileScreen = ({ navigation }) => {
     setShowDropdown(false);
   };
 
-  const handleEditPress = () => {
-    setIsEditMode(true);
-  };
-
   const handleGeneralInfoUpdate = async () => {
-    try {
-      // Create payload from form state
-      const updatePayload = {
-        firstName: firstName,
-        lastName: lastName,
-        email: email,
-        language: language,
-        timezone: timezone,
-        birthday: profileData?.birthday,
-        startDate: profileData?.startDate,
-        clientId: profileData?.clientId,
-        endDate: profileData?.endDate,
-      };
+    const updatePayload = {
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      language: language,
+      timezone: timezone,
+      birthday: profileData?.birthday,
+      startDate: profileData?.startDate,
+      clientId: profileData?.clientId,
+      endDate: profileData?.endDate,
+    };
 
-      const response = await apiService.put<ProfileData>(
-        `/api/security/userAccounts/${profileData.updatedById}`,
-        updatePayload,
-      );
-
-      if (response.success && response.data) {
-        console.log('Updated Payload', updatePayload);
-        console.log('Update profile response:', response.data);
-        // Optionally update the profileData state with the returned data
-        setProfileData(response.data);
-      } else {
-        console.error('Error updating profile:', response.message);
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-    }
-    console.log('General Info updated');
-    setIsEditMode(false);
+    await updateGeneralInfoMutation.mutateAsync(updatePayload);
+    console.log('Updated Payload', updatePayload);
   };
 
   const handleChangePasswordUpdate = async () => {
@@ -317,136 +372,85 @@ const ProfileScreen = ({ navigation }) => {
       return; // Don't proceed if validation fails
     }
 
-    try {
-      const updatePayload = {
-        firstName: profileData?.firstName,
-        lastName: profileData?.lastName,
-        email: profileData?.email,
-        language: profileData?.language,
-        endDate: profileData?.endDate,
-        timeZone: profileData?.timezone,
-        birthday: profileData?.birthday,
-        startDate: profileData?.startDate,
-        clientId: profileData?.clientId,
-        password: newPasswordField,
-        currentPassword: currentPasswordField,
-      };
+    const updatePayload = {
+      firstName: profileData?.firstName,
+      lastName: profileData?.lastName,
+      email: profileData?.email,
+      language: profileData?.language,
+      endDate: profileData?.endDate,
+      timeZone: profileData?.timezone,
+      birthday: profileData?.birthday,
+      startDate: profileData?.startDate,
+      clientId: profileData?.clientId,
+      password: newPasswordField,
+      currentPassword: currentPasswordField,
+    };
 
-      const response = await apiService.put<ProfileData>(
-        `/api/security/userAccounts/${profileData.updatedById}`,
-        updatePayload,
-      );
-
-      if (response.success && response.data) {
-        console.log('Password update payload:', updatePayload);
-        console.log('Password update response:', response.data);
-
-        // Clear password fields after successful update
-        setCurrentPasswordField('');
-        setNewPasswordField('');
-        setConfirmNewPasswordField('');
-        setCurrentPasswordError('');
-        setNewPasswordError('');
-        setConfirmPasswordError('');
-      } else {
-        console.error('Error updating password:', response.message);
-      }
-    } catch (error) {
-      console.error('Error updating password:', error);
-    }
-    setIsEditMode(false);
+    await updatePasswordMutation.mutateAsync(updatePayload);
+    console.log('Password update payload:', updatePayload);
   };
-  // const handleContactDetailsUpdate = () => {
-  //   // Add your contact details update logic here
-  //   console.log('Contact Details updated');
-  //   setIsEditMode(false);
-  // };
 
   const handleContactDetailsUpdate = async () => {
-    try {
-      // Create payload from form state
-      const updatePayload = {
-        addressModel: {
-          street: street,
-          postalCode: postalCode,
-          state: state,
-        },
-      };
+    const updatePayload = {
+      addressModel: {
+        street: street,
+        postalCode: postalCode,
+        state: state,
+      },
+    };
 
-      const response = await apiService.post(
-        `/api/security/contactDetails`,
-        updatePayload,
-      );
-
-      if (response.success && response.data) {
-        console.log('Updated Payload', updatePayload);
-        console.log('Update contact details response:', response.data);
-      } else {
-        console.error('Error updating contact details:', response.message);
-      }
-    } catch (error) {
-      console.error('Error updating contact details:', error);
-    }
-    console.log('Contact Details updated');
-    setIsEditMode(false);
+    await updateContactDetailsMutation.mutateAsync(updatePayload);
+    console.log('Updated Payload', updatePayload);
   };
 
   const handlePhoneDetailsUpdate = async () => {
-    try {
-      // Create dynamic payload from phoneNumbers state
-      const updatePayload = phoneNumbers
-        .filter(phone => phone.phoneNumber.trim() !== '') // Only include phones with numbers
-        .map(phone => ({
-          phoneNumber: phone.phoneNumber,
-          type: 'CALL',
-          webId: phone.webId,
-          defaultPhone: phone.isDefault,
-        }));
+    // Create dynamic payload from phoneNumbers state
+    const updatePayload = phoneNumbers
+      .filter(phone => phone.phoneNumber.trim() !== '') // Only include phones with numbers
+      .map(phone => ({
+        phoneNumber: phone.phoneNumber,
+        type: 'CALL',
+        webId: phone.webId,
+        defaultPhone: phone.isDefault,
+      }));
 
-      const updateStaticPayload = [
-        {
-          phoneNumber: '+923089907111',
-          type: 'CALL',
-          webId: profileData?.webId,
-          defaultPhone: false,
-        },
-        {
-          phoneNumber: '+376643111',
-          type: 'CALL',
-          webId: profileData?.webId,
-          defaultPhone: true,
-        },
-        {
-          phoneNumber: '+923089905111',
-          type: 'CALL',
-          webId: profileData?.webId,
-          defaultPhone: false,
-        },
-      ];
-      console.log(updateStaticPayload);
+    const updateStaticPayload = [
+      {
+        phoneNumber: '+923089907111',
+        type: 'CALL',
+        webId: profileData?.webId,
+        defaultPhone: false,
+      },
+      {
+        phoneNumber: '+376643111',
+        type: 'CALL',
+        webId: profileData?.webId,
+        defaultPhone: true,
+      },
+      {
+        phoneNumber: '+923089905111',
+        type: 'CALL',
+        webId: profileData?.webId,
+        defaultPhone: false,
+      },
+    ];
+    console.log(updateStaticPayload);
 
-      const response = await apiService.put(
-        `/api/security/userAccounts/userAccount/${profileData.updatedById}/updatePhone`,
-        updatePayload,
-      );
-
-      console.log('phone payload', updatePayload);
-      console.log('phone response', response);
-    } catch (error) {
-      console.error('Error updating Phone details:', error);
-    }
-    console.log('Phone Details updated');
-    setIsEditMode(false);
+    await updatePhoneDetailsMutation.mutateAsync(updatePayload);
+    console.log('phone payload', updatePayload);
   };
 
-  const handleUpdatePress = () => {
+  const handleUpdatePress = async () => {
     if (activeTab === 'General Info') {
-      handleGeneralInfoUpdate();
+      await handleGeneralInfoUpdate();
+      navigation.goBack();
     } else if (activeTab === 'Change Password') {
-      handleChangePasswordUpdate();
+      await handleChangePasswordUpdate();
+      navigation.goBack();
     } else if (activeTab === 'Contact Details') {
-      handleContactDetailsUpdate();
-      handlePhoneDetailsUpdate();
+      await handleContactDetailsUpdate();
+      await handlePhoneDetailsUpdate();
+      navigation.goBack();
     }
   };
 
@@ -454,29 +458,6 @@ const ProfileScreen = ({ navigation }) => {
     // Reset form logic would go here
     console.log('Reset pressed');
   };
-
-  const ProfileItem = ({
-    icon,
-    title,
-    subtitle,
-    showDropdown = false,
-    onPress,
-  }) => (
-    <TouchableOpacity style={styles.profileItem} onPress={onPress}>
-      <View style={styles.profileItemLeft}>
-        <View style={styles.iconContainer}>{icon}</View>
-        <View style={styles.profileItemContent}>
-          <Text style={styles.profileItemTitle}>{title}</Text>
-          <Text style={styles.profileItemSubtitle}>{subtitle}</Text>
-        </View>
-      </View>
-      {showDropdown && (
-        <View style={styles.dropdownArrow}>
-          <Text style={styles.dropdownArrowText}>▾</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
 
   const TabButton = ({ title, isActive, onPress }) => (
     <TouchableOpacity
@@ -876,6 +857,13 @@ const ProfileScreen = ({ navigation }) => {
     </View>
   );
 
+  // Check if any mutation is loading
+  const isMutationLoading =
+    updateGeneralInfoMutation.isPending ||
+    updatePasswordMutation.isPending ||
+    updateContactDetailsMutation.isPending ||
+    updatePhoneDetailsMutation.isPending;
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.loaderContainer}>
@@ -887,127 +875,32 @@ const ProfileScreen = ({ navigation }) => {
     );
   }
 
-  if (isEditMode) {
+  if (error) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
-        <StatusBar barStyle="light-content" backgroundColor="#007AFF" />
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => setIsEditMode(false)}>
-              <BackArrowIcon width={17} height={17} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>User Profile</Text>
-            <TouchableOpacity onPress={() => setShowDropdown(true)}>
-              <ThreeDotIcon width={26} height={26} />
-            </TouchableOpacity>
-          </View>
-        </View>
-        {/* Profile Content */}
-        <View style={styles.profileContainer}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            {/* Profile Header - Edit Mode */}
-            <View style={styles.profileHeader}>
-              <View style={styles.avatarContainer}>
-                <Image
-                  source={{
-                    uri: 'https://avatar.iran.liara.run/public/41',
-                  }}
-                  style={styles.avatar}
-                />
-              </View>
-              <Text style={styles.userName}>{profileData?.firstName}</Text>
-              <Text style={styles.userRole}>
-                {profileData?.role ? profileData.role : 'Role not assigned'}
-              </Text>
-            </View>
-            {/* Tab Navigation */}
-            <View style={styles.tabContainer}>
-              <TabButton
-                title="General Info"
-                isActive={activeTab === 'General Info'}
-                onPress={() => setActiveTab('General Info')}
-              />
-              <TabButton
-                title="Change Password"
-                isActive={activeTab === 'Change Password'}
-                onPress={() => setActiveTab('Change Password')}
-              />
-              <TabButton
-                title="Contact Details"
-                isActive={activeTab === 'Contact Details'}
-                onPress={() => setActiveTab('Contact Details')}
-              />
-            </View>
-            {/* Tab Content */}
-            {activeTab === 'General Info' && renderGeneralInfo()}
-            {activeTab === 'Change Password' && renderChangePassword()}
-            {activeTab === 'Contact Details' && renderContactDetails()}
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={styles.resetButton}
-                onPress={handleResetPress}
-              >
-                <Text style={styles.resetButtonText}>Reset</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.updateButton}
-                onPress={handleUpdatePress}
-              >
-                <Text style={styles.updateButtonText}>
-                  {activeTab === 'General Info'
-                    ? 'Update'
-                    : activeTab === 'Change Password'
-                    ? 'Update Password'
-                    : activeTab === 'Contact Details'
-                    ? 'Update'
-                    : 'Update'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-        {/* Dropdown Modal */}
-        <Modal
-          isVisible={showDropdown}
-          onBackdropPress={() => setShowDropdown(false)}
-          backdropOpacity={0.18}
+      <SafeAreaView style={styles.loaderContainer}>
+        <Text style={{ color: '#FF0000', marginTop: 16, fontSize: 16 }}>
+          Error loading profile. Please try again.
+        </Text>
+        <TouchableOpacity
           style={{
-            margin: 0,
-            justifyContent: 'flex-start',
-            alignItems: 'flex-end',
+            marginTop: 16,
+            padding: 10,
+            backgroundColor: '#007AFF',
+            borderRadius: 8,
           }}
+          onPress={() => refetch()}
         >
-          <View style={styles.dropdownMenu}>
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => {
-                setShowDropdown(false);
-                setIsEditMode(false);
-              }}
-            >
-              <Text style={styles.dropdownText}>Profile</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={handleLogout}
-            >
-              <Text style={styles.dropdownText}>Logout</Text>
-            </TouchableOpacity>
-          </View>
-        </Modal>
+          <Text style={{ color: '#FFF' }}>Retry</Text>
+        </TouchableOpacity>
       </SafeAreaView>
     );
   }
 
-  // Normal View Mode
+  // Always show edit mode (removed profile items view)
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
       <StatusBar barStyle="light-content" backgroundColor="#007AFF" />
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -1019,11 +912,13 @@ const ProfileScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </View>
+      {/* Profile Content */}
       <View style={styles.profileContainer}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
+          {/* Profile Header - Edit Mode */}
           <View style={styles.profileHeader}>
             <View style={styles.avatarContainer}>
               <Image
@@ -1032,87 +927,68 @@ const ProfileScreen = ({ navigation }) => {
                 }}
                 style={styles.avatar}
               />
-              <TouchableOpacity style={styles.editIconContainer}>
-                <EditIcon style={styles.editIcon} height={20} width={20} />
-              </TouchableOpacity>
             </View>
             <Text style={styles.userName}>{profileData?.firstName}</Text>
             <Text style={styles.userRole}>
               {profileData?.role ? profileData.role : 'Role not assigned'}
             </Text>
           </View>
-          <View style={styles.profileDetails}>
-            <ProfileItem
-              icon={
-                <View
-                  style={[styles.iconCircle, { backgroundColor: '#E8F4FD' }]}
-                >
-                  <View style={styles.iconWrapper}>
-                    <LocationIcon height={20} width={20} color={'#0088E7'} />
-                  </View>
-                </View>
-              }
-              title="Email"
-              subtitle={profileData.email}
+          {/* Tab Navigation */}
+          <View style={styles.tabContainer}>
+            <TabButton
+              title="General Info"
+              isActive={activeTab === 'General Info'}
+              onPress={() => setActiveTab('General Info')}
             />
-            <ProfileItem
-              icon={
-                <View
-                  style={[styles.iconCircle, { backgroundColor: '#E8F4FD' }]}
-                >
-                  <View style={styles.iconWrapper}>
-                    <LanguageIcon height={20} width={20} color={'#0088E7'} />
-                  </View>
-                </View>
-              }
-              title="Language"
-              subtitle={profileData?.language || 'Not Assigned'}
-              showDropdown={true}
+            <TabButton
+              title="Change Password"
+              isActive={activeTab === 'Change Password'}
+              onPress={() => setActiveTab('Change Password')}
             />
-            <ProfileItem
-              icon={
-                <View
-                  style={[styles.iconCircle, { backgroundColor: '#E8F4FD' }]}
-                >
-                  <View style={styles.iconWrapper}>
-                    <TimeZoneIcon height={20} width={20} color={'#0088E7'} />
-                  </View>
-                </View>
-              }
-              title="Time Zone"
-              subtitle={profileData?.timezone || 'Not Assigned'}
-              showDropdown={true}
+            <TabButton
+              title="Contact Details"
+              isActive={activeTab === 'Contact Details'}
+              onPress={() => setActiveTab('Contact Details')}
             />
-            <ProfileItem
-              icon={
-                <View
-                  style={[styles.iconCircle, { backgroundColor: '#E8F4FD' }]}
-                >
-                  <View style={styles.iconWrapper}>
-                    <PhoneIcon height={20} width={20} color={'#0088E7'} />
-                  </View>
-                </View>
-              }
-              title="Phone Number"
-              // subtitle={phoneNumbers[0].phoneNumber || 'Not Assigned'}
-              subtitle="Not Assigned"
-            />
-            <ProfileItem
-              icon={
-                <View
-                  style={[styles.iconCircle, { backgroundColor: '#E8F4FD' }]}
-                >
-                  <View style={styles.iconWrapper}>
-                    <PasswordIcon height={20} width={20} color={'#0088E7'} />
-                  </View>
-                </View>
-              }
-              title="Password"
-              subtitle="••••••••••••••"
-            />
+          </View>
+          {/* Tab Content */}
+          {activeTab === 'General Info' && renderGeneralInfo()}
+          {activeTab === 'Change Password' && renderChangePassword()}
+          {activeTab === 'Contact Details' && renderContactDetails()}
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.resetButton}
+              onPress={handleResetPress}
+            >
+              <Text style={styles.resetButtonText}>Reset</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.updateButton,
+                isMutationLoading && { opacity: 0.6 },
+              ]}
+              onPress={handleUpdatePress}
+              disabled={isMutationLoading}
+            >
+              {isMutationLoading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.updateButtonText}>
+                  {activeTab === 'General Info'
+                    ? 'Update'
+                    : activeTab === 'Change Password'
+                    ? 'Update Password'
+                    : activeTab === 'Contact Details'
+                    ? 'Update'
+                    : 'Update'}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </View>
+      {/* Dropdown Modal */}
       <Modal
         isVisible={showDropdown}
         onBackdropPress={() => setShowDropdown(false)}
@@ -1126,10 +1002,7 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.dropdownMenu}>
           <TouchableOpacity
             style={styles.dropdownItem}
-            onPress={() => {
-              setShowDropdown(false);
-              handleEditPress();
-            }}
+            onPress={() => setShowDropdown(false)}
           >
             <Text style={styles.dropdownText}>Settings</Text>
           </TouchableOpacity>
@@ -1376,32 +1249,15 @@ const styles = StyleSheet.create({
   inputWrapper: {
     position: 'relative',
   },
-  // textInput: {
-  //   backgroundColor: '#fff',
-  //   borderRadius: 12,
-  //   topBorderwidth: 0,
-  //   padding: 16,
-  //   fontSize: 14,
-  //   color: '#1A1A1A',
-  //   borderWidth: 1,
-  //   borderColor: '#E8E8E8',
-  //   shadowColor: '#000',
-  //   shadowOpacity: 0.02,
-  //   shadowRadius: 4,
-  //   elevation: 1,
-  // },
+
   textInput: {
-    backgroundColor: 'transparent', // no background
+    backgroundColor: 'transparent',
     paddingVertical: 8,
-    paddingHorizontal: 0, // remove side padding to align with underline
+    paddingHorizontal: 0,
     fontSize: 14,
     color: '#1A1A1A',
-
-    // Only bottom border (underline)
     borderBottomWidth: 1,
-    borderBottomColor: '#B0B0B0', // light gray, adjust as needed
-
-    // Remove unnecessary styles
+    borderBottomColor: '#B0B0B0',
     borderRadius: 0,
     shadowColor: 'transparent',
     elevation: 0,
@@ -1471,32 +1327,14 @@ const styles = StyleSheet.create({
   phoneInputWrapper: {
     position: 'relative',
   },
-  // phoneInput: {
-  //   backgroundColor: '#fff',
-  //   borderRadius: 12,
-  //   padding: 16,
-  //   fontSize: 14,
-  //   color: '#1A1A1A',
-  //   borderWidth: 1,
-  //   borderColor: '#E8E8E8',
-  //   paddingRight: 50,
-  //   shadowColor: '#000',
-  //   shadowOpacity: 0.02,
-  //   shadowRadius: 4,
-  //   elevation: 1,
-  // },
   phoneInput: {
-    backgroundColor: 'transparent', // no background
+    backgroundColor: 'transparent',
     paddingVertical: 8,
-    paddingHorizontal: 0, // remove side padding to align with underline
+    paddingHorizontal: 0,
     fontSize: 14,
     color: '#1A1A1A',
-
-    // Only bottom border (underline)
     borderBottomWidth: 1,
-    borderBottomColor: '#B0B0B0', // light gray, adjust as needed
-
-    // Remove unnecessary styles
+    borderBottomColor: '#B0B0B0',
     borderRadius: 0,
     shadowColor: 'transparent',
     elevation: 0,
