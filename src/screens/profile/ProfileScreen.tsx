@@ -17,6 +17,8 @@ import { apiService } from '../../services/api';
 
 import { useLogout } from '../../hooks/useAuth';
 
+//This is testing
+
 // Define the expected properties on profileData
 interface ProfileData {
   firstName: string;
@@ -52,9 +54,12 @@ import LanguageIcon from '../../assets/svgs/language.svg';
 import PhoneIcon from '../../assets/svgs/phone.svg';
 import EditIcon from '../../assets/svgs/edit.svg';
 import EyeSlash from '../../assets/svgs/eyeSlash.svg';
+import LogoutIcon from '../../assets/svgs/logout.svg';
+import SettingsIcon from '../../assets/svgs/settings.svg';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native';
 import { StatusBar } from 'react-native';
+import { launchImageLibrary, MediaType } from 'react-native-image-picker';
 
 const ProfileScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
@@ -106,6 +111,11 @@ const ProfileScreen = ({ navigation }) => {
     profileData?.addressModel?.postalCode || '',
   );
 
+  const [profileImage, setProfileImage] = useState(
+    'https://avatar.iran.liara.run/public/41',
+  );
+  const [showImageOptions, setShowImageOptions] = useState(false);
+
   const [phoneNumbers, setPhoneNumbers] = useState(() => {
     if (
       profileData?.userPhoneModels &&
@@ -134,30 +144,202 @@ const ProfileScreen = ({ navigation }) => {
   const [newPasswordError, setNewPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
 
+  const [country, setCountry] = useState(
+    profileData?.addressModel?.country || '',
+  );
+  const [city, setCity] = useState(profileData?.addressModel?.city || '');
+
+  // Dropdown data states
+  const [countries, setCountries] = useState([]);
+  const [states, setStates] = useState([]);
+  const [cities, setCities] = useState([]);
+
+  // Loading states
+  const [countriesLoading, setCountriesLoading] = useState(false);
+  const [statesLoading, setStatesLoading] = useState(false);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+
+  // Selected values for API calls
+  const [selectedCountryValue, setSelectedCountryValue] = useState('');
+  const [selectedStateValue, setSelectedStateValue] = useState('');
+
+  const [initialData, setInitialData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    language: '',
+    timezone: '',
+    street: '',
+    country: '',
+    state: '',
+    city: '',
+    postalCode: '',
+    phoneNumbers: [],
+  });
+
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+
+  const validateAlphabetsOnly = (text: string) => {
+    // Allow only alphabets and spaces
+    return text.replace(/[^a-zA-Z\s]/g, '');
+  };
+
+  const fetchCountries = async () => {
+    try {
+      setCountriesLoading(true);
+      const response = await apiService.get('/api/site/filter/COUNTRIES');
+      if (response.success && response.data) {
+        setCountries(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching countries:', error);
+    } finally {
+      setCountriesLoading(false);
+    }
+  };
+
+  const fetchStates = async countryValue => {
+    try {
+      setStatesLoading(true);
+      const response = await apiService.get(
+        `/api/site/filter/STATES?userId=${countryValue}`,
+      );
+      if (response.success && response.data) {
+        setStates(response.data);
+        setCities([]); // Reset cities when country changes
+        setCity('');
+        setSelectedStateValue('');
+      }
+    } catch (error) {
+      console.error('Error fetching states:', error);
+      setStates([]);
+    } finally {
+      setStatesLoading(false);
+    }
+  };
+
+  const fetchCities = async stateValue => {
+    try {
+      setCitiesLoading(true);
+      const response = await apiService.get(
+        `/api/site/filter/CITIES?userId=${stateValue}`,
+      );
+      if (response.success && response.data) {
+        setCities(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching cities:', error);
+      setCities([]);
+    } finally {
+      setCitiesLoading(false);
+    }
+  };
+
+  // 4. Add useEffect to fetch countries on component mount (after existing useEffects, around line 220)
+
+  React.useEffect(() => {
+    fetchCountries();
+  }, []);
+
+  // 5. Add useEffect to find initial selected values when profile data loads
+
+  React.useEffect(() => {
+    if (profileData && countries.length > 0) {
+      // Find country value by text match
+      const countryData = countries.find(
+        c => c.text === profileData.addressModel?.country,
+      );
+      if (countryData) {
+        setSelectedCountryValue(countryData.value);
+        fetchStates(countryData.value);
+      }
+    }
+  }, [profileData, countries]);
+
+  React.useEffect(() => {
+    if (profileData && states.length > 0 && selectedCountryValue) {
+      // Find state value by text match
+      const stateData = states.find(
+        s => s.text === profileData.addressModel?.state,
+      );
+      if (stateData) {
+        setSelectedStateValue(stateData.value);
+        fetchCities(stateData.value);
+      }
+    }
+  }, [profileData, states, selectedCountryValue]);
+
   // Update form states when profileData changes
   React.useEffect(() => {
     if (profileData) {
-      setFirstName(profileData.firstName || '');
-      setLastName(profileData.lastName || '');
-      setEmail(profileData.email || '');
-      setLanguage(profileData.language || '');
-      setTimezone(profileData.timezone || '');
-      setStreet(profileData.addressModel?.street || '');
-      setState(profileData.addressModel?.state || '');
-      setPostalCode(profileData.addressModel?.postalCode || '');
+      const data = {
+        firstName: profileData.firstName || '',
+        lastName: profileData.lastName || '',
+        email: profileData.email || '',
+        language: profileData.language || '',
+        timezone: profileData.timezone || '',
+        street: profileData.addressModel?.street || '',
+        country: profileData.addressModel?.country || '',
+        state: profileData.addressModel?.state || '',
+        city: profileData.addressModel?.city || '',
+        postalCode: profileData.addressModel?.postalCode || '',
+        phoneNumbers:
+          profileData.userPhoneModels?.length > 0
+            ? profileData.userPhoneModels.map((phoneObj, index) => ({
+                id: Date.now() + index,
+                phoneNumber: phoneObj.phoneModel?.phoneNumber || '',
+                isDefault: index === 0,
+              }))
+            : [
+                {
+                  id: Date.now(),
+                  phoneNumber: '',
+                  isDefault: true,
+                },
+              ],
+      };
 
-      // Initialize phone numbers
-      const userPhones = profileData.userPhoneModels || [];
-      if (userPhones.length > 0) {
-        const initialPhones = userPhones.map((phoneObj, index) => ({
-          id: Date.now() + index,
-          phoneNumber: phoneObj.phoneModel?.phoneNumber || '',
-          isDefault: index === 0,
-        }));
-        setPhoneNumbers(initialPhones);
-      }
+      setFirstName(data.firstName);
+      setLastName(data.lastName);
+      setEmail(data.email);
+      setLanguage(data.language);
+      setTimezone(data.timezone);
+      setStreet(data.street);
+      setCountry(data.country);
+      setState(data.state);
+      setCity(data.city);
+      setPostalCode(data.postalCode);
+      setPhoneNumbers(data.phoneNumbers);
+      setInitialData(data);
     }
   }, [profileData]);
+
+  const openImagePicker = () => {
+    const options = {
+      mediaType: 'photo' as MediaType,
+      includeBase64: false,
+      maxHeight: 2000,
+      maxWidth: 2000,
+    };
+
+    launchImageLibrary(options, response => {
+      if (response.didCancel || response.errorMessage) {
+        return;
+      }
+      if (response.assets && response.assets[0]) {
+        setProfileImage(response.assets[0].uri || '');
+      }
+      setShowImageOptions(false);
+    });
+  };
+
+  const removeProfileImage = () => {
+    setProfileImage('https://avatar.iran.liara.run/public/41');
+    setShowImageOptions(false);
+  };
 
   // Mutation for updating general info
   const updateGeneralInfoMutation = useMutation({
@@ -175,10 +357,16 @@ const ProfileScreen = ({ navigation }) => {
     },
     onSuccess: data => {
       queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      setSuccessMessage('Profile updated successfully!');
+      setShowSuccessModal(true);
       console.log('Update profile response:', data);
     },
     onError: error => {
       console.error('Error updating profile:', error);
+      setErrorMessage(
+        error.message || 'Failed to update profile. Please try again.',
+      );
+      setShowErrorModal(true);
     },
   });
 
@@ -206,9 +394,24 @@ const ProfileScreen = ({ navigation }) => {
       setCurrentPasswordError('');
       setNewPasswordError('');
       setConfirmPasswordError('');
+      setSuccessMessage('Password updated successfully!');
+      setShowSuccessModal(true);
     },
     onError: error => {
       console.error('Error updating password:', error);
+      // Handle specific password error
+      if (
+        error.message.toLowerCase().includes('current password') ||
+        error.message.toLowerCase().includes('incorrect password') ||
+        error.message.toLowerCase().includes('wrong password')
+      ) {
+        setErrorMessage('Current password is incorrect. Please try again.');
+      } else {
+        setErrorMessage(
+          error.message || 'Failed to update password. Please try again.',
+        );
+      }
+      setShowErrorModal(true);
     },
   });
 
@@ -228,10 +431,16 @@ const ProfileScreen = ({ navigation }) => {
     },
     onSuccess: data => {
       queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      setSuccessMessage('Contact details updated successfully!');
+      setShowSuccessModal(true);
       console.log('Update contact details response:', data);
     },
     onError: error => {
       console.error('Error updating contact details:', error);
+      setErrorMessage(
+        error.message || 'Failed to update contact details. Please try again.',
+      );
+      setShowErrorModal(true);
     },
   });
 
@@ -394,8 +603,10 @@ const ProfileScreen = ({ navigation }) => {
     const updatePayload = {
       addressModel: {
         street: street,
-        postalCode: postalCode,
+        country: country,
         state: state,
+        city: city,
+        postalCode: postalCode,
       },
     };
 
@@ -443,20 +654,46 @@ const ProfileScreen = ({ navigation }) => {
   const handleUpdatePress = async () => {
     if (activeTab === 'General Info') {
       await handleGeneralInfoUpdate();
-      navigation.goBack();
     } else if (activeTab === 'Change Password') {
       await handleChangePasswordUpdate();
-      navigation.goBack();
     } else if (activeTab === 'Contact Details') {
       await handleContactDetailsUpdate();
       await handlePhoneDetailsUpdate();
-      navigation.goBack();
     }
+    // Remove navigation.goBack() - let success modal handle navigation
   };
 
   const handleResetPress = () => {
-    // Reset form logic would go here
-    console.log('Reset pressed');
+    if (activeTab === 'General Info') {
+      setFirstName(initialData.firstName);
+      setLastName(initialData.lastName);
+      setEmail(initialData.email);
+      setLanguage(initialData.language);
+      setTimezone(initialData.timezone);
+    } else if (activeTab === 'Change Password') {
+      setCurrentPasswordField('');
+      setNewPasswordField('');
+      setConfirmNewPasswordField('');
+      setCurrentPasswordError('');
+      setNewPasswordError('');
+      setConfirmPasswordError('');
+    } else if (activeTab === 'Contact Details') {
+      setStreet(initialData.street);
+      setCountry(initialData.country);
+      setState(initialData.state);
+      setCity(initialData.city);
+      setPostalCode(initialData.postalCode);
+      setPhoneNumbers([...initialData.phoneNumbers]);
+
+      // Reset dropdown selections
+      if (initialData.country) {
+        const countryData = countries.find(c => c.text === initialData.country);
+        if (countryData) {
+          setSelectedCountryValue(countryData.value);
+          fetchStates(countryData.value);
+        }
+      }
+    }
   };
 
   const TabButton = ({ title, isActive, onPress }) => (
@@ -533,7 +770,7 @@ const ProfileScreen = ({ navigation }) => {
             value={firstName}
             placeholder="Enter first name"
             placeholderTextColor="#999"
-            onChangeText={setFirstName}
+            onChangeText={text => setFirstName(validateAlphabetsOnly(text))}
           />
         </View>
       </View>
@@ -545,7 +782,7 @@ const ProfileScreen = ({ navigation }) => {
             value={lastName}
             placeholder="Enter last name"
             placeholderTextColor="#999"
-            onChangeText={setLastName}
+            onChangeText={text => setLastName(validateAlphabetsOnly(text))}
           />
         </View>
       </View>
@@ -553,11 +790,14 @@ const ProfileScreen = ({ navigation }) => {
         <Text style={styles.inputLabel}>Email</Text>
         <View style={styles.phoneInputWrapper}>
           <TextInput
-            style={styles.phoneInput}
+            style={[
+              styles.phoneInput,
+              { backgroundColor: '#f5f5f5', color: '#999' },
+            ]}
             value={email}
             placeholder="Enter email"
             placeholderTextColor="#999"
-            onChangeText={setEmail}
+            editable={false}
           />
         </View>
       </View>
@@ -773,6 +1013,58 @@ const ProfileScreen = ({ navigation }) => {
     </View>
   );
 
+  const DropdownFieldWithData = ({
+    label,
+    value,
+    placeholder,
+    data,
+    loading,
+    onSelect,
+    disabled = false,
+  }) => (
+    <View style={styles.inputContainer}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <View
+        style={{
+          borderBottomWidth: 1,
+          borderBottomColor: '#B0B0B0',
+          marginBottom: 10,
+          opacity: disabled ? 0.5 : 1,
+        }}
+      >
+        <Picker
+          selectedValue={value}
+          style={{
+            height: 55,
+            color: '#1A1A1A',
+            backgroundColor: 'transparent',
+            borderWidth: 0,
+            borderRadius: 0,
+            padding: 0,
+          }}
+          dropdownIconColor="#007AFF"
+          enabled={!disabled && !loading}
+          onValueChange={(itemValue, itemIndex) => {
+            if (itemIndex > 0) {
+              // Skip placeholder
+              const selectedItem = data[itemIndex - 1];
+              onSelect(selectedItem);
+            }
+          }}
+        >
+          <Picker.Item
+            label={loading ? 'Loading...' : placeholder}
+            value=""
+            color="#999"
+          />
+          {data.map(item => (
+            <Picker.Item key={item.value} label={item.text} value={item.text} />
+          ))}
+        </Picker>
+      </View>
+    </View>
+  );
+
   const renderContactDetails = () => (
     <View style={styles.tabContent}>
       {phoneNumbers.map((phone, index) => (
@@ -818,18 +1110,7 @@ const ProfileScreen = ({ navigation }) => {
         <Text style={styles.addNumberText}>+ Add New Number</Text>
       </TouchableOpacity>
 
-      <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabel}>State/Province/Region</Text>
-        <View style={styles.phoneInputWrapper}>
-          <TextInput
-            style={styles.phoneInput}
-            value={state}
-            placeholder="Enter state/province/region"
-            placeholderTextColor="#999"
-            onChangeText={setState}
-          />
-        </View>
-      </View>
+      {/* Street */}
       <View style={styles.phoneNumberContainer}>
         <Text style={styles.inputLabel}>Street</Text>
         <View style={styles.phoneInputWrapper}>
@@ -842,6 +1123,53 @@ const ProfileScreen = ({ navigation }) => {
           />
         </View>
       </View>
+
+      {/* Country Dropdown */}
+      <DropdownFieldWithData
+        label="Country"
+        value={country}
+        placeholder="Select country"
+        data={countries}
+        loading={countriesLoading}
+        onSelect={selectedCountry => {
+          setCountry(selectedCountry.text);
+          setSelectedCountryValue(selectedCountry.value);
+          setState(''); // Reset state when country changes
+          setCity(''); // Reset city when country changes
+          fetchStates(selectedCountry.value);
+        }}
+      />
+
+      {/* State/Province/Region Dropdown */}
+      <DropdownFieldWithData
+        label="State/Province/Region"
+        value={state}
+        placeholder="Select state/province/region"
+        data={states}
+        loading={statesLoading}
+        disabled={!selectedCountryValue}
+        onSelect={selectedState => {
+          setState(selectedState.text);
+          setSelectedStateValue(selectedState.value);
+          setCity(''); // Reset city when state changes
+          fetchCities(selectedState.value);
+        }}
+      />
+
+      {/* City Dropdown */}
+      {/* <DropdownFieldWithData
+        label="City"
+        value={city}
+        placeholder="Select city"
+        data={cities}
+        loading={citiesLoading}
+        disabled={!selectedStateValue}
+        onSelect={selectedCity => {
+          setCity(selectedCity.text);
+        }}
+      /> */}
+
+      {/* Zip/Postal Code */}
       <View style={styles.phoneNumberContainer}>
         <Text style={styles.inputLabel}>Zip/Postal Code</Text>
         <View style={styles.phoneInputWrapper}>
@@ -920,17 +1248,15 @@ const ProfileScreen = ({ navigation }) => {
         >
           {/* Profile Header - Edit Mode */}
           <View style={styles.profileHeader}>
-            <View style={styles.avatarContainer}>
-              <Image
-                source={{
-                  uri: 'https://avatar.iran.liara.run/public/41',
-                }}
-                style={styles.avatar}
-              />
-            </View>
+            <TouchableOpacity
+              style={styles.avatarContainer}
+              onPress={() => setShowImageOptions(true)}
+            >
+              <Image source={{ uri: profileImage }} style={styles.avatar} />
+            </TouchableOpacity>
             <Text style={styles.userName}>{profileData?.firstName}</Text>
             <Text style={styles.userRole}>
-              {profileData?.role ? profileData.role : 'Role not assigned'}
+              {profileData?.role ? profileData.role : ''}
             </Text>
           </View>
           {/* Tab Navigation */}
@@ -1004,10 +1330,193 @@ const ProfileScreen = ({ navigation }) => {
             style={styles.dropdownItem}
             onPress={() => setShowDropdown(false)}
           >
+            <SettingsIcon width={18} height={18} style={{ marginRight: 8 }} />
             <Text style={styles.dropdownText}>Settings</Text>
           </TouchableOpacity>
+
           <TouchableOpacity style={styles.dropdownItem} onPress={handleLogout}>
+            <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
             <Text style={styles.dropdownText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Image Options Modal */}
+      <Modal
+        isVisible={showImageOptions}
+        onBackdropPress={() => setShowImageOptions(false)}
+        backdropOpacity={0.18}
+        style={{
+          margin: 0,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <View style={styles.imageOptionsMenu}>
+          <TouchableOpacity
+            style={styles.imageOptionItem}
+            onPress={openImagePicker}
+          >
+            <Text style={styles.imageOptionText}>Upload Image</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.imageOptionItem}
+            onPress={removeProfileImage}
+          >
+            <Text style={styles.imageOptionText}>Remove</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.imageOptionItem,
+              { borderTopWidth: 1, borderTopColor: '#E0E0E0' },
+            ]}
+            onPress={() => setShowImageOptions(false)}
+          >
+            <Text style={[styles.imageOptionText, { color: '#007AFF' }]}>
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        isVisible={showSuccessModal}
+        onBackdropPress={() => {
+          setShowSuccessModal(false);
+          setSuccessMessage('');
+          navigation.goBack();
+        }}
+        backdropOpacity={0.5}
+        style={{
+          margin: 0,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: 'white',
+            borderRadius: 10,
+            padding: 20,
+            margin: 20,
+            alignItems: 'center',
+            minWidth: 280,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: '#28a745',
+              marginBottom: 10,
+              textAlign: 'center',
+            }}
+          >
+            Success!
+          </Text>
+          <Text
+            style={{
+              fontSize: 16,
+              color: '#333',
+              textAlign: 'center',
+              marginBottom: 20,
+            }}
+          >
+            {successMessage}
+          </Text>
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#007AFF',
+              paddingHorizontal: 30,
+              paddingVertical: 12,
+              borderRadius: 8,
+            }}
+            onPress={() => {
+              setShowSuccessModal(false);
+              setSuccessMessage('');
+              navigation.goBack();
+            }}
+          >
+            <Text
+              style={{
+                color: 'white',
+                fontSize: 16,
+                fontWeight: 'bold',
+              }}
+            >
+              OK
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Error Modal */}
+      <Modal
+        isVisible={showErrorModal}
+        onBackdropPress={() => {
+          setShowErrorModal(false);
+          setErrorMessage('');
+        }}
+        backdropOpacity={0.5}
+        style={{
+          margin: 0,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: 'white',
+            borderRadius: 10,
+            padding: 20,
+            margin: 20,
+            alignItems: 'center',
+            minWidth: 280,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: '#dc3545',
+              marginBottom: 10,
+              textAlign: 'center',
+            }}
+          >
+            Error
+          </Text>
+          <Text
+            style={{
+              fontSize: 16,
+              color: '#333',
+              textAlign: 'center',
+              marginBottom: 20,
+            }}
+          >
+            {errorMessage}
+          </Text>
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#dc3545',
+              paddingHorizontal: 30,
+              paddingVertical: 12,
+              borderRadius: 8,
+            }}
+            onPress={() => {
+              setShowErrorModal(false);
+              setErrorMessage('');
+            }}
+          >
+            <Text
+              style={{
+                color: 'white',
+                fontSize: 16,
+                fontWeight: 'bold',
+              }}
+            >
+              Try Again
+            </Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -1181,12 +1690,14 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
   dropdownText: {
     fontSize: 16,
-    color: '#222',
+    color: '#1A1A1A',
   },
   // Edit Mode Styles
   tabContainer: {
@@ -1444,6 +1955,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  imageOptionsMenu: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    marginHorizontal: 20,
+    overflow: 'hidden',
+  },
+  imageOptionItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E0E0E0',
+  },
+  imageOptionText: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#1A1A1A',
   },
 });
 export default ProfileScreen;

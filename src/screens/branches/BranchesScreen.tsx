@@ -19,6 +19,8 @@ import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import ArrowUpIcon from '../../assets/svgs/arrowUpWard.svg';
 import ArrowDownWard from '../../assets/svgs/arrowDownward.svg';
 import ArrowRight from '../../assets/svgs/rightArrow.svg';
+import LogoutIcon from '../../assets/svgs/logout.svg';
+import SettingsIcon from '../../assets/svgs/settings.svg';
 import { fetchBranches } from '../../api/branches';
 import { useQuery } from '@tanstack/react-query';
 
@@ -35,13 +37,7 @@ const BranchesScreen = ({ navigation }) => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [sortField, setSortField] = useState<'name' | 'number'>('name');
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['branches', search, sortOrder, sortField],
     queryFn: async () => {
       console.log('Fetching branches...');
@@ -50,7 +46,6 @@ const BranchesScreen = ({ navigation }) => {
       return res;
     },
   });
-
 
   const handleSort = (field: 'name' | 'number', order: 'asc' | 'desc') => {
     setSortField(field);
@@ -67,22 +62,22 @@ const BranchesScreen = ({ navigation }) => {
   const branches = data?.data?.content || [];
   const renderBranch = ({ item = { name: '', code: '', webId: '' } }) => (
     <TouchableOpacity
-      onPress={() => navigation.navigate('Main', {
-        screen: 'Task',
-        params: {
+      onPress={() =>
+        navigation.navigate('Main', {
           screen: 'Task',
-          params: { branchId: item.webId }
-        }
-      })}
+          params: {
+            screen: 'Task',
+            params: { branchId: item.webId },
+          },
+        })
+      }
       style={styles.branchCard}
     >
       <View style={{ width: '80%' }}>
         <Text style={styles.branchName}>{item.name}</Text>
-        <Text style={styles.branchNumber}>
-          Branch #; {item.code}
-        </Text>
+        <Text style={styles.branchNumber}>Branch #; {item.code}</Text>
       </View>
-      <View style={{ width: "20%", alignItems: 'flex-end' }}>
+      <View style={{ width: '20%', alignItems: 'flex-end' }}>
         <View style={styles.rightCircle}>
           <ArrowRight width={16} height={16} />
         </View>
@@ -131,9 +126,11 @@ const BranchesScreen = ({ navigation }) => {
               navigation.navigate('Profile');
             }}
           >
+            <SettingsIcon width={18} height={18} style={{ marginRight: 8 }} />
             <Text style={styles.dropdownText}>Settings</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.dropdownItem} onPress={handleLogout}>
+            <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
             <Text style={styles.dropdownText}>Logout</Text>
           </TouchableOpacity>
         </View>
@@ -171,13 +168,21 @@ const BranchesScreen = ({ navigation }) => {
         }}
       >
         {isLoading ? (
-          <Text style={{ color: '#007AFF', fontSize: 18 }}>Loading branches...</Text>
+          <Text style={{ color: '#007AFF', fontSize: 18 }}>
+            Loading branches...
+          </Text>
         ) : isError ? (
-          <Text style={{ color: 'red', fontSize: 18 }}>Error loading branches</Text>
+          <Text style={{ color: 'red', fontSize: 18 }}>
+            Error loading branches
+          </Text>
         ) : branches.length === 0 ? (
-          <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+          <View
+            style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}
+          >
             {/* Replace below with Lottie or SVG animation if available */}
-            <Text style={{ fontSize: 24, color: '#888', marginBottom: 12 }}>No branches found</Text>
+            <Text style={{ fontSize: 24, color: '#888', marginBottom: 12 }}>
+              No branches found
+            </Text>
           </View>
         ) : (
           <FlatList
@@ -192,7 +197,14 @@ const BranchesScreen = ({ navigation }) => {
 
       {/* Redesigned Dropdown Sort Modal */}
       {showSortModal && (
-        <View style={[styles.dropdownCard, { position: 'absolute', top: 170, right: 24, zIndex: 100 }]}> {/* Adjust top/right for placement */}
+        <View
+          style={[
+            styles.dropdownCard,
+            { position: 'absolute', top: 170, right: 24, zIndex: 100 },
+          ]}
+        >
+          {' '}
+          {/* Adjust top/right for placement */}
           <View style={styles.sortModalHeader}>
             <Text style={styles.sortModalTitle}>Sort By</Text>
             <TouchableOpacity
@@ -200,7 +212,9 @@ const BranchesScreen = ({ navigation }) => {
               style={styles.sortModalCloseBtn}
             >
               <View style={styles.sortModalCloseCircle}>
-                <Text style={{ fontSize: 18, color: '#007AFF', bottom: 2 }}>x</Text>
+                <Text style={{ fontSize: 18, color: '#007AFF', bottom: 2 }}>
+                  x
+                </Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -208,13 +222,23 @@ const BranchesScreen = ({ navigation }) => {
             <Text style={styles.sortModalField}>Name</Text>
             <View style={styles.sortModalOrderBtns}>
               <TouchableOpacity
-                style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+                style={[
+                  styles.sortModalOrderBtn,
+                  sortField === 'name' && sortOrder === 'desc'
+                    ? styles.activeSortBtn
+                    : null,
+                ]}
                 onPress={() => handleSort('name', 'desc')}
               >
                 <ArrowDownWard width={15} height={15} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+                style={[
+                  styles.sortModalOrderBtn,
+                  sortField === 'name' && sortOrder === 'asc'
+                    ? styles.activeSortBtn
+                    : null,
+                ]}
                 onPress={() => handleSort('name', 'asc')}
               >
                 <ArrowUpIcon width={15} height={15} />
@@ -225,13 +249,23 @@ const BranchesScreen = ({ navigation }) => {
             <Text style={styles.sortModalField}>Number</Text>
             <View style={styles.sortModalOrderBtns}>
               <TouchableOpacity
-                style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+                style={[
+                  styles.sortModalOrderBtn,
+                  sortField === 'number' && sortOrder === 'desc'
+                    ? styles.activeSortBtn
+                    : null,
+                ]}
                 onPress={() => handleSort('number', 'desc')}
               >
                 <ArrowDownWard width={15} height={15} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+                style={[
+                  styles.sortModalOrderBtn,
+                  sortField === 'number' && sortOrder === 'asc'
+                    ? styles.activeSortBtn
+                    : null,
+                ]}
                 onPress={() => handleSort('number', 'asc')}
               >
                 <ArrowUpIcon width={18} height={18} />
@@ -359,12 +393,14 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
   dropdownText: {
     fontSize: 16,
-    color: '#222',
+    color: '#1A1A1A',
   },
   listContent: {
     paddingTop: 40,
