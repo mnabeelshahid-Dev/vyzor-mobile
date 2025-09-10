@@ -7,6 +7,7 @@ import {
   Platform,
   Image,
   ScrollView,
+  FlatList,
   TextInput,
   ActivityIndicator,
 } from 'react-native';
@@ -14,6 +15,7 @@ import Modal from 'react-native-modal';
 import { Picker } from '@react-native-picker/picker';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
+import PhoneInput from 'react-native-phone-number-input';
 
 import { useLogout } from '../../hooks/useAuth';
 
@@ -70,6 +72,62 @@ const ProfileScreen = ({ navigation }) => {
     },
   });
 
+  // Language and Timezone options
+  const LANGUAGE_OPTIONS = [
+    {
+      value: '100',
+      text: 'English',
+    },
+    {
+      value: '200',
+      text: 'French',
+    },
+    {
+      value: '300',
+      text: 'Spanish',
+    },
+  ];
+
+  const TIMEZONE_OPTIONS = [
+    {
+      value: '2',
+      text: '(GMT-11:00) Midway Island',
+    },
+    {
+      value: '1',
+      text: '(GMT-11:00) International Date Line West',
+    },
+    {
+      value: '3',
+      text: '(GMT-11:00) Samoa',
+    },
+    {
+      value: '4',
+      text: '(GMT+05:00) Islamabad, Karachi',
+    },
+  ];
+
+  // Helper functions to map between values and display text
+  const getLanguageText = (value: string) => {
+    const option = LANGUAGE_OPTIONS.find(opt => opt.value === value);
+    return option ? option.text : '';
+  };
+
+  const getLanguageValue = (text: string) => {
+    const option = LANGUAGE_OPTIONS.find(opt => opt.text === text);
+    return option ? option.value : '';
+  };
+
+  const getTimezoneText = (value: string) => {
+    const option = TIMEZONE_OPTIONS.find(opt => opt.value === value);
+    return option ? option.text : '';
+  };
+
+  const getTimezoneValue = (text: string) => {
+    const option = TIMEZONE_OPTIONS.find(opt => opt.text === text);
+    return option ? option.value : '';
+  };
+
   // Fetch current user data using React Query
   const {
     data: profileData,
@@ -111,6 +169,8 @@ const ProfileScreen = ({ navigation }) => {
     profileData?.addressModel?.postalCode || '',
   );
 
+  const [phoneErrors, setPhoneErrors] = useState<string[]>([]);
+
   const [profileImage, setProfileImage] = useState(
     'https://avatar.iran.liara.run/public/41',
   );
@@ -124,14 +184,18 @@ const ProfileScreen = ({ navigation }) => {
       return profileData.userPhoneModels.map((phoneObj, index) => ({
         id: Date.now() + index,
         phoneNumber: phoneObj.phoneModel?.phoneNumber || '',
+        country: 'US', // Default country
         isDefault: index === 0,
+        ref: React.createRef<PhoneInput>(),
       }));
     }
     return [
       {
         id: Date.now(),
         phoneNumber: '',
+        country: 'US',
         isDefault: true,
+        ref: React.createRef<PhoneInput>(),
       },
     ];
   });
@@ -162,6 +226,9 @@ const ProfileScreen = ({ navigation }) => {
   // Selected values for API calls
   const [selectedCountryValue, setSelectedCountryValue] = useState('');
   const [selectedStateValue, setSelectedStateValue] = useState('');
+
+  const [languageValue, setLanguageValue] = useState('');
+  const [timezoneValue, setTimezoneValue] = useState('');
 
   const [initialData, setInitialData] = useState({
     firstName: '',
@@ -280,7 +347,7 @@ const ProfileScreen = ({ navigation }) => {
         lastName: profileData.lastName || '',
         email: profileData.email || '',
         language: profileData.language || '',
-        timezone: profileData.timezone || '',
+        timezone: profileData.timeZone || '',
         street: profileData.addressModel?.street || '',
         country: profileData.addressModel?.country || '',
         state: profileData.addressModel?.state || '',
@@ -288,16 +355,29 @@ const ProfileScreen = ({ navigation }) => {
         postalCode: profileData.addressModel?.postalCode || '',
         phoneNumbers:
           profileData.userPhoneModels?.length > 0
-            ? profileData.userPhoneModels.map((phoneObj, index) => ({
-                id: Date.now() + index,
-                phoneNumber: phoneObj.phoneModel?.phoneNumber || '',
-                isDefault: index === 0,
-              }))
+            ? profileData.userPhoneModels.map((phoneObj, index) => {
+                const phoneNumber = phoneObj.phoneModel?.phoneNumber || '';
+                // Clean phone number - remove country code if it exists
+                const cleanedPhone = phoneNumber.startsWith('+')
+                  ? phoneNumber.substring(phoneNumber.indexOf(' ') + 1) ||
+                    phoneNumber.substring(3)
+                  : phoneNumber;
+
+                return {
+                  id: Date.now() + index,
+                  phoneNumber: cleanedPhone,
+                  country: detectCountryFromPhoneNumber(phoneNumber) || 'US',
+                  isDefault: index === 0,
+                  ref: React.createRef<PhoneInput>(),
+                };
+              })
             : [
                 {
                   id: Date.now(),
                   phoneNumber: '',
+                  country: 'US',
                   isDefault: true,
+                  ref: React.createRef<PhoneInput>(),
                 },
               ],
       };
@@ -305,8 +385,13 @@ const ProfileScreen = ({ navigation }) => {
       setFirstName(data.firstName);
       setLastName(data.lastName);
       setEmail(data.email);
-      setLanguage(data.language);
-      setTimezone(data.timezone);
+
+      // Map received values to display text and store both
+      setLanguage(getLanguageText(data.language));
+      setLanguageValue(data.language);
+      setTimezone(getTimezoneText(data.timezone));
+      setTimezoneValue(data.timezone);
+
       setStreet(data.street);
       setCountry(data.country);
       setState(data.state);
@@ -339,6 +424,83 @@ const ProfileScreen = ({ navigation }) => {
   const removeProfileImage = () => {
     setProfileImage('https://avatar.iran.liara.run/public/41');
     setShowImageOptions(false);
+  };
+
+  // Phone validation function similar to RegisterScreen
+  const validatePhoneNumber = (phoneNumber: string, index: number): boolean => {
+    const phoneDigits = phoneNumber.replace(/\D/g, '');
+
+    if (!phoneNumber.trim()) {
+      const newErrors = [...phoneErrors];
+      newErrors[index] = 'Phone number is required';
+      setPhoneErrors(newErrors);
+      return false;
+    }
+
+    if (phoneDigits.length < 10) {
+      const newErrors = [...phoneErrors];
+      newErrors[index] = 'Phone number must be at least 10 digits';
+      setPhoneErrors(newErrors);
+      return false;
+    }
+
+    if (phoneDigits.length > 15) {
+      const newErrors = [...phoneErrors];
+      newErrors[index] = 'Phone number must be less than 15 digits';
+      setPhoneErrors(newErrors);
+      return false;
+    }
+
+    // Clear error if valid
+    const newErrors = [...phoneErrors];
+    newErrors[index] = '';
+    setPhoneErrors(newErrors);
+    return true;
+  };
+
+  // Auto-detect country based on phone number (same as RegisterScreen)
+  const detectCountryFromPhoneNumber = (phoneNumber: string): string | null => {
+    const cleanNumber = phoneNumber.replace(/\D/g, '');
+    const numberToCheck = phoneNumber.startsWith('+')
+      ? cleanNumber
+      : cleanNumber;
+
+    const countries = [
+      { code: 'US', name: 'United States', dialCode: '+1' },
+      { code: 'CA', name: 'Canada', dialCode: '+1' },
+      { code: 'UK', name: 'United Kingdom', dialCode: '+44' },
+      { code: 'PAK', name: 'Pakistan', dialCode: '+92' },
+      { code: 'IND', name: 'India', dialCode: '+91' },
+    ];
+
+    const sortedCountries = [...countries].sort(
+      (a, b) =>
+        b.dialCode.replace('+', '').length - a.dialCode.replace('+', '').length,
+    );
+
+    for (const country of sortedCountries) {
+      const dialCodeDigits = country.dialCode.replace('+', '');
+
+      if (numberToCheck.startsWith(dialCodeDigits)) {
+        if (dialCodeDigits === '1') {
+          if (numberToCheck.length >= 10 && numberToCheck.length <= 11) {
+            return 'US';
+          }
+        } else {
+          const expectedMinLength = dialCodeDigits.length + 7;
+          const expectedMaxLength = dialCodeDigits.length + 15;
+
+          if (
+            numberToCheck.length >= expectedMinLength &&
+            numberToCheck.length <= expectedMaxLength
+          ) {
+            return country.code;
+          }
+        }
+      }
+    }
+
+    return null;
   };
 
   // Mutation for updating general info
@@ -524,23 +686,46 @@ const ProfileScreen = ({ navigation }) => {
     const newPhone = {
       id: Date.now(),
       phoneNumber: '',
+      country: 'US',
       isDefault: false,
+      ref: React.createRef<PhoneInput>(),
     };
     setPhoneNumbers([...phoneNumbers, newPhone]);
+    setPhoneErrors([...phoneErrors, '']); // Add empty error for new phone
   };
 
   const removePhoneNumber = id => {
+    const index = phoneNumbers.findIndex(phone => phone.id === id);
     setPhoneNumbers(phoneNumbers.filter(phone => phone.id !== id));
+
+    // Remove corresponding error
+    if (index !== -1) {
+      const newErrors = phoneErrors.filter((_, i) => i !== index);
+      setPhoneErrors(newErrors);
+    }
   };
 
   const updatePhoneNumber = (id, newPhoneNumber) => {
+    const index = phoneNumbers.findIndex(phone => phone.id === id);
+
     setPhoneNumbers(
       phoneNumbers.map(phone =>
-        phone.id === id ? { ...phone, phoneNumber: newPhoneNumber } : phone,
+        phone.id === id
+          ? {
+              ...phone,
+              phoneNumber: newPhoneNumber,
+              country:
+                detectCountryFromPhoneNumber(newPhoneNumber) || phone.country,
+            }
+          : phone,
       ),
     );
-  };
 
+    // Validate the phone number
+    if (index !== -1) {
+      validatePhoneNumber(newPhoneNumber, index);
+    }
+  };
   const handleLogout = async () => {
     await logoutMutation.mutateAsync();
     setShowDropdown(false);
@@ -551,8 +736,8 @@ const ProfileScreen = ({ navigation }) => {
       firstName: firstName,
       lastName: lastName,
       email: email,
-      language: language,
-      timezone: timezone,
+      language: languageValue, // Send the value instead of text
+      timeZone: timezoneValue, // Send the value instead of text
       birthday: profileData?.birthday,
       startDate: profileData?.startDate,
       clientId: profileData?.clientId,
@@ -600,6 +785,20 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const handleContactDetailsUpdate = async () => {
+    // Validate all phone numbers before updating
+    let allPhoneNumbersValid = true;
+    phoneNumbers.forEach((phone, index) => {
+      if (!validatePhoneNumber(phone.phoneNumber, index)) {
+        allPhoneNumbersValid = false;
+      }
+    });
+
+    if (!allPhoneNumbersValid) {
+      setErrorMessage('Please fix phone number errors before updating.');
+      setShowErrorModal(true);
+      return;
+    }
+
     const updatePayload = {
       addressModel: {
         street: street,
@@ -668,8 +867,10 @@ const ProfileScreen = ({ navigation }) => {
       setFirstName(initialData.firstName);
       setLastName(initialData.lastName);
       setEmail(initialData.email);
-      setLanguage(initialData.language);
-      setTimezone(initialData.timezone);
+      setLanguage(getLanguageText(initialData.language));
+      setLanguageValue(initialData.language);
+      setTimezone(getTimezoneText(initialData.timezone));
+      setTimezoneValue(initialData.timezone);
     } else if (activeTab === 'Change Password') {
       setCurrentPasswordField('');
       setNewPasswordField('');
@@ -801,6 +1002,7 @@ const ProfileScreen = ({ navigation }) => {
           />
         </View>
       </View>
+
       {/* Language as select */}
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>Language</Text>
@@ -822,15 +1024,26 @@ const ProfileScreen = ({ navigation }) => {
               padding: 0,
             }}
             dropdownIconColor="#007AFF"
-            onValueChange={itemValue => setLanguage(itemValue)}
+            onValueChange={itemValue => {
+              if (itemValue) {
+                setLanguage(itemValue);
+                setLanguageValue(getLanguageValue(itemValue));
+              }
+            }}
           >
             <Picker.Item label="Select language" value="" color="#999" />
-            <Picker.Item label="English" value="English" />
-            <Picker.Item label="French" value="French" />
-            <Picker.Item label="Spanish" value="Spanish" />
+            {LANGUAGE_OPTIONS.map(option => (
+              <Picker.Item
+                key={option.value}
+                label={option.text}
+                value={option.text}
+              />
+            ))}
           </Picker>
         </View>
       </View>
+
+      {/* Time Zone as select */}
       {/* Time Zone as select */}
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>Time Zone</Text>
@@ -852,40 +1065,21 @@ const ProfileScreen = ({ navigation }) => {
               padding: 0,
             }}
             dropdownIconColor="#007AFF"
-            onValueChange={itemValue => setTimezone(itemValue)}
+            onValueChange={itemValue => {
+              if (itemValue) {
+                setTimezone(itemValue);
+                setTimezoneValue(getTimezoneValue(itemValue));
+              }
+            }}
           >
             <Picker.Item label="Select time zone" value="" color="#999" />
-            <Picker.Item label="UTC" value="UTC" />
-            <Picker.Item label="GMT+1 (Central European Time)" value="GMT+1" />
-            <Picker.Item label="GMT+2 (Eastern European Time)" value="GMT+2" />
-            <Picker.Item label="GMT+3 (Moscow Time)" value="GMT+3" />
-            <Picker.Item label="GMT+5 (Pakistan Standard Time)" value="GMT+5" />
-            <Picker.Item
-              label="GMT+5:30 (India Standard Time)"
-              value="GMT+5:30"
-            />
-            <Picker.Item label="GMT+8 (China Standard Time)" value="GMT+8" />
-            <Picker.Item label="GMT+9 (Japan Standard Time)" value="GMT+9" />
-            <Picker.Item
-              label="GMT+10 (Australian Eastern Time)"
-              value="GMT+10"
-            />
-            <Picker.Item
-              label="GMT-5 (Eastern Time US & Canada)"
-              value="GMT-5"
-            />
-            <Picker.Item
-              label="GMT-6 (Central Time US & Canada)"
-              value="GMT-6"
-            />
-            <Picker.Item
-              label="GMT-7 (Mountain Time US & Canada)"
-              value="GMT-7"
-            />
-            <Picker.Item
-              label="GMT-8 (Pacific Time US & Canada)"
-              value="GMT-8"
-            />
+            {TIMEZONE_OPTIONS.map(option => (
+              <Picker.Item
+                key={option.value}
+                label={option.text}
+                value={option.text}
+              />
+            ))}
           </Picker>
         </View>
       </View>
@@ -1091,15 +1285,43 @@ const ProfileScreen = ({ navigation }) => {
               </TouchableOpacity>
             )}
           </View>
-          <View style={styles.phoneInputWrapper}>
-            <TextInput
-              style={styles.phoneInput}
-              value={phone.phoneNumber}
-              placeholder="Enter phone number"
-              placeholderTextColor="#999"
-              onChangeText={text => updatePhoneNumber(phone.id, text)}
-            />
-          </View>
+
+          <PhoneInput
+            ref={phone.ref}
+            defaultValue={phone.phoneNumber}
+            defaultCode={phone.country as any}
+            layout="first"
+            onChangeText={text => updatePhoneNumber(phone.id, text)}
+            onChangeFormattedText={text => updatePhoneNumber(phone.id, text)}
+            textInputStyle={{
+              fontFamily: 'Poppins',
+              fontSize: 16,
+              color: '#1F2937',
+              paddingVertical: 0,
+              paddingHorizontal: 0,
+            }}
+            codeTextStyle={{
+              fontFamily: 'Poppins',
+              fontSize: 16,
+              color: '#1F2937',
+            }}
+            onChangeCountry={country => {
+              setPhoneNumbers(prev =>
+                prev.map(p =>
+                  p.id === phone.id ? { ...p, country: country.cca2 } : p,
+                ),
+              );
+            }}
+            withShadow={false}
+            withDarkTheme={false}
+            autoFocus={false}
+            disabled={isMutationLoading}
+          />
+
+          {/* Phone Error Display */}
+          {phoneErrors[index] ? (
+            <Text style={styles.errorText}>{phoneErrors[index]}</Text>
+          ) : null}
         </View>
       ))}
 
@@ -1242,77 +1464,82 @@ const ProfileScreen = ({ navigation }) => {
       </View>
       {/* Profile Content */}
       <View style={styles.profileContainer}>
-        <ScrollView
+        <FlatList
+          data={[{ key: 'content' }]}
+          renderItem={() => (
+            <View>
+              {/* Profile Header - Edit Mode */}
+              <View style={styles.profileHeader}>
+                <TouchableOpacity
+                  style={styles.avatarContainer}
+                  onPress={() => setShowImageOptions(true)}
+                >
+                  <Image source={{ uri: profileImage }} style={styles.avatar} />
+                </TouchableOpacity>
+                <Text style={styles.userName}>{profileData?.firstName}</Text>
+                <Text style={styles.userRole}>
+                  {profileData?.role ? profileData.role : ''}
+                </Text>
+              </View>
+              {/* Tab Navigation */}
+              <View style={styles.tabContainer}>
+                <TabButton
+                  title="General Info"
+                  isActive={activeTab === 'General Info'}
+                  onPress={() => setActiveTab('General Info')}
+                />
+                <TabButton
+                  title="Change Password"
+                  isActive={activeTab === 'Change Password'}
+                  onPress={() => setActiveTab('Change Password')}
+                />
+                <TabButton
+                  title="Contact Details"
+                  isActive={activeTab === 'Contact Details'}
+                  onPress={() => setActiveTab('Contact Details')}
+                />
+              </View>
+              {/* Tab Content */}
+              {activeTab === 'General Info' && renderGeneralInfo()}
+              {activeTab === 'Change Password' && renderChangePassword()}
+              {activeTab === 'Contact Details' && renderContactDetails()}
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={styles.resetButton}
+                  onPress={handleResetPress}
+                >
+                  <Text style={styles.resetButtonText}>Reset</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.updateButton,
+                    isMutationLoading && { opacity: 0.6 },
+                  ]}
+                  onPress={handleUpdatePress}
+                  disabled={isMutationLoading}
+                >
+                  {isMutationLoading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.updateButtonText}>
+                      {activeTab === 'General Info'
+                        ? 'Update'
+                        : activeTab === 'Change Password'
+                        ? 'Update Password'
+                        : activeTab === 'Contact Details'
+                        ? 'Update'
+                        : 'Update'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
-        >
-          {/* Profile Header - Edit Mode */}
-          <View style={styles.profileHeader}>
-            <TouchableOpacity
-              style={styles.avatarContainer}
-              onPress={() => setShowImageOptions(true)}
-            >
-              <Image source={{ uri: profileImage }} style={styles.avatar} />
-            </TouchableOpacity>
-            <Text style={styles.userName}>{profileData?.firstName}</Text>
-            <Text style={styles.userRole}>
-              {profileData?.role ? profileData.role : ''}
-            </Text>
-          </View>
-          {/* Tab Navigation */}
-          <View style={styles.tabContainer}>
-            <TabButton
-              title="General Info"
-              isActive={activeTab === 'General Info'}
-              onPress={() => setActiveTab('General Info')}
-            />
-            <TabButton
-              title="Change Password"
-              isActive={activeTab === 'Change Password'}
-              onPress={() => setActiveTab('Change Password')}
-            />
-            <TabButton
-              title="Contact Details"
-              isActive={activeTab === 'Contact Details'}
-              onPress={() => setActiveTab('Contact Details')}
-            />
-          </View>
-          {/* Tab Content */}
-          {activeTab === 'General Info' && renderGeneralInfo()}
-          {activeTab === 'Change Password' && renderChangePassword()}
-          {activeTab === 'Contact Details' && renderContactDetails()}
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.resetButton}
-              onPress={handleResetPress}
-            >
-              <Text style={styles.resetButtonText}>Reset</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.updateButton,
-                isMutationLoading && { opacity: 0.6 },
-              ]}
-              onPress={handleUpdatePress}
-              disabled={isMutationLoading}
-            >
-              {isMutationLoading ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <Text style={styles.updateButtonText}>
-                  {activeTab === 'General Info'
-                    ? 'Update'
-                    : activeTab === 'Change Password'
-                    ? 'Update Password'
-                    : activeTab === 'Contact Details'
-                    ? 'Update'
-                    : 'Update'}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+          keyExtractor={item => item.key}
+        />
       </View>
       {/* Dropdown Modal */}
       <Modal
