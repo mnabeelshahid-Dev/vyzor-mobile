@@ -483,7 +483,7 @@ const ProfileScreen = ({ navigation }) => {
     },
     onSuccess: data => {
       queryClient.invalidateQueries({ queryKey: ['currentUser'] });
-      setSuccessMessage('Profile updated successfully!');
+      setSuccessMessage('General Info updated successfully!');
       setShowSuccessModal(true);
       console.log('Update profile response:', data);
     },
@@ -768,7 +768,7 @@ const ProfileScreen = ({ navigation }) => {
         street: street,
         country: country,
         state: state,
-        // city: city,
+        city: city,
         postalCode: postalCode,
       },
     };
@@ -823,7 +823,6 @@ const ProfileScreen = ({ navigation }) => {
       await handleContactDetailsUpdate();
       await handlePhoneDetailsUpdate();
     }
-    // Remove navigation.goBack() - let success modal handle navigation
   };
 
   const handleResetPress = () => {
@@ -1343,7 +1342,7 @@ const ProfileScreen = ({ navigation }) => {
       />
 
       {/* City Dropdown */}
-      {/* <DropdownFieldWithData
+      <DropdownFieldWithData
         label="City"
         value={city}
         placeholder="Select city"
@@ -1353,7 +1352,7 @@ const ProfileScreen = ({ navigation }) => {
         onSelect={selectedCity => {
           setCity(selectedCity.text);
         }}
-      /> */}
+      />
 
       {/* Zip/Postal Code */}
       <View style={styles.phoneNumberContainer}>
@@ -1576,7 +1575,6 @@ const ProfileScreen = ({ navigation }) => {
         onBackdropPress={() => {
           setShowSuccessModal(false);
           setSuccessMessage('');
-          navigation.goBack();
         }}
         backdropOpacity={0.5}
         style={{
@@ -1626,7 +1624,6 @@ const ProfileScreen = ({ navigation }) => {
             onPress={() => {
               setShowSuccessModal(false);
               setSuccessMessage('');
-              navigation.goBack();
             }}
           >
             <Text
