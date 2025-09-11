@@ -754,9 +754,14 @@ export default function ChatScreen({ navigation }) {
         )}
       </View>
       {/* Input -  send message API */}
+      {/* Input - send message API */}
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+        behavior={Platform.select({ ios: 'padding', android: 'height' })}
+        keyboardVerticalOffset={Platform.select({
+          ios: 20,
+          android: StatusBar.currentHeight || 0,
+        })}
+        style={{ flexShrink: 0 }}
       >
         <View style={styles.inputBar}>
           <TextInput
