@@ -9,7 +9,6 @@ export interface User {
   avatar?: string | null;
   role?: string;
   isVerified?: boolean;
-  emailVerified: boolean;
   dateOfBirth?: string;
   phoneNumber?: string;
   createdAt: string;

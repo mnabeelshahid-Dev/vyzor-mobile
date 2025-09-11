@@ -1,3 +1,13 @@
+// Fetch definition sections by formDefinitionId and status
+export async function fetchDefinitionSections({ formDefinitionId, status }: { formDefinitionId: string | number, status: string }) {
+	if (!formDefinitionId) return [];
+	const url = `/api/forms/definitionSections?formDefinitionId=${formDefinitionId}&status=${status}`;
+	const response = await apiService.get(url) as { data?: { content?: any[] } };
+	console.log("response", response);
+	
+	// If using fetch, replace with fetch(url) and await response.json()
+	return response?.data || [];
+}
 import { apiService } from '../services/api';
 
 export async function fetchStatisticsUserDetail(params: any) {

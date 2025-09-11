@@ -19,6 +19,7 @@ import CalendarIcon from '../../assets/svgs/calendar.svg';
 import Modal from 'react-native-modal';
 import { Calendar } from 'react-native-calendars';
 import ArrowDown from '../../assets/svgs/arrowDown.svg';
+import { useAuthStore } from '../../store/authStore';
 
 const { width } = Dimensions.get('window');
 const getResponsive = (val: number) => Math.round(val * (width / 390));
@@ -57,6 +58,10 @@ function formatDate(dateStrOrObj: string | Date = ""): string {
 }
 
 export default function StatisticsScreen({ navigation }) {
+
+  const user = useAuthStore((state) => state.user);
+  console.log("👤 [STORE] Current User from Auth Store:", user);
+  
   const [search, setSearch] = useState('');
   const [filterModal, setFilterModal] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
@@ -69,7 +74,6 @@ export default function StatisticsScreen({ navigation }) {
   const [filterStatus, setFilterStatus] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [userID, setUserID] = useState('');
   const [datePicker, setDatePicker] = useState({ field: null, show: false });
 
   // Separate state for statistics params
@@ -86,8 +90,7 @@ export default function StatisticsScreen({ navigation }) {
 
   // Keep tasksParams for tasks API only
   const [tasksParams, setTasksParams] = useState({
-    startDate: '',
-    endDate: '',
+    updatedDate: '',
     userIds: [],
     scheduleStatus: '',
     branchId: '',
@@ -106,22 +109,18 @@ export default function StatisticsScreen({ navigation }) {
     function formatDateFull(date) {
       return date.toISOString().split('.')[0] + 'Z';
     }
-    const todayFull = formatDateFull(today);
-    const oneWeekLater = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const oneWeekLaterFull = formatDateFull(oneWeekLater);
-    const effectiveEndDate = filterDate
+    const updatedDate = filterDate
       ? formatDateFull(new Date(filterDate))
-      : oneWeekLaterFull;
+      : formatDateFull(today);
     // Use a hardcoded userId for now (replace with dynamic if needed)
-    if (userID) {
+    if (user?.id) {
       setStatisticsParams((prev) => ({
         ...prev,
         search,
         sort: sortOrder,
         status: filterStatus,
-        startDate: todayFull,
-        endDate: effectiveEndDate,
-        userId: userID,
+        updatedDate: updatedDate,
+        userIds: [user?.id],
       }));
     }
   }, [search, sortOrder, filterStatus, filterDate]);
@@ -130,14 +129,24 @@ export default function StatisticsScreen({ navigation }) {
   
 
   useEffect(() => {
+    const today = new Date();
+    function formatDateFull(date) {
+      return date.toISOString().split('.')[0] + 'Z';
+    }
+    const todayFull = formatDateFull(today);
+    const oneWeekLater = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const oneWeekLaterFull = formatDateFull(oneWeekLater);
+    const effectiveEndDate = filterDate
+      ? formatDateFull(new Date(filterDate))
+      : oneWeekLaterFull;
     setTasksParams((prev) => ({
       ...prev,
       search,
       sort: sortOrder,
       sortField,
       scheduleStatus: filterStatus,
-      startDate,
-      endDate,
+      update: todayFull,
+      endDate: effectiveEndDate,
     }));
   }, [search, sortOrder, sortField, filterStatus, startDate, endDate]);
 
@@ -186,12 +195,6 @@ export default function StatisticsScreen({ navigation }) {
     const bIdx = statusOrder.indexOf(b.status);
     return aIdx - bIdx;
   });
-
-  useEffect(() => {
-    if (tasks.length > 0) {
-      setUserID(tasks[0].userId?.toString() || '');
-    }
-  }, [tasks]);
 
   // Responsive styling helpers
   const statCardWidth = (width - getResponsive(16) * 2 - getResponsive(12) * 2) / 3;
