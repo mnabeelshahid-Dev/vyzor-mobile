@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar } from 'react-native-calendars';
-import { useRoute, RouteProp } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
-import { fetchTasks } from '../../../api/tasks';
-import { apiClient } from '../../../utils/apiHelpers';
-import { apiService } from '../../../services/api';
-import { useAuthStore } from '../../../store/authStore';
+import { useRoute } from '@react-navigation/native';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { fetchTasks, fetchUserSites } from '../../../api/tasks';
+import { fetchDevices, fetchSections, fetchNotes } from '../../../api/tasks';
 import {
   View,
   Text,
@@ -16,7 +14,8 @@ import {
   ScrollView,
   StatusBar,
   Platform,
-  FlatList
+  FlatList,
+  ActivityIndicator
 } from 'react-native';
 import Modal from 'react-native-modal';
 import ArrowUpIcon from '../../../assets/svgs/arrowUpWard.svg';
@@ -34,29 +33,11 @@ import NotesIcon from '../../../assets/svgs/notesIcon.svg';
 import UserIcon from '../../../assets/svgs/user.svg';
 import SortIcon from '../../../assets/svgs/sortIcon.svg';
 import { useLogout } from '../../../hooks/useAuth';
-import Spinner from 'react-native-loading-spinner-overlay';
-
-
-
-const STATUS_COLORS: Record<string, string> = {
-  Active: '#0088E7',
-  Expired: '#E4190A',
-  Completed: '#11A330',
-  Scheduled: '#E09200',
-};
-
-const STATUS_BG_COLORS: Record<string, string> = {
-  Active: '#E6F1FB',
-  Expired: '#FDEBEB',
-  Completed: '#E6FAEF',
-  Scheduled: '#FFF7E7',
-};
+import { STATUS_BG_COLORS, STATUS_COLORS } from './utils/taskUtils';
+import { apiService } from '../../../services/api';
 
 
 export default function TaskScreen({ navigation }) {
-  // Get access token from auth store
-  // Fix: use correct property for accessToken
-  // Add missing state for dropdown and date picker
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -65,6 +46,7 @@ export default function TaskScreen({ navigation }) {
     route.params?.branchId ||
     route.params?.params?.branchId ||
     route.params?.params?.params?.branchId;
+
 
   // State
   const [filterModal, setFilterModal] = useState(false);
@@ -86,11 +68,9 @@ export default function TaskScreen({ navigation }) {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDate, setFilterDate] = useState('');
   // Add startDate and endDate for API params
-  const [startDate, setStartDate] = useState('');
+  const [updatedDate, setUpdatedDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [datePickerValue, setDatePickerValue] = useState<Date | null>(null);
   const [calendarDate, setCalendarDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [filterUser, setFilterUser] = useState('');
   const [searchUser, setSearchUser] = useState('');
   // Add missing selectedSiteId for user modal API
   const [selectedSiteId, setSelectedSiteId] = useState<string | number | null>(null);
@@ -115,60 +95,86 @@ export default function TaskScreen({ navigation }) {
     sort: sortOrder,
     sortField: sortField,
     page: 0,
-    size: 20,
+    size: 20, // Default page size, can be changed if needed
   });
 
-  // Fetch notes when modal opens
-  // useEffect(() => {
-  //   setLoadingNotes(true);
-  //   setNotesError('');
-  //   apiService.get('/api/document/notes/sqlite')
-  //     .then((response) => {
-  //       // Debug log for API response
-  //       console.log('Notes API response:', response);
-  //       const data = (response?.data as { list?: any[] })?.list;
-  //       if (response.success && Array.isArray(data)) {
-  //         setNotes(data);
-  //       } else {
-  //         setNotesError('Failed to fetch notes');
-  //       }
-  //     })
-  //     .catch(() => setNotesError('Failed to fetch notes'))
-  //     .finally(() => setLoadingNotes(false));
+  // Build params for API
+  const buildParams = (pageParam = 1) => {
+    const today = new Date();
+    function formatDateFull(date) {
+      return date.toISOString().split('.')[0] + 'Z';
+    }
+    const updatedDate = filterDate
+      ? formatDateFull(new Date(filterDate))
+      : formatDateFull(today);
 
-  // }, []);
-  useEffect(() => {
-    setTasksParams((prev) => ({
-      ...prev,
+
+
+    return {
+      updatedDate: updatedDate,
       siteIds: branchId ? [branchId] : [],
+      userIds: [],
+      scheduleStatus: filterStatus,
       search,
       sort: sortOrder,
-      sortField,
-      scheduleStatus: filterStatus,
-      startDate,
-      endDate,
-      // Add other filter params as needed
-    }));
-  }, [branchId, search, sortOrder, sortField, filterStatus, startDate, endDate]);
+      sortField: sortField,
+      page: pageParam,
+      size: 20,
+    };
+  };
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['tasks', tasksParams],
-    queryFn: () => fetchTasks(tasksParams),
+  const fetchTasksInfinite = async ({ pageParam = 1 }) => {
+    const params = buildParams(pageParam);
+    const response = await fetchTasks(params);
+    const content = Array.isArray(response?.data) ? response.data : [];
+    return {
+      data: content,
+      nextPage: pageParam + 1,
+      hasMore: content.length === params.size,
+    };
+  };
+
+  const {
+    data: infiniteData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    refetch,
+    isRefetching,
+  } = useInfiniteQuery({
+    queryKey: ['tasks', branchId, search, sortOrder, sortField, filterStatus, filterDate],
+    queryFn: fetchTasksInfinite,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextPage : undefined),
+    initialPageParam: 1,
     enabled: !!branchId,
   });
 
-  // Type assertion for API response
-  type TasksApiResponse = { data?: { content?: any[] } };
-  const typedData = data as TasksApiResponse;
-  const tasks = typedData?.data?.content || [];
-  // Sort tasks by status order: Active, Expired, Completed, Scheduled
+  const allTasks = infiniteData?.pages.flatMap((page) => page.data) ?? [];
   const statusOrder = ['Active', 'Expired', 'Completed', 'Scheduled'];
-  const sortedTasks = [...tasks].sort((a, b) => {
+  const sortedTasks = [...allTasks].sort((a, b) => {
     const aIdx = statusOrder.indexOf(a.status);
     const bIdx = statusOrder.indexOf(b.status);
     return aIdx - bIdx;
   });
 
+  const handleEndReached = () => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  };
+
+  // Auto-refetch every 2 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetch();
+    }, 2 * 60 * 1000); // 2 minutes
+    return () => clearInterval(interval);
+  }, [refetch]);
+
+  // Helper to show loader overlay when refetching or loading
+  const showLoader = isLoading || isFetchingNextPage || isRefetching;
   const logoutMutation = useLogout({
     onSuccess: () => {
       navigation.navigate('Auth', { screen: 'Login' });
@@ -193,8 +199,7 @@ export default function TaskScreen({ navigation }) {
       setLoadingUsers(true);
       setUserError('');
       try {
-        // Use apiService.get for consistent token handling
-        const response = await apiService.get(`/api/site/userSites?siteId=${siteId || branchId}`);
+        const response = await fetchUserSites(siteId || branchId);
         if (
           response.success &&
           Array.isArray((response.data as { content?: any[] })?.content)
@@ -226,42 +231,6 @@ export default function TaskScreen({ navigation }) {
     setShowDropdown(false);
     setShowSortModal(false);
   };
-
-  // // Fetch devices when modal opens
-  // useEffect(() => {
-  //   setLoadingDevices(true);
-  //   setDevicesError('');
-  //   apiService.get('/api/site/devices')
-  //     .then((response) => {
-  //       // Debug log for API response
-  //       console.log('Devices API response:', response);
-  //       const data = (response?.data as { content?: any[] })?.content;
-  //       if (response.success && Array.isArray(data)) {
-  //         setDevices(data);
-  //       } else {
-  //         setDevicesError('Failed to fetch devices');
-  //       }
-  //     })
-  //     .catch(() => setDevicesError('Failed to fetch devices'))
-  //     .finally(() => setLoadingDevices(false));
-  // }, []);
-
-  // // Fetch sections when modal opens
-  // useEffect(() => {
-  //   setLoadingSections(true);
-  //   setSectionsError('');
-  //   apiService.get('/api/forms/sections/all')
-  //     .then((response) => {
-  //       const data = response.data as { content?: any[] };
-  //       if (response.success && Array.isArray(data?.content)) {
-  //         setSections(data.content);
-  //       } else {
-  //         setSectionsError('Failed to fetch sections');
-  //       }
-  //     })
-  //     .catch(() => setSectionsError('Failed to fetch sections'))
-  //     .finally(() => setLoadingSections(false));
-  // }, []);
 
 
   const renderTask = ({ item }: any) => {
@@ -356,7 +325,7 @@ export default function TaskScreen({ navigation }) {
           </View>
         </View>
         {/* Get Started Button */}
-        <TouchableOpacity onPress={() => navigation.navigate('Section')} style={{ backgroundColor: '#1292E6', borderRadius: 8, alignItems: 'center', paddingVertical: 8, marginTop: 4 }}>
+        <TouchableOpacity onPress={() => navigation.navigate('Section', { formDefinitionId: item?.formDefinitionId, status: item?.status })} style={{ backgroundColor: '#1292E6', borderRadius: 8, alignItems: 'center', paddingVertical: 8, marginTop: 4 }}>
           <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Get Started</Text>
         </TouchableOpacity>
       </View>
@@ -519,8 +488,7 @@ export default function TaskScreen({ navigation }) {
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalBtnApply} onPress={() => {
               // Apply filter changes and trigger refetch
-              setStartDate(filterDate ? filterDate : '');
-              setEndDate(filterDate ? filterDate : '');
+              setUpdatedDate(filterDate ? filterDate : '');
               // Optionally, you can parse filterDate to API format if needed
               closeModal();
               refetch();
@@ -759,7 +727,7 @@ export default function TaskScreen({ navigation }) {
                 data={devices}
                 keyExtractor={(item, idx) => (item.uuid ? String(item.uuid) : idx.toString())}
                 renderItem={({ item }) => (
-                  <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
+                  <View key={item.uuid} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontWeight: '700', fontSize: 17, color: '#222E44', marginBottom: 2 }}>{item.name || ''}</Text>
                       <Text style={{ color: '#0088E7', fontSize: 12, fontWeight: '400', marginBottom: 2 }}>{item.macAddress || ''}</Text>
@@ -825,7 +793,7 @@ export default function TaskScreen({ navigation }) {
                 data={notes}
                 keyExtractor={(item, idx) => (item.id ? String(item.id) : idx.toString())}
                 renderItem={({ item }) => (
-                  <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
+                  <View key={item.id} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
                     <Text style={{ color: '#222E44', fontSize: 16, fontWeight: '600' }}>{item.text || item.note || ''}</Text>
                   </View>
                 )}
@@ -929,13 +897,13 @@ export default function TaskScreen({ navigation }) {
               style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
               onPress={() => handleSort('number', 'desc')}
             >
-              <ArrowDownWard width={18} height={18} />
+              <ArrowDownWard width={15} height={15} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
               onPress={() => handleSort('number', 'asc')}
             >
-              <ArrowUpIcon width={18} height={18} />
+              <ArrowUpIcon width={15} height={15} />
             </TouchableOpacity>
           </View>
         </View>
@@ -948,7 +916,7 @@ export default function TaskScreen({ navigation }) {
     // Fetch devices
     setLoadingDevices(true);
     setDevicesError('');
-    apiService.get('/api/site/devices')
+    fetchDevices()
       .then((response) => {
         console.log('Devices API response:', response);
         const data = (response?.data as { content?: any[] })?.content;
@@ -962,7 +930,7 @@ export default function TaskScreen({ navigation }) {
       .finally(() => setLoadingDevices(false));
 
     // Fetch sections
-    apiService.get('/api/forms/sections/all')
+    fetchSections()
       .then((response) => {
         console.log('Sections API response:', response);
         const data = (response?.data as { content?: any[] })?.content;
@@ -977,7 +945,7 @@ export default function TaskScreen({ navigation }) {
     // Fetch notes
     setLoadingNotes(true);
     setNotesError('');
-    apiService.get('/api/document/notes/sqlite')
+    fetchNotes()
       .then((response) => {
         console.log('Notes API response:', response);
         const data = (response?.data as { list?: any[] })?.list;
@@ -1041,18 +1009,13 @@ export default function TaskScreen({ navigation }) {
         </View>
         {/* Task List */}
         <View style={{ flex: 1, backgroundColor: '#F2F2F2', borderTopLeftRadius: 30, borderTopRightRadius: 30 }}>
-          {isLoading ? (
-            <Spinner
-              visible={true}
-              animation='fade'
-              textContent={''}
-              textStyle={{ color: '#FFF' }}
-              color="#0088E7"
-              overlayColor="rgba(0,0,0,0.15)"
-            />
+          {showLoader ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#007AFF" />
+            </View>
           ) : isError ? (
             <Text style={{ color: 'red', fontSize: 18, textAlign: 'center', marginTop: 40 }}>Error loading tasks</Text>
-          ) : tasks.length === 0 ? (
+          ) : allTasks.length === 0 ? (
             <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
               <Text style={{ fontSize: 20, color: '#888', marginBottom: 12 }}>No tasks Found</Text>
             </View>
@@ -1063,6 +1026,11 @@ export default function TaskScreen({ navigation }) {
               keyExtractor={(item) => item.id?.toString()}
               contentContainerStyle={{ paddingVertical: 24, paddingTop: 40 }}
               showsVerticalScrollIndicator={false}
+              onEndReached={handleEndReached}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={isFetchingNextPage ? <ActivityIndicator size="small" color="#007AFF" /> : null}
+              refreshing={isRefetching}
+              onRefresh={refetch}
             />
           )}
 

@@ -63,14 +63,16 @@ export const useAuthStore = create<AuthState>()(
             let currentUser = user;
             if (currentUserResp.success && currentUserResp.data) {
               // Cast response to User type and safely map fields
-              const apiUser = currentUserResp.data as Partial<User>;
+              const apiUser = currentUserResp.data as any;
+              console.log('====================================');
+              console.log('🏪 [STORE] Fetched current user from API:', apiUser);
+              console.log('====================================');
               currentUser = {
-                id: apiUser?.id ?? user.id,
-                email: apiUser?.email ?? user.email,
-                name: apiUser?.name ?? user.name,
-                emailVerified: apiUser?.emailVerified ?? user.emailVerified,
-                // Add other required fields as needed
-                ...user,
+                id: apiUser?.webId ?? "",
+                email: apiUser?.email ?? "",
+                name: apiUser?.firstName && apiUser?.lastName
+                  ? `${apiUser.firstName} ${apiUser.lastName}`
+                  : "",
                 ...apiUser,
               };
             }

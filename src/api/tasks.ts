@@ -1,8 +1,29 @@
 import { apiService } from '../services/api';
+// Fetch user sites
+export async function fetchUserSites(siteId: string | number) {
+  const response = await apiService.get(`/api/site/userSites?siteId=${siteId}`);
+  return response;
+}
+// Fetch devices
+export async function fetchDevices() {
+  const response = await apiService.get('/api/site/devices');
+  return response;
+}
+
+// Fetch sections
+export async function fetchSections() {
+  const response = await apiService.get('/api/forms/sections/all');
+  return response;
+}
+
+// Fetch notes
+export async function fetchNotes() {
+  const response = await apiService.get('/api/document/notes/sqlite');
+  return response;
+}
 
 export interface TaskParams {
-  startDate?: string;
-  endDate?: string;
+  updatedDate?: string;
   siteIds?: (string | number)[];
   userIds?: (string | number)[];
   scheduleStatus?: string;
@@ -16,8 +37,7 @@ export interface TaskParams {
 export async function fetchTasks(params: TaskParams) {
   // Build query string
   const query: string[] = [];
-  if (params.startDate) query.push(`startDate=${encodeURIComponent(params.startDate)}`);
-  if (params.endDate) query.push(`endDate=${encodeURIComponent(params.endDate)}`);
+  if (params.updatedDate) query.push(`updatedDate=${encodeURIComponent(params.updatedDate)}`);
   if (params.siteIds && params.siteIds.length) query.push(`siteIds=${params.siteIds.join(',')}`);
   if (params.userIds && params.userIds.length) query.push(`userIds=${params.userIds.join(',')}`);
   if (params.scheduleStatus) query.push(`scheduleStatus=${params.scheduleStatus}`);
@@ -27,7 +47,7 @@ export async function fetchTasks(params: TaskParams) {
   if (params.page !== undefined) query.push(`page=${params.page}`);
   if (params.size !== undefined) query.push(`size=${params.size}`);
   const qs = query.length ? `?${query.join('&')}` : '';
-  const url = `/api/document/${qs}`;
+  const url = `/api/document/scheduling/sqlite/documents/${qs}`;
   console.log(`🌐 [API] GET https://vyzor.app${url}`);
   console.debug('debug.ts:94 Request:', { headers: apiService, body: undefined });
   const response = await apiService.get(url);

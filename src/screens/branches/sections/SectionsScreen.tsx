@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchDefinitionSections } from '../../../api/statistics';
 import {
     View,
     Text,
@@ -15,6 +17,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import CamaraIcon from '../../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../../assets/svgs/backArrowIcon.svg';
 import Signiture from '../../../assets/svgs/segnitureImage.svg'
+import { useRoute } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -83,7 +86,24 @@ const RefreshIcon = () => (
 );
 
 export default function SectionsScreen({ navigation }: { navigation: any }) {
-    // State for answers, notes, signature etc.
+    // Get formDefinitionId and status from route params
+    const route = useRoute();
+    const { formDefinitionId = "", status = "" }: any = route.params || {};
+
+    // Fetch sections from API (moved to statistics.ts)
+    // import fetchDefinitionSections from statistics.ts
+
+    const {
+        data: sectionData,
+        isLoading: isSectionsLoading,
+        isError: isSectionsError,
+        refetch: refetchSections,
+    } = useQuery({
+        queryKey: ['definitionSections', formDefinitionId, status],
+        queryFn: () => fetchDefinitionSections({ formDefinitionId, status }),
+        enabled: !!formDefinitionId,
+    });
+    console.log('Fetched Sections:-----------------???????????', sectionData);
     const [answers, setAnswers] = useState({
         q1: true,
         q2: true,
