@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,9 @@ import {
   COUNTRIES,
   detectCountryFromPhoneNumber,
 } from '../../constants/countries';
+
+import { v4 as uuidv4 } from 'uuid';
+import RNFS from 'react-native-fs';
 
 import { useLogout } from '../../hooks/useAuth';
 
@@ -153,6 +156,25 @@ const ProfileScreen = ({ navigation }) => {
     },
   });
 
+  // Query to fetch file details when fileId exists
+  const { data: fileData, isLoading: isFileLoading } = useQuery({
+    queryKey: ['fileDetails', profileData?.fileId],
+    queryFn: async () => {
+      if (!profileData?.fileId) return null;
+
+      const response = await apiService.get(
+        `/api/dms/file/${profileData.fileId}`,
+      );
+
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Error fetching file details');
+      }
+    },
+    enabled: !!profileData?.fileId, // Only run when fileId exists
+  });
+
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState('General Info');
   const [useDefaultTimeZone, setUseDefaultTimeZone] = useState(false);
@@ -175,9 +197,20 @@ const ProfileScreen = ({ navigation }) => {
 
   const [phoneErrors, setPhoneErrors] = useState<string[]>([]);
 
+  // Update the profileImage state initialization
   const [profileImage, setProfileImage] = useState(
     'https://avatar.iran.liara.run/public/41',
   );
+
+  // Add useEffect to update profile image when profileData changes
+  React.useEffect(() => {
+    if (fileData?.fileUrl) {
+      setProfileImage(fileData.fileUrl);
+    } else if (profileData && !profileData.fileId) {
+      setProfileImage('https://avatar.iran.liara.run/public/41');
+    }
+  }, [fileData, profileData?.fileId]);
+
   const [showImageOptions, setShowImageOptions] = useState(false);
 
   const [phoneNumbers, setPhoneNumbers] = useState(() => {
@@ -424,14 +457,45 @@ const ProfileScreen = ({ navigation }) => {
         return;
       }
       if (response.assets && response.assets[0]) {
-        setProfileImage(response.assets[0].uri || '');
+        const selectedImageUri = response.assets[0].uri;
+        if (selectedImageUri) {
+          // Update local state immediately for UI feedback
+          setProfileImage(selectedImageUri);
+          // Upload to server
+          uploadProfilePictureMutation.mutate(selectedImageUri);
+        }
       }
       setShowImageOptions(false);
     });
   };
 
-  const removeProfileImage = () => {
-    setProfileImage('https://avatar.iran.liara.run/public/41');
+  // const removeProfileImage = () => {
+  //   setProfileImage('https://avatar.iran.liara.run/public/41');
+  //   setShowImageOptions(false);
+  // };
+
+  const removeProfileImage = async () => {
+    try {
+      // Update user profile to remove file ID
+      const response = await apiService.delete(
+        `/api/dms/file/${profileData.fileId}`,
+      );
+
+      console.log('delete url', `/api/dms/file/${profileData?.fileId}`);
+
+      if (response.success) {
+        setProfileImage('https://avatar.iran.liara.run/public/41');
+        queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+        setSuccessMessage('Profile picture removed successfully!');
+        setShowSuccessModal(true);
+      } else {
+        throw new Error(response.message || 'Error removing profile picture');
+      }
+    } catch (error) {
+      console.error('Error removing profile picture:', error);
+      setErrorMessage('Failed to remove profile picture. Please try again.');
+      setShowErrorModal(true);
+    }
     setShowImageOptions(false);
   };
 
@@ -466,6 +530,73 @@ const ProfileScreen = ({ navigation }) => {
     setPhoneErrors(newErrors);
     return true;
   };
+
+  // Mutation for uploading profile picture
+  const uploadProfilePictureMutation = useMutation({
+    mutationFn: async (imageUri: string) => {
+      // Generate unique ID for the file
+      const fileId =
+        Date.now().toString() + Math.random().toString(36).substr(2, 9);
+      const fileName = `profile_${Date.now()}.jpeg`;
+
+      // Prepare the JSON parameter
+      const jsonParam = {
+        id: fileId,
+        ownerWebId: profileData?.webId,
+        name: fileName,
+      };
+
+      // Create FormData
+      const formData = new FormData();
+      formData.append('content', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: fileName,
+      } as any);
+
+      // First API call - upload file
+      const uploadResponse = await apiService.postFormData(
+        `/api/dms/file?json=${encodeURIComponent(JSON.stringify(jsonParam))}`,
+        formData,
+      );
+
+      if (uploadResponse.success && uploadResponse.data) {
+        const uploadedFileId = uploadResponse.data.id;
+
+        // Second API call - update user profile with file ID
+        const updateResponse = await apiService.patch(
+          `/api/security/userAccounts/${profileData?.webId}`,
+          { fileId: uploadedFileId },
+        );
+
+        if (updateResponse.success) {
+          return {
+            uploadData: uploadResponse.data,
+            updateData: updateResponse.data,
+          };
+        } else {
+          throw new Error(
+            updateResponse.message || 'Error updating profile with file ID',
+          );
+        }
+      } else {
+        throw new Error(uploadResponse.message || 'Error uploading file');
+      }
+    },
+    onSuccess: data => {
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      setSuccessMessage('Profile picture updated successfully!');
+      setShowSuccessModal(true);
+      console.log('Profile picture upload response:', data);
+    },
+    onError: error => {
+      console.error('Error uploading profile picture:', error);
+      setErrorMessage(
+        error.message || 'Failed to update profile picture. Please try again.',
+      );
+      setShowErrorModal(true);
+    },
+  });
 
   // Mutation for updating general info
   const updateGeneralInfoMutation = useMutation({
@@ -1375,9 +1506,10 @@ const ProfileScreen = ({ navigation }) => {
     updateGeneralInfoMutation.isPending ||
     updatePasswordMutation.isPending ||
     updateContactDetailsMutation.isPending ||
-    updatePhoneDetailsMutation.isPending;
+    updatePhoneDetailsMutation.isPending ||
+    uploadProfilePictureMutation.isPending;
 
-  if (isLoading) {
+  if (isLoading || (profileData?.fileId && isFileLoading)) {
     return (
       <SafeAreaView style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
@@ -1434,10 +1566,31 @@ const ProfileScreen = ({ navigation }) => {
               {/* Profile Header - Edit Mode */}
               <View style={styles.profileHeader}>
                 <TouchableOpacity
-                  style={styles.avatarContainer}
+                  style={[
+                    styles.avatarContainer,
+                    uploadProfilePictureMutation.isPending && { opacity: 0.6 },
+                  ]}
                   onPress={() => setShowImageOptions(true)}
+                  disabled={uploadProfilePictureMutation.isPending}
                 >
                   <Image source={{ uri: profileImage }} style={styles.avatar} />
+                  {uploadProfilePictureMutation.isPending && (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        backgroundColor: 'rgba(0,0,0,0.3)',
+                        borderRadius: 50,
+                      }}
+                    >
+                      <ActivityIndicator size="small" color="#FFF" />
+                    </View>
+                  )}
                 </TouchableOpacity>
                 <Text style={styles.userName}>{profileData?.firstName}</Text>
                 <Text style={styles.userRole}>
