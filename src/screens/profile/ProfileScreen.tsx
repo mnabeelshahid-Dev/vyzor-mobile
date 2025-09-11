@@ -16,6 +16,10 @@ import { Picker } from '@react-native-picker/picker';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import PhoneInput from 'react-native-phone-number-input';
+import {
+  COUNTRIES,
+  detectCountryFromPhoneNumber,
+} from '../../constants/countries';
 
 import { useLogout } from '../../hooks/useAuth';
 
@@ -363,10 +367,14 @@ const ProfileScreen = ({ navigation }) => {
                     phoneNumber.substring(3)
                   : phoneNumber;
 
+                // Use the comprehensive country detection
+                const detectedCountry =
+                  detectCountryFromPhoneNumber(phoneNumber);
+
                 return {
                   id: Date.now() + index,
                   phoneNumber: cleanedPhone,
-                  country: detectCountryFromPhoneNumber(phoneNumber) || 'US',
+                  country: detectedCountry || 'US', // Only fallback to US if no country detected
                   isDefault: index === 0,
                   ref: React.createRef<PhoneInput>(),
                 };
@@ -382,6 +390,7 @@ const ProfileScreen = ({ navigation }) => {
               ],
       };
 
+      // ... rest of the useEffect remains the same
       setFirstName(data.firstName);
       setLastName(data.lastName);
       setEmail(data.email);
@@ -456,51 +465,6 @@ const ProfileScreen = ({ navigation }) => {
     newErrors[index] = '';
     setPhoneErrors(newErrors);
     return true;
-  };
-
-  // Auto-detect country based on phone number (same as RegisterScreen)
-  const detectCountryFromPhoneNumber = (phoneNumber: string): string | null => {
-    const cleanNumber = phoneNumber.replace(/\D/g, '');
-    const numberToCheck = phoneNumber.startsWith('+')
-      ? cleanNumber
-      : cleanNumber;
-
-    const countries = [
-      { code: 'US', name: 'United States', dialCode: '+1' },
-      { code: 'CA', name: 'Canada', dialCode: '+1' },
-      { code: 'UK', name: 'United Kingdom', dialCode: '+44' },
-      { code: 'PAK', name: 'Pakistan', dialCode: '+92' },
-      { code: 'IND', name: 'India', dialCode: '+91' },
-    ];
-
-    const sortedCountries = [...countries].sort(
-      (a, b) =>
-        b.dialCode.replace('+', '').length - a.dialCode.replace('+', '').length,
-    );
-
-    for (const country of sortedCountries) {
-      const dialCodeDigits = country.dialCode.replace('+', '');
-
-      if (numberToCheck.startsWith(dialCodeDigits)) {
-        if (dialCodeDigits === '1') {
-          if (numberToCheck.length >= 10 && numberToCheck.length <= 11) {
-            return 'US';
-          }
-        } else {
-          const expectedMinLength = dialCodeDigits.length + 7;
-          const expectedMaxLength = dialCodeDigits.length + 15;
-
-          if (
-            numberToCheck.length >= expectedMinLength &&
-            numberToCheck.length <= expectedMaxLength
-          ) {
-            return country.code;
-          }
-        }
-      }
-    }
-
-    return null;
   };
 
   // Mutation for updating general info
@@ -715,7 +679,7 @@ const ProfileScreen = ({ navigation }) => {
               ...phone,
               phoneNumber: newPhoneNumber,
               country:
-                detectCountryFromPhoneNumber(newPhoneNumber) || phone.country,
+                detectCountryFromPhoneNumber(newPhoneNumber) || phone.country, // Keep current country if detection fails
             }
           : phone,
       ),
@@ -804,7 +768,7 @@ const ProfileScreen = ({ navigation }) => {
         street: street,
         country: country,
         state: state,
-        city: city,
+        // city: city,
         postalCode: postalCode,
       },
     };
