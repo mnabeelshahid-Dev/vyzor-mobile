@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { User, LoadingState } from '../types';
 import { storage } from '../services/storage';
 import { authApi } from '../api/auth';
+import { fetchCurrentUser } from '../api/currentUser';
 import {
   handleApiResponse,
   withAsyncState,
@@ -57,8 +58,25 @@ export const useAuthStore = create<AuthState>()(
             const { user, tokens } = response.data;
             await StorageHelper.saveUserSession(user, tokens);
 
+            // Fetch current user details from backend
+            const currentUserResp = await fetchCurrentUser();
+            let currentUser = user;
+            if (currentUserResp.success && currentUserResp.data) {
+              // Cast response to User type and safely map fields
+              const apiUser = currentUserResp.data as Partial<User>;
+              currentUser = {
+                id: apiUser?.id ?? user.id,
+                email: apiUser?.email ?? user.email,
+                name: apiUser?.name ?? user.name,
+                emailVerified: apiUser?.emailVerified ?? user.emailVerified,
+                // Add other required fields as needed
+                ...user,
+                ...apiUser,
+              };
+            }
+
             set({
-              user,
+              user: currentUser,
               isAuthenticated: true,
               isLoading: false,
               error: null,

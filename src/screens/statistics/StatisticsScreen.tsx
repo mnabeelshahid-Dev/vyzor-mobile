@@ -31,6 +31,7 @@ const statusConfig = {
 };
 
 import { useQuery } from '@tanstack/react-query';
+import { fetchStatisticsUserDetail } from '../../api/statistics';
 import { fetchTasks } from '../../api/tasks';
 
 function formatDate(dateStrOrObj: string | Date = ""): string {
@@ -68,8 +69,22 @@ export default function StatisticsScreen({ navigation }) {
   const [filterStatus, setFilterStatus] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-    const [datePicker, setDatePicker] = useState({ field: null, show: false });
-  
+  const [userID, setUserID] = useState('');
+  const [datePicker, setDatePicker] = useState({ field: null, show: false });
+
+  // Separate state for statistics params
+  const [statisticsParams, setStatisticsParams] = useState({
+    startDate: '',
+    endDate: '',
+    status: '',
+    userId: '',
+    search: '',
+    sort: '',
+    page: 0,
+    size: 10,
+  });
+
+  // Keep tasksParams for tasks API only
   const [tasksParams, setTasksParams] = useState({
     startDate: '',
     endDate: '',
@@ -83,6 +98,37 @@ export default function StatisticsScreen({ navigation }) {
     size: 20,
   });
 
+  // Update statisticsParams independently
+  useEffect(() => {
+    // Always set startDate to today, endDate to one week later or user-selected
+    const today = new Date();
+    // Format: YYYY-MM-DDTHH:mm:ssZ
+    function formatDateFull(date) {
+      return date.toISOString().split('.')[0] + 'Z';
+    }
+    const todayFull = formatDateFull(today);
+    const oneWeekLater = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const oneWeekLaterFull = formatDateFull(oneWeekLater);
+    const effectiveEndDate = filterDate
+      ? formatDateFull(new Date(filterDate))
+      : oneWeekLaterFull;
+    // Use a hardcoded userId for now (replace with dynamic if needed)
+    if (userID) {
+      setStatisticsParams((prev) => ({
+        ...prev,
+        search,
+        sort: sortOrder,
+        status: filterStatus,
+        startDate: todayFull,
+        endDate: effectiveEndDate,
+        userId: userID,
+      }));
+    }
+  }, [search, sortOrder, filterStatus, filterDate]);
+
+  console.log("📊 [STATE] Statistics Params:", statisticsParams);
+  
+
   useEffect(() => {
     setTasksParams((prev) => ({
       ...prev,
@@ -95,17 +141,45 @@ export default function StatisticsScreen({ navigation }) {
     }));
   }, [search, sortOrder, sortField, filterStatus, startDate, endDate]);
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  // Statistics API for stats/progress/date range
+  const { data: statsData, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useQuery({
+    queryKey: ['statisticsUserDetail', statisticsParams],
+    queryFn: () => fetchStatisticsUserDetail(statisticsParams),
+    enabled: true,
+  });
+
+  console.log("🌐 [API] Statistics Data:", statsData);
+
+  // Use the second item of the content array for statsTyped
+  const statsTyped = (statsData as { data?: { content?: any[] } })?.data?.content?.[1] || {};
+  const stats = {
+    onTime: statsTyped.onTime,
+    outside: statsTyped.outsidePeriod,
+    expired: statsTyped.expire,
+    totalOnTime: statsTyped.previousOnTime,
+    totalOutside: statsTyped.previousOutsidePeriod,
+    totalExpired: statsTyped.previousExpire,
+  };
+  const progress = {
+    onTime: parseFloat(statsTyped.onTimePercentage),
+    outside: parseFloat(statsTyped.outsidePeriodPercentage),
+    expired: parseFloat(statsTyped.expirePercentage),
+  };
+  const dateRange = {
+    start: statisticsParams.startDate,
+    end: statisticsParams.endDate,
+  };
+
+  // Tasks API for FlatList
+  const { data: tasksData, isLoading: tasksLoading, isError: tasksError, refetch: refetchTasks } = useQuery({
     queryKey: ['tasks', tasksParams],
     queryFn: () => fetchTasks(tasksParams),
     enabled: true,
   });
 
-  // Type assertion for API response
   type TasksApiResponse = { data?: { content?: any[] } };
-  const typedData = data as TasksApiResponse;
-  const tasks = typedData?.data?.content || [];
-  // Sort tasks by status order: Active, Expired, Completed, Scheduled
+  const tasksTyped = tasksData as TasksApiResponse;
+  const tasks = tasksTyped?.data?.content || [];
   const statusOrder = ['Active', 'Expired', 'Completed', 'Scheduled'];
   const sortedTasks = [...tasks].sort((a, b) => {
     const aIdx = statusOrder.indexOf(a.status);
@@ -113,10 +187,18 @@ export default function StatisticsScreen({ navigation }) {
     return aIdx - bIdx;
   });
 
+  useEffect(() => {
+    if (tasks.length > 0) {
+      setUserID(tasks[0].userId?.toString() || '');
+    }
+  }, [tasks]);
+
   // Responsive styling helpers
   const statCardWidth = (width - getResponsive(16) * 2 - getResponsive(12) * 2) / 3;
 
   // Filter modal logic can be added here, similar to TaskScreen
+
+  
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
@@ -303,7 +385,8 @@ export default function StatisticsScreen({ navigation }) {
                 setStartDate(filterDate ? filterDate : '');
                 setEndDate(filterDate ? filterDate : '');
                 setFilterModal(false);
-                refetch();
+                refetchStats();
+                refetchTasks();
               }}>
                 <Text style={styles.modalBtnApplyText}>Apply Filters</Text>
               </TouchableOpacity>
@@ -323,22 +406,16 @@ export default function StatisticsScreen({ navigation }) {
         {/* Stats Cards */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { borderLeftColor: '#22C55E', width: statCardWidth }]}>
-            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>
-              On Time task
-            </Text>
-            <Text style={styles.statValue}><Text style={styles.boldNum}>10</Text> of 20</Text>
+            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>On Time task</Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.onTime ?? 0}</Text> of {stats.totalOnTime ?? 0}</Text>
           </View>
           <View style={[styles.statCard, { borderLeftColor: '#A35F94', width: statCardWidth }]}>
-            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>
-              Outside Period
-            </Text>
-            <Text style={styles.statValue}><Text style={styles.boldNum}>0</Text> of 10</Text>
+            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>Outside Period</Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.outside ?? 0}</Text> of {stats.totalOutside ?? 0}</Text>
           </View>
           <View style={[styles.statCard, { borderLeftColor: '#EF4444', width: statCardWidth }]}>
-            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>
-              Expired Task
-            </Text>
-            <Text style={styles.statValue}><Text style={styles.boldNum}>10</Text> of 30</Text>
+            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>Expired Task</Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.expired ?? 0}</Text> of {stats.totalExpired ?? 0}</Text>
           </View>
         </View>
 
@@ -350,11 +427,11 @@ export default function StatisticsScreen({ navigation }) {
               <View
                 style={[
                   styles.progressBar,
-                  { backgroundColor: '#22C55E', width: '75%' },
+                  { backgroundColor: '#22C55E', width: `${progress.onTime ?? 0}%` },
                 ]}
               />
             </View>
-            <Text style={styles.progressPercent}>75%</Text>
+            <Text style={styles.progressPercent}>{progress.onTime ?? 0}%</Text>
           </View>
           <View style={styles.progressRow}>
             <Text style={styles.progressLabel}>Outside</Text>
@@ -362,11 +439,11 @@ export default function StatisticsScreen({ navigation }) {
               <View
                 style={[
                   styles.progressBar,
-                  { backgroundColor: '#A35F94', width: '25%' },
+                  { backgroundColor: '#A35F94', width: `${progress.outside ?? 0}%` },
                 ]}
               />
             </View>
-            <Text style={styles.progressPercent}>25%</Text>
+            <Text style={styles.progressPercent}>{progress.outside ?? 0}%</Text>
           </View>
           <View style={styles.progressRow}>
             <Text style={styles.progressLabel}>Expired</Text>
@@ -374,11 +451,11 @@ export default function StatisticsScreen({ navigation }) {
               <View
                 style={[
                   styles.progressBar,
-                  { backgroundColor: '#EF4444', width: '75%' },
+                  { backgroundColor: '#EF4444', width: `${progress.expired ?? 0}%` },
                 ]}
               />
             </View>
-            <Text style={styles.progressPercent}>75%</Text>
+            <Text style={styles.progressPercent}>{progress.expired ?? 0}%</Text>
           </View>
         </View>
 
@@ -386,7 +463,7 @@ export default function StatisticsScreen({ navigation }) {
         <View style={styles.dateRangeBox}>
           <CalendarIcon width={getResponsive(20)} height={getResponsive(20)} />
           <Text style={styles.dateRangeText}>
-            July 09, 2025 - July 23, 2025 ( 12:00 PM )
+            {statisticsParams.startDate ? formatDate(statisticsParams.startDate) : ''} - {statisticsParams.endDate ? formatDate(statisticsParams.endDate) : ''}
           </Text>
         </View>
 
@@ -415,8 +492,8 @@ export default function StatisticsScreen({ navigation }) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.taskTitle}>{item.documentName || item.label}</Text>
                 <View style={styles.taskDates}>
-                  <Text style={[styles.taskDate,{ fontWeight: '400', color:'#021639' }]}><Text style={{color:'#363942'}}>Starting:</Text> { formatDate(item.startDate) }</Text>
-                  <Text style={[styles.taskDate,{ fontWeight: '400', color:'#021639' }]}><Text style={{color:'#363942'}}>Ending:</Text> { formatDate(item.endDate) }</Text>
+                  <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Starting:</Text> {formatDate(item.startDate)}</Text>
+                  <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Ending:</Text> {formatDate(item.endDate)}</Text>
                 </View>
               </View>
             </View>
@@ -660,7 +737,7 @@ const styles = StyleSheet.create({
   dateRangeText: {
     marginLeft: getResponsive(8),
     color: '#184B74',
-    fontSize: getResponsive(14),
+    fontSize: getResponsive(11),
     fontWeight: '400',
   },
   taskCard: {
