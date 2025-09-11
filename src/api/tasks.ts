@@ -1,8 +1,12 @@
 import { apiService } from '../services/api';
-// Fetch user sites
-export async function fetchUserSites(siteId: string | number) {
-  const response = await apiService.get(`/api/site/userSites?siteId=${siteId}`);
-  return response;
+// Fetch user sites with optional search
+export async function fetchUserSites(siteId: string | number, search?: string) {
+  console.log('Fetching user sites for siteId:', siteId, 'search:', search);
+  const url = `/api/site/userSites?siteId=${siteId}` + (search ? `&search=${encodeURIComponent(search)}` : '');
+  const response = await apiService.get(url);
+  // Cast response to expected shape before accessing content
+  const data = (response as { data?: { content?: any[] } })?.data;
+  return Array.isArray(data?.content) ? data.content : [];
 }
 // Fetch devices
 export async function fetchDevices() {

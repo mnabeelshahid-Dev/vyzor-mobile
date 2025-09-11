@@ -54,7 +54,7 @@ const AppContent = () => {
       <NavigationContainer>
         <AppNavigator />
       </NavigationContainer>
-      <Toast config={getToastConfig()} />
+      {/* <Toast config={getToastConfig()} /> */}
     </>
   );
 };

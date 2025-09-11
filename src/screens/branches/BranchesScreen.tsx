@@ -47,6 +47,17 @@ const BranchesScreen = ({ navigation }) => {
     },
   });
 
+  // Redirect to login if token expired in API response
+  React.useEffect(() => {
+    if (
+      data?.message?.includes('invalid_token') ||
+      data?.message?.includes('Access token expired') ||
+      (data?.success === false && data?.message?.includes('HTTP 401'))
+    ) {
+      navigation.navigate('Auth', { screen: 'Login' });
+    }
+  }, [data, navigation]);
+
   const handleSort = (field: 'name' | 'number', order: 'asc' | 'desc') => {
     setSortField(field);
     setSortOrder(order);

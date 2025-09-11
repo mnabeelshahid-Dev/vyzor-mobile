@@ -2,21 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { Calendar } from 'react-native-calendars';
 import { useRoute } from '@react-navigation/native';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { fetchTasks, fetchUserSites } from '../../../api/tasks';
-import { fetchDevices, fetchSections, fetchNotes } from '../../../api/tasks';
+import { useQuery } from '@tanstack/react-query';
+import { fetchDevices, fetchSections, fetchNotes, fetchUserSites, fetchTasks } from '../../../api/tasks';
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   TextInput,
   TouchableOpacity,
   ScrollView,
   StatusBar,
-  Platform,
   FlatList,
   ActivityIndicator
 } from 'react-native';
+import { styles } from './style';
 import Modal from 'react-native-modal';
 import ArrowUpIcon from '../../../assets/svgs/arrowUpWard.svg';
 import LocationIcon from '../../../assets/svgs/locationIcon.svg';
@@ -34,32 +33,17 @@ import UserIcon from '../../../assets/svgs/user.svg';
 import SortIcon from '../../../assets/svgs/sortIcon.svg';
 import { useLogout } from '../../../hooks/useAuth';
 import { STATUS_BG_COLORS, STATUS_COLORS } from './utils/taskUtils';
-import { apiService } from '../../../services/api';
 
 
 export default function TaskScreen({ navigation }) {
+  // State
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-
-  const route: any = useRoute();
-  const branchId =
-    route.params?.branchId ||
-    route.params?.params?.branchId ||
-    route.params?.params?.params?.branchId;
-
-
-  // State
   const [filterModal, setFilterModal] = useState(false);
   const [userModal, setUserModal] = useState(false);
   const [sectionsModal, setSectionsModal] = useState(false);
   const [notesModal, setNotesModal] = useState(false);
-  const [notes, setNotes] = useState<any[]>([]);
-  const [loadingNotes, setLoadingNotes] = useState(false);
-  const [notesError, setNotesError] = useState('');
   const [devicesModal, setDevicesModal] = useState(false);
-  const [devices, setDevices] = useState<any[]>([]);
-  const [loadingDevices, setLoadingDevices] = useState(false);
-  const [devicesError, setDevicesError] = useState('');
   const [search, setSearch] = useState('');
   const [showSortModal, setShowSortModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -67,36 +51,75 @@ export default function TaskScreen({ navigation }) {
   const [sortField, setSortField] = useState<'name' | 'number'>('name');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDate, setFilterDate] = useState('');
-  // Add startDate and endDate for API params
   const [updatedDate, setUpdatedDate] = useState('');
-  const [endDate, setEndDate] = useState('');
   const [calendarDate, setCalendarDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [searchUser, setSearchUser] = useState('');
+
+
+  const route: any = useRoute();
+  const branchId =
+    route.params?.branchId ||
+    route.params?.params?.branchId ||
+    route.params?.params?.params?.branchId;
+  // Devices Query
+  const {
+    data: devicesData,
+    isLoading: isDevicesLoading,
+    isError: isDevicesError,
+    refetch: refetchDevices,
+    isRefetching: isDevicesRefetching,
+  } = useQuery({
+    queryKey: ['devices'],
+    queryFn: fetchDevices,
+    refetchInterval: 120000,
+  });
+  // Sections Query
+  const {
+    data: sectionsData,
+    isLoading: isSectionsLoading,
+    isError: isSectionsError,
+    refetch: refetchSections,
+    isRefetching: isSectionsRefetching,
+  } = useQuery({
+    queryKey: ['sections'],
+    queryFn: fetchSections,
+    refetchInterval: 120000,
+  });
+  // Notes Query
+  const {
+    data: notesData,
+    isLoading: isNotesLoading,
+    isError: isNotesError,
+    refetch: refetchNotes,
+    isRefetching: isNotesRefetching,
+  } = useQuery({
+    queryKey: ['notes'],
+    queryFn: fetchNotes,
+    refetchInterval: 120000,
+  });
+  // UserSites Query (for user modal)
+  const {
+    data: userSitesData,
+    isLoading: isUserSitesLoading,
+    isError: isUserSitesError,
+    refetch: refetchUserSites,
+    isRefetching: isUserSitesRefetching,
+  } = useQuery({
+    queryKey: ['userSites', branchId, searchUser],
+    queryFn: () => fetchUserSites(branchId, searchUser),
+    enabled: !!branchId,
+    refetchInterval: 120000,
+  });
+
   // Add missing selectedSiteId for user modal API
-  const [selectedSiteId, setSelectedSiteId] = useState<string | number | null>(null);
   interface UserType {
     id?: string | number;
     name?: string;
     username?: string;
     email?: string;
   }
-  const [users, setUsers] = useState<UserType[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [userError, setUserError] = useState('');
 
-  // API params
-  const [tasksParams, setTasksParams] = useState({
-    startDate: '',
-    endDate: '',
-    siteIds: branchId ? [branchId] : [],
-    userIds: [],
-    scheduleStatus: '',
-    search: '',
-    sort: sortOrder,
-    sortField: sortField,
-    page: 0,
-    size: 20, // Default page size, can be changed if needed
-  });
+
 
   // Build params for API
   const buildParams = (pageParam = 1) => {
@@ -125,8 +148,13 @@ export default function TaskScreen({ navigation }) {
 
   const fetchTasksInfinite = async ({ pageParam = 1 }) => {
     const params = buildParams(pageParam);
+    console.log('API CALL: fetchTasksInfinite', { pageParam, params });
     const response = await fetchTasks(params);
-    const content = Array.isArray(response?.data) ? response.data : [];
+    // Support both array and paginated object
+    let content = [];
+    if (Array.isArray(response?.data)) {
+      content = response.data;
+    }
     return {
       data: content,
       nextPage: pageParam + 1,
@@ -151,16 +179,52 @@ export default function TaskScreen({ navigation }) {
     enabled: !!branchId,
   });
 
+
+  // Flatten all pages, no deduplication (show all items)
   const allTasks = infiniteData?.pages.flatMap((page) => page.data) ?? [];
-  const statusOrder = ['Active', 'Expired', 'Completed', 'Scheduled'];
-  const sortedTasks = [...allTasks].sort((a, b) => {
-    const aIdx = statusOrder.indexOf(a.status);
-    const bIdx = statusOrder.indexOf(b.status);
-    return aIdx - bIdx;
-  });
+
+  // Filtering logic
+  let filteredTasks = allTasks;
+  if (filterStatus) {
+    filteredTasks = filteredTasks.filter((task) => {
+      // Normalize status for filter
+      const s = (task.siteStatus || task.status || '').toLowerCase();
+      return s === filterStatus.toLowerCase();
+    });
+  }
+  if (filterDate) {
+    filteredTasks = filteredTasks.filter((task) => {
+      // Compare only date part
+      const taskDate = task.startDate ? new Date(task.startDate).toLocaleDateString() : '';
+      return taskDate === filterDate;
+    });
+  }
+
+  // Sorting logic
+  let sortedTasks = [...filteredTasks];
+  if (sortField === 'name') {
+    sortedTasks.sort((a, b) => {
+      if (!a.formName || !b.formName) return 0;
+      if (sortOrder === 'asc') {
+        return a.formName.localeCompare(b.formName);
+      } else {
+        return b.formName.localeCompare(a.formName);
+      }
+    });
+  } else if (sortField === 'number') {
+    sortedTasks.sort((a, b) => {
+      if (sortOrder === 'asc') {
+        return (a.webId ?? 0) - (b.webId ?? 0);
+      } else {
+        return (b.webId ?? 0) - (a.webId ?? 0);
+      }
+    });
+  }
 
   const handleEndReached = () => {
+    console.log('FlatList onEndReached', { hasNextPage, isFetchingNextPage });
     if (hasNextPage && !isFetchingNextPage) {
+      console.log('Calling fetchNextPage');
       fetchNextPage();
     }
   };
@@ -186,7 +250,7 @@ export default function TaskScreen({ navigation }) {
     setShowDropdown(false);
   };
   // Keep original openModal for single modal logic
-  const openModal = async (type: string, siteId?: string | number) => {
+  const openModal = async (type: string) => {
     setFilterModal(type === 'filter');
     setUserModal(type === 'user');
     setSectionsModal(type === 'sections');
@@ -194,25 +258,7 @@ export default function TaskScreen({ navigation }) {
     setDevicesModal(type === 'devices');
     setShowDropdown(type === 'dropdown');
     setShowSortModal(type === 'sort');
-    if (type === 'user') {
-      setSelectedSiteId(siteId || branchId || null);
-      setLoadingUsers(true);
-      setUserError('');
-      try {
-        const response = await fetchUserSites(siteId || branchId);
-        if (
-          response.success &&
-          Array.isArray((response.data as { content?: any[] })?.content)
-        ) {
-          setUsers(((response.data as { content?: any[] })?.content) ?? []);
-        } else {
-          setUserError(response.message || 'Failed to fetch users');
-        }
-      } catch (err) {
-        setUserError('Request failed with status 401');
-      }
-      setLoadingUsers(false);
-    }
+    setUserModal(type === 'user');
   };
 
 
@@ -233,8 +279,9 @@ export default function TaskScreen({ navigation }) {
   };
 
 
-  const renderTask = ({ item }: any) => {
-    // Normalize status string for color mapping
+  // Memoized Task Card for FlatList performance
+  const TaskCard = React.memo(({ item }: any) => {
+    // ...existing code from renderTask...
     const normalizeStatus = (status: string = '') => {
       const s = status.trim().toLowerCase();
       if (s === 'schedule' || s === 'scheduled' || s === 'schedule') return 'Scheduled';
@@ -243,17 +290,19 @@ export default function TaskScreen({ navigation }) {
       if (s === 'completed') return 'Completed';
       return status;
     };
-    const normalizedStatus = normalizeStatus(item.status);
+    const normalizedStatus = normalizeStatus(item.siteStatus);
     const statusColor = STATUS_COLORS[normalizedStatus] || '#0088E7';
     const statusBg = STATUS_BG_COLORS[normalizedStatus] || '#E6F1FB';
-    const statusText = item.status;
+    const statusText = item.normalizedStatus || item.siteStatus;
     function formatTaskDateRange(startDate: any, endDate: any) {
       if (!startDate && !endDate) return 'No date';
       const format = (date: any) => {
         if (!date) return '';
         const d = new Date(date);
         if (isNaN(d.getTime())) return '';
-        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
+          ' ' +
+          d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
       };
       if (startDate && endDate) {
         if (startDate === endDate) return format(startDate);
@@ -261,7 +310,6 @@ export default function TaskScreen({ navigation }) {
       }
       return format(startDate || endDate);
     }
-    // Progress color same as statusColor
     return (
       <View key={item?.webId} style={[styles.taskCard, { borderRadius: 18, padding: 20, marginBottom: 22, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }]}>
         {/* Top Row: Number, Status Badge */}
@@ -273,7 +321,7 @@ export default function TaskScreen({ navigation }) {
           </View>
         </View>
         {/* Title */}
-        <Text style={{ color: '#222E44', fontWeight: '600', fontSize: 17, marginBottom: 2 }}>{item.documentName}</Text>
+        <Text style={{ color: '#222E44', fontWeight: '600', fontSize: 17, marginBottom: 2 }}>{item.formName}</Text>
         {/* Date Row */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
           <CalendarIcon width={15} height={15} style={{ opacity: 0.7 }} />
@@ -301,7 +349,7 @@ export default function TaskScreen({ navigation }) {
               <SettingsIcon width={14} height={14} />
               <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Devices</Text>
               <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{devices.length ?? 0}</Text>
+                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{Array.isArray((devicesData?.data as any)?.content) ? (devicesData.data as any).content.length : 0}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -311,7 +359,7 @@ export default function TaskScreen({ navigation }) {
               <MenuIcon width={14} height={14} />
               <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Sections</Text>
               <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>{sections.length ?? 0}</Text>
+                <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>{Array.isArray((sectionsData?.data as any)?.content) ? (sectionsData.data as any).content.length : 0}</Text>
               </View>
             </TouchableOpacity>
             {/* Notes */}
@@ -319,7 +367,7 @@ export default function TaskScreen({ navigation }) {
               <NotesIcon width={14} height={14} />
               <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Notes</Text>
               <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{notes.length ?? 0}</Text>
+                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{Array.isArray((notesData?.data as any)?.list) ? (notesData.data as any).list.length : 0}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -330,7 +378,10 @@ export default function TaskScreen({ navigation }) {
         </TouchableOpacity>
       </View>
     );
-  };
+  });
+
+  // Use memoized TaskCard in FlatList
+  const renderTask = React.useCallback(({ item }) => <TaskCard item={item} />, []);
 
   // Modals
   const FilterModal = (
@@ -363,11 +414,12 @@ export default function TaskScreen({ navigation }) {
               <Text style={styles.closeBtn}>✕</Text>
             </TouchableOpacity>
           </View>
+        <View style={{ height: 1, backgroundColor: '#0000001A', width:'100%', marginVertical: 8 }} />
           <View style={{ marginTop: 16 }}>
             {/* Status Dropdown */}
             <TouchableOpacity
               onPress={() => setShowStatusDropdown((prev) => !prev)}
-              style={[styles.input, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0 }]}
+              style={[styles.input, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0, borderWidth: 1, borderColor: '#00000033', borderRadius: 8, marginBottom: 18 }]}
             >
               <Text style={{ flex: 1, fontSize: 15, color: '#363942', marginLeft: 14 }}>
                 {filterStatus ? filterStatus : 'Status'}
@@ -378,8 +430,8 @@ export default function TaskScreen({ navigation }) {
             </TouchableOpacity>
             {/* Status Dropdown List */}
             {showStatusDropdown && (
-              <View style={{ backgroundColor: '#fff', borderRadius: 8, marginTop: 4, marginHorizontal: 14, elevation: 2, shadowColor: '#0002', borderWidth: 1, borderColor: '#00000033' }}>
-                {['Active', 'Completed', 'Expired'].map((status) => (
+              <View style={{ backgroundColor: '#fff', borderRadius: 8, marginTop: 4, marginHorizontal: 14, elevation: 2, shadowColor: '#0002', borderWidth: 0.5, borderColor: '#00000033' }}>
+                {['Active', 'Scheduled', 'Completed', 'Expired'].map((status) => (
                   <TouchableOpacity
                     key={status}
                     style={{
@@ -400,7 +452,7 @@ export default function TaskScreen({ navigation }) {
               </View>
             )}
             {/* Date Picker */}
-            <TouchableOpacity style={styles.inputRow} onPress={() => setShowDatePicker(true)}>
+            <TouchableOpacity style={[styles.inputRow, { borderWidth: 1, borderColor: '#00000033', borderRadius: 8 }]} onPress={() => setShowDatePicker(true)}>
               <TextInput
                 placeholder="Selected Date"
                 style={[styles.input, { flex: 1, marginRight: 8 }]}
@@ -476,15 +528,16 @@ export default function TaskScreen({ navigation }) {
               </View>
             </Modal>
           </View>
+        <View style={{ height: 1, backgroundColor: '#0000001A', width:'100%' }} />
           <View style={styles.modalBtnRow}>
             <TouchableOpacity
-              style={styles.modalBtnClear}
+              style={styles.modalBtnApply}
               onPress={() => {
                 setFilterStatus('');
                 setFilterDate('');
               }}
             >
-              <Text style={styles.modalBtnClearText}>Clear</Text>
+              <Text style={styles.modalBtnApplyText}>Reset</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalBtnApply} onPress={() => {
               // Apply filter changes and trigger refetch
@@ -500,38 +553,7 @@ export default function TaskScreen({ navigation }) {
       </View>
     </Modal>
   );
-
-  const handleUserSearch = async () => {
-    setLoadingUsers(true);
-    setUserError('');
-    try {
-      // Use apiService.get for consistent token handling
-      const response = await apiService.get(`/api/site/userSites?siteId=${selectedSiteId}&search=${encodeURIComponent(searchUser)}`);
-      if (
-        response.success &&
-        Array.isArray((response.data as { content?: any[] })?.content)
-      ) {
-        setUsers(((response.data as { content?: UserType[] })?.content) ?? []);
-        if (
-          Array.isArray((response.data as { content?: any[] })?.content) &&
-          ((response.data as { content?: any[] })?.content.length === 0)
-        ) {
-          setUserError('No users found');
-        }
-      } else {
-        setUserError(response.message || 'Failed to fetch users');
-      }
-    } catch (err) {
-      setUserError('Request failed with status 401');
-    }
-    setLoadingUsers(false);
-  };
-  const filteredUsers = users.filter(
-    (u) =>
-      !searchUser ||
-      u.name?.toLowerCase().includes(searchUser.toLowerCase()) ||
-      u.email?.toLowerCase().includes(searchUser.toLowerCase())
-  );
+  const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
   const UserModal = (
     <Modal
       isVisible={userModal}
@@ -572,19 +594,19 @@ export default function TaskScreen({ navigation }) {
                 style={{ flex: 1, fontSize: 16, color: '#363942', fontWeight: '500', padding: 0 }}
                 value={searchUser}
                 onChangeText={setSearchUser}
-                onSubmitEditing={handleUserSearch}
+                onSubmitEditing={() => refetchUserSites()}
                 returnKeyType="search"
               />
             </View>
-            <TouchableOpacity style={{ backgroundColor: '#0088E7', borderBottomRightRadius: 12, borderTopRightRadius: 12, paddingHorizontal: 18, height: 44, justifyContent: 'center', alignItems: 'center', shadowColor: '#0088E7', shadowOpacity: 0.15, shadowRadius: 4, elevation: 2 }} onPress={handleUserSearch}>
+            <TouchableOpacity onPress={() => refetchUserSites()} style={{ backgroundColor: '#0088E7', borderBottomRightRadius: 12, borderTopRightRadius: 12, paddingHorizontal: 18, height: 44, justifyContent: 'center', alignItems: 'center', shadowColor: '#0088E7', shadowOpacity: 0.15, shadowRadius: 4, elevation: 2 }}>
               <Text style={{ color: '#fff', fontWeight: '500', fontSize: 16 }}>Search</Text>
             </TouchableOpacity>
           </View>
           <View style={{ marginTop: 14, paddingHorizontal: 18, flex: 1, paddingVertical: 8 }}>
-            {loadingUsers ? (
+            {isUserSitesLoading ? (
               <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
-            ) : userError ? (
-              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{userError}</Text>
+            ) : isUserSitesError ? (
+              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{isUserSitesError}</Text>
             ) : filteredUsers.length > 0 ? (
               <FlatList
                 data={filteredUsers}
@@ -610,11 +632,6 @@ export default function TaskScreen({ navigation }) {
       </View>
     </Modal>
   );
-
-  // Sections modal state
-  const [sections, setSections] = useState<any[]>([]);
-  const [loadingSections, setLoadingSections] = useState(false);
-  const [sectionsError, setSectionsError] = useState('');
 
   const SectionsModal = (
     <Modal
@@ -647,12 +664,12 @@ export default function TaskScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           <ScrollView style={{ marginTop: 12 }} showsVerticalScrollIndicator={false}>
-            {loadingSections ? (
+            {isSectionsLoading ? (
               <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
-            ) : sectionsError ? (
-              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{sectionsError}</Text>
-            ) : sections.length > 0 ? (
-              sections.map((section, idx) => (
+            ) : isSectionsError ? (
+              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading sections</Text>
+            ) : Array.isArray(sectionsData?.data?.content) && sectionsData.data.content.length > 0 ? (
+              sectionsData.data.content.map((section, idx) => (
                 <View key={section.webId || idx} style={{ backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#F1F1F6', padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2, marginHorizontal: 4 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontWeight: '500', fontSize: 15, color: '#222E44', marginBottom: 2 }}>{section.name || 'Cleaning'}</Text>
@@ -718,13 +735,13 @@ export default function TaskScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 12 }}>
-            {loadingDevices ? (
+            {isDevicesLoading || isDevicesRefetching ? (
               <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
-            ) : devicesError ? (
-              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{devicesError}</Text>
-            ) : Array.isArray(devices) && devices.length > 0 ? (
+            ) : isDevicesError ? (
+              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading devices</Text>
+            ) : Array.isArray((devicesData?.data as any)?.content) && (devicesData.data as any).content.length > 0 ? (
               <FlatList
-                data={devices}
+                data={(devicesData.data as any).content}
                 keyExtractor={(item, idx) => (item.uuid ? String(item.uuid) : idx.toString())}
                 renderItem={({ item }) => (
                   <View key={item.uuid} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
@@ -732,7 +749,7 @@ export default function TaskScreen({ navigation }) {
                       <Text style={{ fontWeight: '700', fontSize: 17, color: '#222E44', marginBottom: 2 }}>{item.name || ''}</Text>
                       <Text style={{ color: '#0088E7', fontSize: 12, fontWeight: '400', marginBottom: 2 }}>{item.macAddress || ''}</Text>
                     </View>
-                    <View style={{flex:1}}>
+                    <View style={{ flex: 1 }}>
                       <Text style={{ color: '#AAB3BB', fontSize: 12, fontWeight: '400' }}>uuid # {item.uuId ?? ''}</Text>
                     </View>
                   </View>
@@ -784,13 +801,13 @@ export default function TaskScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 12 }}>
-            {loadingNotes ? (
+            {isNotesLoading || isNotesRefetching ? (
               <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
-            ) : notesError ? (
-              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>{notesError}</Text>
-            ) : Array.isArray(notes) && notes.length > 0 ? (
+            ) : isNotesError ? (
+              <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading notes</Text>
+            ) : Array.isArray((notesData?.data as any)?.list) && (notesData.data as any).list.length > 0 ? (
               <FlatList
-                data={notes}
+                data={(notesData.data as any).list}
                 keyExtractor={(item, idx) => (item.id ? String(item.id) : idx.toString())}
                 renderItem={({ item }) => (
                   <View key={item.id} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
@@ -873,6 +890,7 @@ export default function TaskScreen({ navigation }) {
             </View>
           </TouchableOpacity>
         </View>
+        <View style={{ height: 1, backgroundColor: '#0000001A', width:'100%', marginVertical: 8 }} />
         <View style={styles.sortModalBody}>
           <Text style={styles.sortModalField}>Name</Text>
           <View style={styles.sortModalOrderBtns}>
@@ -890,7 +908,8 @@ export default function TaskScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
-        <View style={[styles.sortModalBody, { marginTop: 14 }]}>
+        <View style={{ height: 1, backgroundColor: '#0000001A', width:'100%',marginTop: 10 }} />
+        <View style={[styles.sortModalBody, { marginTop: 10 }]}>
           <Text style={styles.sortModalField}>Number</Text>
           <View style={styles.sortModalOrderBtns}>
             <TouchableOpacity
@@ -910,54 +929,6 @@ export default function TaskScreen({ navigation }) {
       </View>
     ) : null
   );
-
-  // Fetch devices, sections, and notes on mount
-  useEffect(() => {
-    // Fetch devices
-    setLoadingDevices(true);
-    setDevicesError('');
-    fetchDevices()
-      .then((response) => {
-        console.log('Devices API response:', response);
-        const data = (response?.data as { content?: any[] })?.content;
-        if (response.success && Array.isArray(data)) {
-          setDevices(data);
-        } else {
-          setDevicesError('Failed to fetch devices');
-        }
-      })
-      .catch(() => setDevicesError('Failed to fetch devices'))
-      .finally(() => setLoadingDevices(false));
-
-    // Fetch sections
-    fetchSections()
-      .then((response) => {
-        console.log('Sections API response:', response);
-        const data = (response?.data as { content?: any[] })?.content;
-        if (response.success && Array.isArray(data)) {
-          setSections(data);
-        } else {
-          setSectionsError('Failed to fetch sections');
-        }
-      })
-      .catch(() => setSectionsError('Failed to fetch sections'));
-
-    // Fetch notes
-    setLoadingNotes(true);
-    setNotesError('');
-    fetchNotes()
-      .then((response) => {
-        console.log('Notes API response:', response);
-        const data = (response?.data as { list?: any[] })?.list;
-        if (response.success) {
-          setNotes(data ?? []);
-        } else {
-          setNotesError('Failed to fetch notes');
-        }
-      })
-      .catch(() => setNotesError('Failed to fetch notes'))
-      .finally(() => setLoadingNotes(false));
-  }, []);
 
   return (
     <>
@@ -998,13 +969,13 @@ export default function TaskScreen({ navigation }) {
             style={styles.filterBtnFloat}
             onPress={() => setShowSortModal(true)}
           >
-            <SortIcon width={32} height={32} />
+            <SortIcon width={25} height={25} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.filterBtnFloat}
             onPress={() => setFilterModal(true)}
           >
-            <FilterIcon width={32} height={32} />
+            <FilterIcon width={25} height={25} />
           </TouchableOpacity>
         </View>
         {/* Task List */}
@@ -1026,11 +997,30 @@ export default function TaskScreen({ navigation }) {
               keyExtractor={(item) => item.id?.toString()}
               contentContainerStyle={{ paddingVertical: 24, paddingTop: 40 }}
               showsVerticalScrollIndicator={false}
-              onEndReached={handleEndReached}
+              onEndReached={() => {
+                console.log('FlatList onEndReached event');
+                handleEndReached();
+              }}
               onEndReachedThreshold={0.5}
-              ListFooterComponent={isFetchingNextPage ? <ActivityIndicator size="small" color="#007AFF" /> : null}
+              ListFooterComponent={
+                isFetchingNextPage ? (
+                  <View style={{ paddingVertical: 24 }}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                  </View>
+                ) : null
+              }
               refreshing={isRefetching}
               onRefresh={refetch}
+              // Fix momentum bug for onEndReached
+              onMomentumScrollBegin={() => {
+                console.log('FlatList onMomentumScrollBegin');
+                // @ts-ignore
+                if (typeof this !== 'undefined') {
+                  this.onEndReachedCalledDuringMomentum = false;
+                }
+              }}
+              // Remove onEndReachedCalledDuringMomentum prop
+              extraData={isFetchingNextPage}
             />
           )}
 
@@ -1049,513 +1039,3 @@ export default function TaskScreen({ navigation }) {
     </>
   );
 }
-
-const CARD_RADIUS = 16;
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F9FC' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
-    justifyContent: 'flex-start',
-    paddingTop: Platform.OS === 'ios' ? 18 : 55,
-    zIndex: 0,
-  },
-  dropdownCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-    minWidth: 260,
-    maxWidth: 340,
-    alignSelf: 'flex-end',
-  },
-  activeSortBtn: {
-    backgroundColor: '#E6F0FF',
-    borderColor: '#007AFF',
-    borderWidth: 2,
-  },
-  searchBarFloatWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    top: 20,
-    marginHorizontal: 24,
-    zIndex: 2,
-  },
-  searchBarFloat: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    height: 52,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 24,
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 20,
-    marginLeft: 16,
-    fontWeight: 'bold',
-    flex: 1,
-    textAlign: 'center',
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-    marginBottom: 6,
-    paddingHorizontal: 18,
-  },
-  filterBtnFloat: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 10,
-    paddingHorizontal: 14,
-    marginLeft: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  searchBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
-    elevation: 1,
-    shadowColor: '#0002',
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 16,
-    color: '#333',
-  },
-  dropdownMenu: {
-    marginTop: Platform.OS === 'ios' ? 90 : 82,
-    marginRight: 24,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingVertical: 8,
-    width: 140,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: '#222',
-  },
-  filterBtn: {
-    backgroundColor: '#fff',
-    marginLeft: 12,
-    padding: 8,
-    borderRadius: 12,
-    elevation: 1,
-    shadowColor: '#0001',
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  taskCard: {
-    backgroundColor: '#fff',
-    borderRadius: CARD_RADIUS,
-    marginHorizontal: 18,
-    marginBottom: 16,
-    padding: 16,
-    shadowColor: '#0003',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  taskNumber: {
-    color: '#1292E6',
-    fontWeight: 'bold',
-    fontSize: 15,
-    marginRight: 8,
-  },
-  taskTitle: {
-    color: '#222E44',
-    fontWeight: '700',
-    fontSize: 17,
-    marginBottom: 7,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  taskDate: {
-    color: '#AAB3BB',
-    fontSize: 13,
-    marginLeft: 8,
-    flex: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-    minWidth: 60,
-  },
-  progressBarBg: {
-    backgroundColor: '#E6F1FB',
-    borderRadius: 8,
-    height: 6,
-    marginTop: 10,
-    marginBottom: 3,
-    width: '100%',
-    overflow: 'hidden',
-  },
-  progressRow: { flexDirection: 'row', justifyContent: 'flex-end' },
-  progressText: { fontSize: 13, color: '#222', fontWeight: 'bold' },
-  rowBtnBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    backgroundColor: '#F7F9FC',
-    borderRadius: 12,
-    padding: 6,
-    justifyContent: 'space-between',
-  },
-  rowBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-    paddingVertical: 2,
-  },
-  rowBtnText: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 5,
-    color: '#1292E6',
-  },
-  badgeGray: {
-    backgroundColor: '#F1F1F6',
-    borderRadius: 10,
-    minWidth: 22,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-  },
-  badgeGrayText: {
-    color: '#888',
-    fontWeight: 'bold',
-    fontSize: 13,
-  },
-  badgeBlue: {
-    backgroundColor: '#E6F1FB',
-    borderRadius: 10,
-    minWidth: 22,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-  },
-  badgeBlueText: {
-    color: '#1292E6',
-    fontWeight: 'bold',
-    fontSize: 13,
-  },
-  getStartedBtn: {
-    backgroundColor: '#1292E6',
-    borderRadius: 8,
-    marginTop: 14,
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  getStartedText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  bottomNav: {
-    height: 60,
-    backgroundColor: '#fff',
-    borderTopColor: '#E6F1FB',
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 18,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  // MODALS
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: '#2B292999',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBox: {
-    width: '90%',
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 20,
-    maxHeight: '60%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  modalTitle: {
-    fontWeight: '500',
-    fontSize: 17,
-    color: '#222E44',
-    flex: 1,
-  },
-  closeBtn: {
-    fontSize: 16,
-    color: '#0088E7',
-    marginLeft: 12,
-    fontWeight: '600',
-    right: 5,
-  },
-  input: {
-    backgroundColor: '#F7F9FC',
-    borderRadius: 9,
-    height: 44,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    marginBottom: 10,
-    color: '#222',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  inputIcon: {
-    position: 'absolute',
-    right: 12,
-  },
-  modalBtnRow: {
-    flexDirection: 'row',
-    marginTop: 22,
-  },
-  modalBtnClear: {
-    flex: 1,
-    backgroundColor: '#E6F1FB',
-    borderRadius: 10,
-    paddingVertical: 8,
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  modalBtnApply: {
-    flex: 1,
-    backgroundColor: '#1292E6',
-    borderRadius: 10,
-    paddingVertical: 13,
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  modalBtnClearText: {
-    color: '#1292E6',
-    fontWeight: '500',
-    fontSize: 15,
-    top: 5,
-  },
-  modalBtnApplyText: {
-    color: '#fff',
-    fontWeight: '500',
-    fontSize: 15,
-  },
-  searchBtn: {
-    backgroundColor: '#1292E6',
-    borderRadius: 9,
-    paddingHorizontal: 18,
-    paddingVertical: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  userCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#F1F1F6',
-  },
-  userName: {
-    color: '#1292E6',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  userEmail: {
-    color: '#1292E6',
-    fontSize: 14,
-    marginTop: 2,
-  },
-  sectionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#F1F1F6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionTitle: {
-    color: '#222E44',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  sectionLocation: {
-    color: '#AAB3BB',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  sectionStatus: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deviceCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#F1F1F6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  deviceType: {
-    color: '#222E44',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  deviceUuid: {
-    color: '#1292E6',
-    fontSize: 15,
-    marginTop: 2,
-  },
-  deviceId: {
-    color: '#AAB3BB',
-    fontSize: 13,
-    marginLeft: 10,
-    fontWeight: '500',
-  },
-  noteCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#F1F1F6',
-  },
-  noteText: {
-    color: '#222E44',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  rightCircleWrap: {
-    marginLeft: 12,
-  },
-  rightCircle: {
-    width: 35,
-    height: 35,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#007AFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  sortModal: {
-    width: '80%',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  sortModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 18,
-  },
-  sortModalTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#222',
-  },
-  sortModalCloseBtn: {
-    marginLeft: 12,
-  },
-  sortModalCloseCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 50,
-    backgroundColor: '#0088E71A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sortModalBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sortModalField: {
-    fontSize: 14,
-    color: '#222',
-    fontWeight: '400',
-  },
-  sortModalOrderBtns: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sortModalOrderBtn: {
-    backgroundColor: '#F2F6FF',
-    borderRadius: 20,
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-});
