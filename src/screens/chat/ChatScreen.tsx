@@ -22,6 +22,10 @@ import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import MessegeIcon from '../../assets/svgs/chatMessageIcon.svg';
 import { realtimeService } from '../../services/realtimeService';
+import { Picker } from '@react-native-picker/picker';
+
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 const { width, height } = Dimensions.get('window');
 
@@ -136,6 +140,14 @@ export default function ChatScreen({ navigation }) {
       return response.data;
     },
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      // Reset to chat list when screen comes into focus
+      setSelectedChat(null);
+      setMessages([]);
+    }, []),
+  );
 
   // Fetch available users using React Query (only when modal is open)
   const {
@@ -563,44 +575,64 @@ export default function ChatScreen({ navigation }) {
             placeholderTextColor="#AAB3BB"
           />
           <Text style={styles.inputLabel}>Participants</Text>
-          <ScrollView style={styles.participantList}>
-            {isLoadingUsers ? (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <ActivityIndicator size="small" color="#1292E6" />
-                <Text style={{ color: '#7A8194', marginTop: 8 }}>
-                  Loading users...
-                </Text>
-              </View>
-            ) : (
-              availableUsers.map((user, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.participantItem,
-                    groupParticipants.includes(user.value) &&
-                      styles.participantItemSelected,
-                  ]}
-                  onPress={() =>
-                    setGroupParticipants(prev =>
-                      prev.includes(user.value)
-                        ? prev.filter(x => x !== user.value)
-                        : [...prev, user.value],
-                    )
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.participantText,
-                      groupParticipants.includes(user.value) &&
-                        styles.participantTextSelected,
-                    ]}
-                  >
-                    {user.text}
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue=""
+              style={styles.picker}
+              onValueChange={itemValue => {
+                if (itemValue && !groupParticipants.includes(itemValue)) {
+                  setGroupParticipants(prev => [...prev, itemValue]);
+                }
+              }}
+              mode="dropdown"
+            >
+              <Picker.Item label="Select participants..." value="" />
+              {isLoadingUsers ? (
+                <Picker.Item
+                  label="Loading users..."
+                  value=""
+                  enabled={false}
+                />
+              ) : (
+                availableUsers
+                  .filter(user => !groupParticipants.includes(user.value))
+                  .map((user, idx) => (
+                    <Picker.Item
+                      key={idx}
+                      label={user.text}
+                      value={user.value}
+                    />
+                  ))
+              )}
+            </Picker>
+          </View>
+
+          {/* Selected participants display */}
+          <ScrollView style={styles.selectedParticipantsList}>
+            {groupParticipants.map((participantValue, idx) => {
+              const user = availableUsers.find(
+                u => u.value === participantValue,
+              );
+              return (
+                <View key={idx} style={styles.selectedParticipantItem}>
+                  <Text style={styles.selectedParticipantText}>
+                    {user?.text || participantValue}
                   </Text>
-                </TouchableOpacity>
-              ))
-            )}
+                  <TouchableOpacity
+                    style={styles.removeParticipantBtn}
+                    onPress={() =>
+                      setGroupParticipants(prev =>
+                        prev.filter(x => x !== participantValue),
+                      )
+                    }
+                  >
+                    <Text style={styles.removeParticipantBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </ScrollView>
+
           <View style={styles.modalBtnRow}>
             <TouchableOpacity
               style={styles.modalBtnClear}
@@ -722,9 +754,14 @@ export default function ChatScreen({ navigation }) {
         )}
       </View>
       {/* Input -  send message API */}
+      {/* Input - send message API */}
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+        behavior={Platform.select({ ios: 'padding', android: 'height' })}
+        keyboardVerticalOffset={Platform.select({
+          ios: 20,
+          android: StatusBar.currentHeight || 0,
+        })}
+        style={{ flexShrink: 0 }}
       >
         <View style={styles.inputBar}>
           <TextInput
@@ -1227,5 +1264,48 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#00C851',
     fontWeight: '600',
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    marginVertical: 8,
+    backgroundColor: '#fff',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
+  },
+  selectedParticipantsList: {
+    maxHeight: 120,
+    marginVertical: 8,
+  },
+  selectedParticipantItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginVertical: 2,
+    borderRadius: 6,
+  },
+  selectedParticipantText: {
+    color: '#1292E6',
+    fontSize: 14,
+    flex: 1,
+  },
+  removeParticipantBtn: {
+    backgroundColor: '#ff4444',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeParticipantBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });
