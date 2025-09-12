@@ -15,6 +15,8 @@ import {
 interface AuthState extends LoadingState {
   user: User | null;
   isAuthenticated: boolean;
+  branchId?: string | null;
+  setBranchId: (branchId: string) => void;
 
   login: (email: string, password: string) => Promise<boolean>;
   register: (
@@ -34,10 +36,12 @@ interface AuthState extends LoadingState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
+  user: null,
+  isAuthenticated: false,
+  isLoading: false,
+  error: null,
+  branchId: null,
+  setBranchId: (branchId: string) => set({ branchId }),
 
       login: async (email: string, password: string): Promise<boolean> => {
         console.log('🏪 [STORE] Starting login process...');

@@ -310,7 +310,7 @@ export default function EmailNotificationsScreen({ navigation }) {
           style={styles.filterBtnFloat}
           onPress={() => setFilterModal(true)}
         >
-          <FilterIcon width={32} height={32} />
+          <FilterIcon width={25} height={25} />
         </TouchableOpacity>
       </View>
       {/* Branches List */}
@@ -483,7 +483,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 8,
-    height: 52,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 8,

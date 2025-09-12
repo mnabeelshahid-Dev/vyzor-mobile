@@ -2,17 +2,14 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   TouchableOpacity,
   FlatList,
-  Platform,
   SafeAreaView,
   StatusBar,
 } from 'react-native';
 import Modal from 'react-native-modal';
 import { useLogout } from '../../hooks/useAuth';
-import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import FilterIcon from '../../assets/svgs/sortIcon.svg';
 import SearchIcon from '../../assets/svgs/searchIcon.svg';
@@ -23,8 +20,11 @@ import LogoutIcon from '../../assets/svgs/logout.svg';
 import SettingsIcon from '../../assets/svgs/settings.svg';
 import { fetchBranches } from '../../api/branches';
 import { useQuery } from '@tanstack/react-query';
+import { styles } from './styles';
+import { useAuthStore } from '../../store/authStore';
 
 const BranchesScreen = ({ navigation }) => {
+  const { setBranchId } = useAuthStore.getState();
   const logoutMutation = useLogout({
     onSuccess: () => {
       navigation.navigate('Auth', { screen: 'Login' });
@@ -73,15 +73,17 @@ const BranchesScreen = ({ navigation }) => {
   const branches = data?.data?.content || [];
   const renderBranch = ({ item = { name: '', code: '', webId: '' } }) => (
     <TouchableOpacity
-      onPress={() =>
+      onPress={() => {
+        // Set branchId in global store
+        setBranchId(item.webId);
         navigation.navigate('Main', {
           screen: 'Task',
           params: {
             screen: 'Task',
             params: { branchId: item.webId },
           },
-        })
-      }
+        });
+      }}
       style={styles.branchCard}
     >
       <View style={{ width: '80%' }}>
@@ -262,254 +264,5 @@ const BranchesScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-    padding: 16,
-    width: '100%',
-  },
-  dropdownCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-    minWidth: 260,
-    maxWidth: 340,
-    alignSelf: 'flex-end',
-  },
-  activeSortBtn: {
-    backgroundColor: '#E6F0FF',
-    borderColor: '#007AFF',
-    borderWidth: 2,
-  },
-  header: {
-    backgroundColor: '#007AFF',
-    paddingTop: Platform.OS === 'ios' ? 18 : 55,
-    paddingHorizontal: 0,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    zIndex: 0,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 24,
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
-    flex: 1,
-  },
-  searchBarFloatWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    top: 20,
-    marginHorizontal: 24,
-    zIndex: 2,
-  },
-  searchBarFloat: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  searchInput: {
-    flex: 1,
-    paddingHorizontal: 8,
-    color: '#222',
-    fontSize: 18,
-  },
-  filterBtnFloat: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 10,
-    paddingHorizontal: 14,
-    marginLeft: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  filterBtn: {
-    width: 44,
-    height: 44,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 2,
-  },
-  dropdownOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-  },
-  dropdownMenu: {
-    marginTop: Platform.OS === 'ios' ? 90 : 82,
-    marginRight: 24,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingVertical: 8,
-    width: 140,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: '#1A1A1A',
-  },
-  listContent: {
-    paddingTop: 40,
-    paddingBottom: 32,
-    borderTopLeftRadius: 34,
-    borderTopRightRadius: 34,
-    backgroundColor: 'transparent',
-    flex: 1,
-    position: 'relative',
-  },
-  branchCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    marginHorizontal: 24,
-    marginTop: 18,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-    borderLeftWidth: 5,
-    borderLeftColor: '#007AFF',
-    justifyContent: 'space-between',
-  },
-  leftBorder: {
-    width: 5,
-    height: '80%',
-    backgroundColor: '#007AFF',
-    borderRadius: 3,
-    marginRight: 14,
-  },
-  branchName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#222',
-    lineHeight: 20,
-  },
-  branchNumber: {
-    fontSize: 13,
-    color: '#007AFF',
-    marginTop: 2,
-  },
-  rightCircleWrap: {
-    marginLeft: 12,
-  },
-  rightCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 50,
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  sortModal: {
-    width: '80%',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  sortModalHeader: {
-     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 2,
-    paddingHorizontal: 20,
-  },
-  sortModalTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#222',
-  },
-  sortModalCloseBtn: {
-    marginLeft: 12,
-  },
-  sortModalCloseCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 50,
-    backgroundColor: '#0088E71A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sortModalBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-      marginHorizontal: 20,
-  },
-  sortModalField: {
-    fontSize: 14,
-    color: '#222',
-    fontWeight: '400',
-  },
-  sortModalOrderBtns: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sortModalOrderBtn: {
-    backgroundColor: '#F2F6FF',
-    borderRadius: 20,
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-});
 
 export default BranchesScreen;

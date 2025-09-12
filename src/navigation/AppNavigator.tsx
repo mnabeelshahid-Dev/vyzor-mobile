@@ -11,7 +11,7 @@ import ForgotPasswordScreen from '../screens/auth/forgetPasswordScreen';
 
 // Main App Screens
 import TasksScreen from '../screens/branches/tasks/TaskScreen';
-import SectionsScreen from '../screens/branches/sections/SectionsScreen';
+import SectionsScreen from '../screens/sections/SectionsScreen';
 
 // Loading Component
 import LoadingWrapper from '../components/loadWrapper';

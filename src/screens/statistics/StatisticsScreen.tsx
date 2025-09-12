@@ -16,12 +16,15 @@ import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import FilterIcon from '../../assets/svgs/filterIcon.svg';
 import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
+import ArrowUpIcon from '../../assets/svgs/arrowUpWard.svg';
+import ArrowDownWard from '../../assets/svgs/arrowDownward.svg';
 import Modal from 'react-native-modal';
 import { Calendar } from 'react-native-calendars';
 import ArrowDown from '../../assets/svgs/arrowDown.svg';
 import { useAuthStore } from '../../store/authStore';
-
+import { styles } from './styles';
 const { width } = Dimensions.get('window');
+import SortIcon from '../../assets/svgs/sortIcon.svg';
 const getResponsive = (val: number) => Math.round(val * (width / 390));
 
 // Card colors for statuses
@@ -32,8 +35,10 @@ const statusConfig = {
 };
 
 import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { fetchStatisticsUserDetail } from '../../api/statistics';
 import { fetchTasks } from '../../api/tasks';
+import { ActivityIndicator } from 'react-native';
 
 function formatDate(dateStrOrObj: string | Date = ""): string {
   if (!dateStrOrObj) return '';
@@ -58,27 +63,56 @@ function formatDate(dateStrOrObj: string | Date = ""): string {
 }
 
 export default function StatisticsScreen({ navigation }) {
+  const branchId = useAuthStore((state) => state.branchId);  
+  // Memoized TaskCard for FlatList performance
+  const TaskCard = React.memo(({ item }: { item: any }) => (
+    <View
+      style={[
+        styles.taskCard,
+        {
+          borderLeftColor:
+            item.status === 'Active'
+              ? '#22C55E'
+              : item.status === 'Expired'
+                ? '#A35F94'
+                : '#EF4444',
+          borderLeftWidth: getResponsive(4),
+        },
+      ]}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={styles.taskTitle}>{item.formName || item.label}</Text>
+        <View style={styles.taskDates}>
+          <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Starting:</Text> {formatDate(item.startDate)}</Text>
+          <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Ending:</Text> {formatDate(item.endDate)}</Text>
+        </View>
+      </View>
+    </View>
+  ));
+
+  // Memoized renderItem and keyExtractor
+  const renderTask = React.useCallback(({ item }) => <TaskCard item={item} />, []);
+  const keyExtractor = React.useCallback((item, idx) => item.webId ? item.webId.toString() : idx.toString(), []);
 
   const user = useAuthStore((state) => state.user);
   console.log("👤 [STORE] Current User from Auth Store:", user);
-  
+  // Only keep one set of state for tasks logic
   const [search, setSearch] = useState('');
   const [filterModal, setFilterModal] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [filterDate, setFilterDate] = useState('');
   const [calendarDate, setCalendarDate] = useState(new Date().toISOString().split('T')[0]);
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [showSortModal, setShowSortModal] = useState(false);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [sortField, setSortField] = useState<'name' | 'number'>('name');
   const [filterStatus, setFilterStatus] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [datePicker, setDatePicker] = useState({ field: null, show: false });
+  const [updatedDate, setUpdatedDate] = useState('');
+    const [showDropdown, setShowDropdown] = useState(false);
 
-  // Separate state for statistics params
+  // --- Statistics API logic for stats cards, progress bars, and date range ---
   const [statisticsParams, setStatisticsParams] = useState({
-    startDate: '',
+    startDate: new Date().toISOString(),
     endDate: '',
     status: '',
     userId: '',
@@ -88,78 +122,37 @@ export default function StatisticsScreen({ navigation }) {
     size: 10,
   });
 
-  // Keep tasksParams for tasks API only
-  const [tasksParams, setTasksParams] = useState({
-    updatedDate: '',
-    userIds: [],
-    scheduleStatus: '',
-    branchId: '',
-    search: '',
-    sort: sortOrder,
-    sortField: sortField,
-    page: 0,
-    size: 20,
-  });
-
-  // Update statisticsParams independently
   useEffect(() => {
-    // Always set startDate to today, endDate to one week later or user-selected
     const today = new Date();
-    // Format: YYYY-MM-DDTHH:mm:ssZ
-    function formatDateFull(date) {
+    function formatDateFull(date: Date) {
       return date.toISOString().split('.')[0] + 'Z';
     }
     const updatedDate = filterDate
       ? formatDateFull(new Date(filterDate))
       : formatDateFull(today);
-    // Use a hardcoded userId for now (replace with dynamic if needed)
+    // Always set endDate to one week after startDate
+    const startDateObj = filterDate ? new Date(filterDate) : today;
+    const oneWeekLater = new Date(startDateObj.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const endDateVal = formatDateFull(oneWeekLater);
     if (user?.id) {
       setStatisticsParams((prev) => ({
         ...prev,
         search,
         sort: sortOrder,
         status: filterStatus,
-        updatedDate: updatedDate,
-        userIds: [user?.id],
+        startDate: updatedDate,
+        endDate: endDateVal,
+        userId: user.id,
       }));
     }
-  }, [search, sortOrder, filterStatus, filterDate]);
+  }, [search, sortOrder, filterStatus, filterDate, user]);
 
-  console.log("📊 [STATE] Statistics Params:", statisticsParams);
-  
-
-  useEffect(() => {
-    const today = new Date();
-    function formatDateFull(date) {
-      return date.toISOString().split('.')[0] + 'Z';
-    }
-    const todayFull = formatDateFull(today);
-    const oneWeekLater = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const oneWeekLaterFull = formatDateFull(oneWeekLater);
-    const effectiveEndDate = filterDate
-      ? formatDateFull(new Date(filterDate))
-      : oneWeekLaterFull;
-    setTasksParams((prev) => ({
-      ...prev,
-      search,
-      sort: sortOrder,
-      sortField,
-      scheduleStatus: filterStatus,
-      update: todayFull,
-      endDate: effectiveEndDate,
-    }));
-  }, [search, sortOrder, sortField, filterStatus, startDate, endDate]);
-
-  // Statistics API for stats/progress/date range
-  const { data: statsData, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useQuery({
+  const { data: statsData, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['statisticsUserDetail', statisticsParams],
     queryFn: () => fetchStatisticsUserDetail(statisticsParams),
-    enabled: true,
+    enabled: !!statisticsParams.userId,
   });
 
-  console.log("🌐 [API] Statistics Data:", statsData);
-
-  // Use the second item of the content array for statsTyped
   const statsTyped = (statsData as { data?: { content?: any[] } })?.data?.content?.[1] || {};
   const stats = {
     onTime: statsTyped.onTime,
@@ -174,34 +167,182 @@ export default function StatisticsScreen({ navigation }) {
     outside: parseFloat(statsTyped.outsidePeriodPercentage),
     expired: parseFloat(statsTyped.expirePercentage),
   };
-  const dateRange = {
-    start: statisticsParams.startDate,
-    end: statisticsParams.endDate,
+
+  // Build params for API
+  const buildParams = (pageParam = 1) => {
+    const today = new Date();
+    function formatDateFull(date) {
+      return date.toISOString().split('.')[0] + 'Z';
+    }
+    const updatedDateVal = filterDate
+      ? formatDateFull(new Date(filterDate))
+      : formatDateFull(today);
+    return {
+      updatedDate: updatedDateVal,
+      userIds: user?.id ? [user.id] : [],
+      scheduleStatus: filterStatus,
+      search,
+      sort: sortOrder,
+      sortField: sortField,
+      page: pageParam,
+      size: 20,
+    };
   };
 
-  // Tasks API for FlatList
-  const { data: tasksData, isLoading: tasksLoading, isError: tasksError, refetch: refetchTasks } = useQuery({
-    queryKey: ['tasks', tasksParams],
-    queryFn: () => fetchTasks(tasksParams),
-    enabled: true,
-  });
+  const fetchTasksInfinite = async ({ pageParam = 1 }) => {
+    const params = buildParams(pageParam);
+    const response = await fetchTasks(params);
+    let content: any[] = [];
+    if (Array.isArray(response?.data)) {
+      content = response.data as any[];
+    } else if (response && typeof response === 'object' && 'data' in response && Array.isArray((response as any).data?.content)) {
+      content = (response as any).data.content;
+    }
+    return {
+      data: content,
+      nextPage: pageParam + 1,
+      hasMore: content.length === params.size,
+    };
+  };
 
-  type TasksApiResponse = { data?: { content?: any[] } };
-  const tasksTyped = tasksData as TasksApiResponse;
-  const tasks = tasksTyped?.data?.content || [];
-  const statusOrder = ['Active', 'Expired', 'Completed', 'Scheduled'];
-  const sortedTasks = [...tasks].sort((a, b) => {
-    const aIdx = statusOrder.indexOf(a.status);
-    const bIdx = statusOrder.indexOf(b.status);
-    return aIdx - bIdx;
-  });
+   const {
+     data: infiniteData,
+     fetchNextPage,
+     hasNextPage,
+     isFetchingNextPage,
+     isLoading,
+     isError,
+     refetch,
+     isRefetching,
+   } = useInfiniteQuery({
+     queryKey: ['tasks', branchId, search, sortOrder, sortField, filterStatus, filterDate],
+     queryFn: fetchTasksInfinite,
+     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextPage : undefined),
+     initialPageParam: 1,
+     enabled: !!branchId,
+   });
+
+  // Flatten all pages
+  const allTasks: any[] = infiniteData?.pages?.flatMap((page: any) => page.data) ?? [];
+
+  // Filtering logic
+  let filteredTasks = allTasks;
+  if (filterStatus) {
+    filteredTasks = filteredTasks.filter((task) => {
+      const s = (task.status || '').toLowerCase();
+      return s === filterStatus.toLowerCase();
+    });
+  }
+  if (filterDate) {
+    filteredTasks = filteredTasks.filter((task) => {
+      const taskDate = task.startDate ? new Date(task.startDate).toLocaleDateString() : '';
+      return taskDate === filterDate;
+    });
+  }
+
+  // Sorting logic
+  let sortedTasks = [...filteredTasks];
+  if (sortField === 'name') {
+    sortedTasks.sort((a, b) => {
+      if (!a.documentName || !b.documentName) return 0;
+      if (sortOrder === 'asc') {
+        return a.documentName.localeCompare(b.documentName);
+      } else {
+        return b.documentName.localeCompare(a.documentName);
+      }
+    });
+  } else if (sortField === 'number') {
+    sortedTasks.sort((a, b) => {
+      if (sortOrder === 'asc') {
+        return (a.webId ?? 0) - (b.webId ?? 0);
+      } else {
+        return (b.webId ?? 0) - (a.webId ?? 0);
+      }
+    });
+  }
+
+  const handleEndReached = () => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  };
+
+  // Auto-refetch every 2 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetch();
+    }, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [refetch]);
+  // --- End TaskScreen logic for fetchTasks ---
 
   // Responsive styling helpers
   const statCardWidth = (width - getResponsive(16) * 2 - getResponsive(12) * 2) / 3;
 
   // Filter modal logic can be added here, similar to TaskScreen
 
-  
+    const handleSort = (field: 'name' | 'number', order: 'asc' | 'desc') => {
+    setSortField(field);
+    setSortOrder(order);
+    setShowSortModal(false);
+  };
+
+
+   const SortModal = () => (
+    // Redesigned Dropdown Sort Modal
+    showSortModal ? (
+      <View style={[styles.dropdownCard, { position: 'absolute', top: 170, right: 24, zIndex: 100 }]}> {/* Adjust top/right for placement */}
+        <View style={styles.sortModalHeader}>
+          <Text style={styles.sortModalTitle}>Sort By</Text>
+          <TouchableOpacity
+            onPress={() => setShowSortModal(false)}
+            style={styles.sortModalCloseBtn}
+          >
+            <View style={styles.sortModalCloseCircle}>
+              <Text style={{ fontSize: 18, color: '#007AFF', bottom: 2 }}>x</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+        <View style={{ height: 1, backgroundColor: '#0000001A', width:'100%', marginVertical: 8 }} />
+        <View style={styles.sortModalBody}>
+          <Text style={styles.sortModalField}>Name</Text>
+          <View style={styles.sortModalOrderBtns}>
+            <TouchableOpacity
+              style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+              onPress={() => handleSort('name', 'desc')}
+            >
+              <ArrowDownWard width={15} height={15} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+              onPress={() => handleSort('name', 'asc')}
+            >
+              <ArrowUpIcon width={15} height={15} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={{ height: 1, backgroundColor: '#0000001A', width:'100%',marginTop: 10 }} />
+        <View style={[styles.sortModalBody, { marginTop: 10 }]}>
+          <Text style={styles.sortModalField}>Number</Text>
+          <View style={styles.sortModalOrderBtns}>
+            <TouchableOpacity
+              style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+              onPress={() => handleSort('number', 'desc')}
+            >
+              <ArrowDownWard width={15} height={15} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+              onPress={() => handleSort('number', 'asc')}
+            >
+              <ArrowUpIcon width={15} height={15} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    ) : null
+  );
+
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
@@ -233,9 +374,15 @@ export default function StatisticsScreen({ navigation }) {
         </View>
         <TouchableOpacity
           style={styles.filterBtnFloat}
+          onPress={() => setShowSortModal(true)}
+        >
+          <SortIcon width={25} height={25} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.filterBtnFloat}
           onPress={() => setFilterModal(true)}
         >
-          <FilterIcon width={getResponsive(32)} height={getResponsive(32)} />
+          <FilterIcon width={getResponsive(25)} height={getResponsive(25)} />
         </TouchableOpacity>
       </View>
 
@@ -247,6 +394,10 @@ export default function StatisticsScreen({ navigation }) {
         backdropOpacity={0.18}
         animationIn="fadeIn"
         animationOut="fadeOut"
+        animationInTiming={300}
+        animationOutTiming={300}
+        backdropTransitionInTiming={300}
+        backdropTransitionOutTiming={300}
         avoidKeyboard={true}
         coverScreen={true}
         style={{ margin: 0 }}
@@ -281,7 +432,7 @@ export default function StatisticsScreen({ navigation }) {
               {/* Status Dropdown List */}
               {showStatusDropdown && (
                 <View style={{ backgroundColor: '#fff', borderRadius: 8, marginTop: 4, marginHorizontal: 14, elevation: 2, shadowColor: '#0002', borderWidth: 1, borderColor: '#00000033' }}>
-                  {['Active', 'Completed', 'Expired'].map((status) => (
+                  {['Active', 'Scheduled', 'Completed', 'Expired'].map((status) => (
                     <TouchableOpacity
                       key={status}
                       style={{
@@ -322,6 +473,10 @@ export default function StatisticsScreen({ navigation }) {
                 backdropOpacity={0.18}
                 animationIn="fadeIn"
                 animationOut="fadeOut"
+                animationInTiming={300}
+                animationOutTiming={300}
+                backdropTransitionInTiming={300}
+                backdropTransitionOutTiming={300}
                 avoidKeyboard={true}
                 coverScreen={true}
                 style={{ margin: 0 }}
@@ -385,11 +540,8 @@ export default function StatisticsScreen({ navigation }) {
                 <Text style={styles.modalBtnClearText}>Clear</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalBtnApply} onPress={() => {
-                setStartDate(filterDate ? filterDate : '');
-                setEndDate(filterDate ? filterDate : '');
                 setFilterModal(false);
-                refetchStats();
-                refetchTasks();
+                refetch();
               }}>
                 <Text style={styles.modalBtnApplyText}>Apply Filters</Text>
               </TouchableOpacity>
@@ -428,13 +580,15 @@ export default function StatisticsScreen({ navigation }) {
             <Text style={styles.progressLabel}>On Time</Text>
             <View style={styles.progressBarBg}>
               <View
-                style={[
-                  styles.progressBar,
-                  { backgroundColor: '#22C55E', width: `${progress.onTime ?? 0}%` },
-                ]}
+              style={[
+                styles.progressBar,
+                { backgroundColor: '#22C55E', width: `${isNaN(Math.abs(Number(progress.onTime))) ? 0 : Math.abs(Number(progress.onTime))}%` },
+              ]}
               />
             </View>
-            <Text style={styles.progressPercent}>{progress.onTime ?? 0}%</Text>
+            <Text style={styles.progressPercent}>
+              {isNaN(Math.abs(Number(progress.onTime))) ? 0 : Math.abs(Number(progress.onTime))}%
+            </Text>
           </View>
           <View style={styles.progressRow}>
             <Text style={styles.progressLabel}>Outside</Text>
@@ -442,11 +596,13 @@ export default function StatisticsScreen({ navigation }) {
               <View
                 style={[
                   styles.progressBar,
-                  { backgroundColor: '#A35F94', width: `${progress.outside ?? 0}%` },
+                  { backgroundColor: '#A35F94', width: `${isNaN(Math.abs(Number(progress.outside))) ? 0 : Math.abs(Number(progress.outside))}%` },
                 ]}
               />
             </View>
-            <Text style={styles.progressPercent}>{progress.outside ?? 0}%</Text>
+            <Text style={styles.progressPercent}>
+              {isNaN(Math.abs(Number(progress.outside))) ? 0 : Math.abs(Number(progress.outside))}%
+            </Text>
           </View>
           <View style={styles.progressRow}>
             <Text style={styles.progressLabel}>Expired</Text>
@@ -454,11 +610,13 @@ export default function StatisticsScreen({ navigation }) {
               <View
                 style={[
                   styles.progressBar,
-                  { backgroundColor: '#EF4444', width: `${progress.expired ?? 0}%` },
+                  { backgroundColor: '#EF4444', width: `${isNaN(Math.abs(Number(progress.expired))) ? 0 : Math.abs(Number(progress.expired))}%` },
                 ]}
               />
             </View>
-            <Text style={styles.progressPercent}>{progress.expired ?? 0}%</Text>
+            <Text style={styles.progressPercent}>
+              {isNaN(Math.abs(Number(progress.expired))) ? 0 : Math.abs(Number(progress.expired))}%
+            </Text>
           </View>
         </View>
 
@@ -471,324 +629,39 @@ export default function StatisticsScreen({ navigation }) {
         </View>
 
         {/* Task List */}
+        {/* Task List */}
         <FlatList
           data={sortedTasks}
           style={{ flex: 1, marginTop: getResponsive(8) }}
           showsVerticalScrollIndicator={false}
-          keyExtractor={(item, idx) => item.webId ? item.webId.toString() : idx.toString()}
+          keyExtractor={keyExtractor}
           contentContainerStyle={{ paddingBottom: getResponsive(24) }}
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.taskCard,
-                {
-                  borderLeftColor:
-                    item.status === 'Active'
-                      ? '#22C55E'
-                      : item.status === 'Expired'
-                        ? '#A35F94'
-                        : '#EF4444',
-                  borderLeftWidth: getResponsive(4),
-                },
-              ]}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.taskTitle}>{item.documentName || item.label}</Text>
-                <View style={styles.taskDates}>
-                  <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Starting:</Text> {formatDate(item.startDate)}</Text>
-                  <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Ending:</Text> {formatDate(item.endDate)}</Text>
-                </View>
+          renderItem={renderTask}
+          onEndReached={() => {
+            console.log('FlatList onEndReached event');
+            handleEndReached();
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={{ paddingVertical: 24 }}>
+                <ActivityIndicator size="large" color="#007AFF" />
               </View>
-            </View>
-          )}
+            ) : null
+          }
+          refreshing={isRefetching}
+          onRefresh={refetch}
+          onMomentumScrollBegin={() => {
+            console.log('FlatList onMomentumScrollBegin');
+          }}
+          extraData={isFetchingNextPage}
         />
       </View>
+
+           {showSortModal && (
+          <SortModal />
+        )}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: '#2B292999',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBox: {
-    width: '90%',
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 20,
-    maxHeight: '60%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  modalTitle: {
-    fontWeight: '500',
-    fontSize: 17,
-    color: '#222E44',
-    flex: 1,
-  },
-  closeBtn: {
-    fontSize: 16,
-    color: '#0088E7',
-    marginLeft: 12,
-    fontWeight: '600',
-    right: 5,
-  },
-  input: {
-    backgroundColor: '#F7F9FC',
-    borderRadius: 9,
-    height: 44,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    marginBottom: 10,
-    color: '#222',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  inputIcon: {
-    position: 'absolute',
-    right: 12,
-  },
-  modalBtnRow: {
-    flexDirection: 'row',
-    marginTop: 22,
-  },
-  modalBtnClear: {
-    flex: 1,
-    backgroundColor: '#E6F1FB',
-    borderRadius: 10,
-    paddingVertical: 8,
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  modalBtnApply: {
-    flex: 1,
-    backgroundColor: '#1292E6',
-    borderRadius: 10,
-    paddingVertical: 13,
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  modalBtnClearText: {
-    color: '#1292E6',
-    fontWeight: '500',
-    fontSize: 15,
-    top: 5,
-  },
-  modalBtnApplyText: {
-    color: '#fff',
-    fontWeight: '500',
-    fontSize: 15,
-  },
-  header: {
-    backgroundColor: '#007AFF',
-    paddingTop: Platform.OS === 'ios' ? getResponsive(18) : getResponsive(55),
-    paddingBottom: getResponsive(20),
-    paddingHorizontal: 0,
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-    zIndex: 0,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: getResponsive(24),
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: getResponsive(18),
-    fontWeight: '600',
-    textAlign: 'center',
-    flex: 1,
-  },
-  searchBarFloatWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: -getResponsive(32),
-    marginHorizontal: getResponsive(20),
-    zIndex: 2,
-    top: getResponsive(25),
-  },
-  searchBarFloat: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: getResponsive(8),
-    height: getResponsive(52),
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-    paddingHorizontal: getResponsive(10),
-  },
-  searchInput: {
-    flex: 1,
-    paddingHorizontal: 8,
-    color: '#222',
-    fontSize: getResponsive(17),
-  },
-  filterBtnFloat: {
-    backgroundColor: '#fff',
-    borderRadius: getResponsive(8),
-    padding: getResponsive(10),
-    marginLeft: getResponsive(8),
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginHorizontal: getResponsive(16),
-    marginBottom: getResponsive(14),
-    marginTop: getResponsive(8),
-  },
-  statCard: {
-    backgroundColor: '#fff',
-    borderRadius: getResponsive(14),
-    padding: getResponsive(10),
-    marginHorizontal: getResponsive(4),
-    borderLeftWidth: getResponsive(6),
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-    borderBottomWidth: 0,
-    elevation: 2,
-    minHeight: getResponsive(64),
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    shadowColor: '#0002',
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  statTitle: {
-    fontSize: getResponsive(10),
-    lineHeight: getResponsive(14),
-  },
-  statValue: {
-    fontSize: getResponsive(12),
-    fontWeight: '400',
-    color: '#222',
-  },
-  boldNum: {
-    fontWeight: 'bold',
-    fontSize: getResponsive(13),
-    color: '#222',
-  },
-  progressBox: {
-    backgroundColor: '#fff',
-    borderRadius: getResponsive(13),
-    marginHorizontal: getResponsive(16),
-    padding: getResponsive(18),
-    marginBottom: getResponsive(16),
-    elevation: 2,
-    shadowColor: '#0002',
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: getResponsive(8),
-  },
-  progressLabel: {
-    width: getResponsive(78),
-    fontSize: getResponsive(10),
-    color: '#7A8194',
-  },
-  progressBarBg: {
-    flex: 1,
-    height: getResponsive(6),
-    backgroundColor: '#E5E7EB',
-    borderRadius: getResponsive(8),
-    marginHorizontal: getResponsive(8),
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: getResponsive(6),
-    borderRadius: getResponsive(8),
-  },
-  progressPercent: {
-    width: getResponsive(50),
-    textAlign: 'right',
-    fontSize: getResponsive(10),
-    color: '#222',
-  },
-  dateRangeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0088E714',
-    borderRadius: getResponsive(11),
-    marginHorizontal: getResponsive(16),
-    padding: getResponsive(13),
-    marginBottom: getResponsive(10),
-    marginTop: getResponsive(4),
-  },
-  dateRangeText: {
-    marginLeft: getResponsive(8),
-    color: '#184B74',
-    fontSize: getResponsive(11),
-    fontWeight: '400',
-  },
-  taskCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: getResponsive(14),
-    marginHorizontal: getResponsive(16),
-    marginVertical: getResponsive(6),
-    padding: getResponsive(14),
-    elevation: 1,
-    shadowColor: '#0001',
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-
-  },
-  taskIndicator: {
-    width: getResponsive(6),
-    height: getResponsive(56),
-    borderRadius: getResponsive(6),
-    marginRight: getResponsive(14),
-  },
-  taskTitle: {
-    fontSize: getResponsive(14),
-    fontWeight: '500',
-    color: '#021639F5',
-    marginBottom: getResponsive(3),
-  },
-  taskDates: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    // marginTop: getResponsive(2),
-  },
-  taskDate: {
-    fontSize: getResponsive(10),
-    color: '#7A8194',
-    marginRight: getResponsive(22),
-    fontWeight: '400',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    height: getResponsive(60),
-    backgroundColor: '#fff',
-    borderTopLeftRadius: getResponsive(18),
-    borderTopRightRadius: getResponsive(18),
-    elevation: 10,
-  },
-});

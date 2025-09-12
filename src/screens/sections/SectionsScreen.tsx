@@ -14,9 +14,9 @@ import {
     StatusBar,
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
-import CamaraIcon from '../../../assets/svgs/camaraIcon.svg';
-import BackArrowIcon from '../../../assets/svgs/backArrowIcon.svg';
-import Signiture from '../../../assets/svgs/segnitureImage.svg'
+import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
+import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
+import Signiture from '../../assets/svgs/segnitureImage.svg'
 import { useRoute } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
