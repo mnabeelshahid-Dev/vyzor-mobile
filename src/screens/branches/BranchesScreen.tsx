@@ -163,7 +163,7 @@ const BranchesScreen = ({ navigation }) => {
           style={styles.filterBtnFloat}
           onPress={() => setShowSortModal(true)}
         >
-          <FilterIcon width={32} height={32} />
+          <FilterIcon width={25} height={25} />
         </TouchableOpacity>
       </View>
       {/* Branches List */}
@@ -208,14 +208,7 @@ const BranchesScreen = ({ navigation }) => {
 
       {/* Redesigned Dropdown Sort Modal */}
       {showSortModal && (
-        <View
-          style={[
-            styles.dropdownCard,
-            { position: 'absolute', top: 170, right: 24, zIndex: 100 },
-          ]}
-        >
-          {' '}
-          {/* Adjust top/right for placement */}
+        <View style={[styles.dropdownCard, { position: 'absolute', top: 170, right: 24, zIndex: 100 }]}> {/* Adjust top/right for placement */}
           <View style={styles.sortModalHeader}>
             <Text style={styles.sortModalTitle}>Sort By</Text>
             <TouchableOpacity
@@ -223,63 +216,43 @@ const BranchesScreen = ({ navigation }) => {
               style={styles.sortModalCloseBtn}
             >
               <View style={styles.sortModalCloseCircle}>
-                <Text style={{ fontSize: 18, color: '#007AFF', bottom: 2 }}>
-                  x
-                </Text>
+                <Text style={{ fontSize: 18, color: '#007AFF', bottom: 2 }}>x</Text>
               </View>
             </TouchableOpacity>
           </View>
+          <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%', marginVertical: 8 }} />
           <View style={styles.sortModalBody}>
             <Text style={styles.sortModalField}>Name</Text>
             <View style={styles.sortModalOrderBtns}>
               <TouchableOpacity
-                style={[
-                  styles.sortModalOrderBtn,
-                  sortField === 'name' && sortOrder === 'desc'
-                    ? styles.activeSortBtn
-                    : null,
-                ]}
+                style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
                 onPress={() => handleSort('name', 'desc')}
               >
                 <ArrowDownWard width={15} height={15} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.sortModalOrderBtn,
-                  sortField === 'name' && sortOrder === 'asc'
-                    ? styles.activeSortBtn
-                    : null,
-                ]}
+                style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
                 onPress={() => handleSort('name', 'asc')}
               >
                 <ArrowUpIcon width={15} height={15} />
               </TouchableOpacity>
             </View>
           </View>
-          <View style={[styles.sortModalBody, { marginTop: 14 }]}>
+          <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%', marginTop: 10 }} />
+          <View style={[styles.sortModalBody, { marginTop: 10 }]}>
             <Text style={styles.sortModalField}>Number</Text>
             <View style={styles.sortModalOrderBtns}>
               <TouchableOpacity
-                style={[
-                  styles.sortModalOrderBtn,
-                  sortField === 'number' && sortOrder === 'desc'
-                    ? styles.activeSortBtn
-                    : null,
-                ]}
+                style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
                 onPress={() => handleSort('number', 'desc')}
               >
                 <ArrowDownWard width={15} height={15} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.sortModalOrderBtn,
-                  sortField === 'number' && sortOrder === 'asc'
-                    ? styles.activeSortBtn
-                    : null,
-                ]}
+                style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
                 onPress={() => handleSort('number', 'asc')}
               >
-                <ArrowUpIcon width={18} height={18} />
+                <ArrowUpIcon width={15} height={15} />
               </TouchableOpacity>
             </View>
           </View>
@@ -299,7 +272,7 @@ const styles = StyleSheet.create({
   dropdownCard: {
     backgroundColor: '#fff',
     borderRadius: 18,
-    padding: 24,
+    paddingVertical: 10,
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 12,
@@ -348,7 +321,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 8,
-    height: 52,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -492,10 +464,11 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   sortModalHeader: {
-    flexDirection: 'row',
+     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 18,
+    marginBottom: 2,
+    paddingHorizontal: 20,
   },
   sortModalTitle: {
     fontSize: 16,
@@ -517,6 +490,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+      marginHorizontal: 20,
   },
   sortModalField: {
     fontSize: 14,
