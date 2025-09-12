@@ -348,8 +348,6 @@ const ProfileScreen = ({ navigation }) => {
     fetchCountries();
   }, []);
 
-  // 5. Add useEffect to find initial selected values when profile data loads
-
   React.useEffect(() => {
     if (profileData && countries.length > 0) {
       // Find country value by text match
@@ -438,6 +436,7 @@ const ProfileScreen = ({ navigation }) => {
       setCountry(data.country);
       setState(data.state);
       setCity(data.city);
+      console.log('City info', data.city);
       setPostalCode(data.postalCode);
       setPhoneNumbers(data.phoneNumbers);
       setInitialData(data);
@@ -481,16 +480,14 @@ const ProfileScreen = ({ navigation }) => {
         `/api/dms/file/${profileData.fileId}`,
       );
 
-      console.log('delete url', `/api/dms/file/${profileData?.fileId}`);
-
-      if (response.success) {
-        setProfileImage('https://avatar.iran.liara.run/public/41');
-        queryClient.invalidateQueries({ queryKey: ['currentUser'] });
-        setSuccessMessage('Profile picture removed successfully!');
-        setShowSuccessModal(true);
-      } else {
-        throw new Error(response.message || 'Error removing profile picture');
-      }
+      // if (response.success) {
+      setProfileImage('https://avatar.iran.liara.run/public/41');
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      setSuccessMessage('Profile picture removed successfully!');
+      setShowSuccessModal(true);
+      // } else {
+      //   throw new Error(response.message || 'Error removing profile picture');
+      // }
     } catch (error) {
       console.error('Error removing profile picture:', error);
       setErrorMessage('Failed to remove profile picture. Please try again.');
