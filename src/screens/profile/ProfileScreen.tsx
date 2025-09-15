@@ -276,7 +276,7 @@ const ProfileScreen = ({ navigation }) => {
       if (response.success && response.data) {
         setStates(response.data as any[]);
         setCities([]); // Reset cities when country changes
-        setCity('');
+        // Don't clear city here - let it be handled by the useEffect
         setSelectedStateValue('');
       }
     } catch (error) {
@@ -295,6 +295,7 @@ const ProfileScreen = ({ navigation }) => {
       );
       if (response.success && response.data) {
         setCities(response.data as any[]);
+        // Don't clear city here - preserve the existing value
       }
     } catch (error) {
       console.error('Error fetching cities:', error);
@@ -335,6 +336,16 @@ const ProfileScreen = ({ navigation }) => {
       }
     }
   }, [profileData, states, selectedCountryValue]);
+
+  React.useEffect(() => {
+    if (profileData && cities.length > 0 && selectedStateValue && !city) {
+      // Only set city if it's currently empty and we have profile data
+      const profileCity = profileData.addressModel?.city;
+      if (profileCity) {
+        setCity(profileCity);
+      }
+    }
+  }, [profileData, cities, selectedStateValue, city]);
 
   // Update form states when profileData changes
   React.useEffect(() => {
@@ -402,6 +413,10 @@ const ProfileScreen = ({ navigation }) => {
       setPostalCode(data.postalCode);
       setPhoneNumbers(data.phoneNumbers);
       setInitialData(data);
+
+      if (data.city && !city) {
+        setCity(data.city);
+      }
     }
   }, [profileData]);
 
