@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Modal from 'react-native-modal';
-import { Picker } from '@react-native-picker/picker';
+// removed Picker here; tab components handle their own Picker imports
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../../services/api';
 import PhoneInput from 'react-native-phone-number-input';
@@ -36,6 +36,7 @@ interface ProfileData {
   email: string;
   location: string;
   timezone: string;
+  timeZone?: string;
   phone: string;
   language: string;
   updatedById: string;
@@ -44,11 +45,13 @@ interface ProfileData {
   endDate: string;
   startDate: string;
   webId: string;
+  fileId?: string;
   addressModel: {
     city: string;
     street: string;
     state: string;
     postalCode: string;
+    country?: string;
   };
   userPhoneModels: { phoneModel: { phoneNumber: string; webId: string } }[];
   // Add other fields as needed
@@ -62,13 +65,24 @@ import TimeZoneIcon from '../../assets/svgs/timezone.svg';
 import LanguageIcon from '../../assets/svgs/language.svg';
 import PhoneIcon from '../../assets/svgs/phone.svg';
 import EditIcon from '../../assets/svgs/edit.svg';
-import EyeSlash from '../../assets/svgs/eyeSlash.svg';
+// EyeSlash icon is used inside tab components now
 import LogoutIcon from '../../assets/svgs/logout.svg';
 import SettingsIcon from '../../assets/svgs/settings.svg';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native';
 import { StatusBar } from 'react-native';
 import { launchImageLibrary, MediaType } from 'react-native-image-picker';
+import GeneralInfoTab from './GeneralInfoTab';
+import ChangePasswordTab from './ChangePasswordTab';
+import ContactDetailsTab from './ContactDetailsTab';
+import {
+  LANGUAGE_OPTIONS,
+  TIMEZONE_OPTIONS,
+  getLanguageText,
+  getLanguageValue,
+  getTimezoneText,
+  getTimezoneValue,
+} from './constants';
 
 const ProfileScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
@@ -79,61 +93,7 @@ const ProfileScreen = ({ navigation }) => {
     },
   });
 
-  // Language and Timezone options
-  const LANGUAGE_OPTIONS = [
-    {
-      value: '100',
-      text: 'English',
-    },
-    {
-      value: '200',
-      text: 'French',
-    },
-    {
-      value: '300',
-      text: 'Spanish',
-    },
-  ];
-
-  const TIMEZONE_OPTIONS = [
-    {
-      value: '2',
-      text: '(GMT-11:00) Midway Island',
-    },
-    {
-      value: '1',
-      text: '(GMT-11:00) International Date Line West',
-    },
-    {
-      value: '3',
-      text: '(GMT-11:00) Samoa',
-    },
-    {
-      value: '4',
-      text: '(GMT+05:00) Islamabad, Karachi',
-    },
-  ];
-
-  // Helper functions to map between values and display text
-  const getLanguageText = (value: string) => {
-    const option = LANGUAGE_OPTIONS.find(opt => opt.value === value);
-    return option ? option.text : '';
-  };
-
-  const getLanguageValue = (text: string) => {
-    const option = LANGUAGE_OPTIONS.find(opt => opt.text === text);
-    return option ? option.value : '';
-  };
-
-  const getTimezoneText = (value: string) => {
-    const option = TIMEZONE_OPTIONS.find(opt => opt.value === value);
-    return option ? option.text : '';
-  };
-
-  const getTimezoneValue = (text: string) => {
-    const option = TIMEZONE_OPTIONS.find(opt => opt.text === text);
-    return option ? option.value : '';
-  };
+  // Language/Timezone constants imported from './constants'
 
   // Fetch current user data using React Query
   const {
@@ -157,7 +117,9 @@ const ProfileScreen = ({ navigation }) => {
   });
 
   // Query to fetch file details when fileId exists
-  const { data: fileData, isLoading: isFileLoading } = useQuery({
+  const { data: fileData, isLoading: isFileLoading } = useQuery<{
+    fileUrl: string;
+  } | null>({
     queryKey: ['fileDetails', profileData?.fileId],
     queryFn: async () => {
       if (!profileData?.fileId) return null;
@@ -251,9 +213,9 @@ const ProfileScreen = ({ navigation }) => {
   const [city, setCity] = useState(profileData?.addressModel?.city || '');
 
   // Dropdown data states
-  const [countries, setCountries] = useState([]);
-  const [states, setStates] = useState([]);
-  const [cities, setCities] = useState([]);
+  const [countries, setCountries] = useState<any[]>([]);
+  const [states, setStates] = useState<any[]>([]);
+  const [cities, setCities] = useState<any[]>([]);
 
   // Loading states
   const [countriesLoading, setCountriesLoading] = useState(false);
@@ -296,7 +258,7 @@ const ProfileScreen = ({ navigation }) => {
       setCountriesLoading(true);
       const response = await apiService.get('/api/site/filter/COUNTRIES');
       if (response.success && response.data) {
-        setCountries(response.data);
+        setCountries(response.data as any[]);
       }
     } catch (error) {
       console.error('Error fetching countries:', error);
@@ -312,7 +274,7 @@ const ProfileScreen = ({ navigation }) => {
         `/api/site/filter/STATES?userId=${countryValue}`,
       );
       if (response.success && response.data) {
-        setStates(response.data);
+        setStates(response.data as any[]);
         setCities([]); // Reset cities when country changes
         setCity('');
         setSelectedStateValue('');
@@ -332,7 +294,7 @@ const ProfileScreen = ({ navigation }) => {
         `/api/site/filter/CITIES?userId=${stateValue}`,
       );
       if (response.success && response.data) {
-        setCities(response.data);
+        setCities(response.data as any[]);
       }
     } catch (error) {
       console.error('Error fetching cities:', error);
@@ -467,11 +429,6 @@ const ProfileScreen = ({ navigation }) => {
       setShowImageOptions(false);
     });
   };
-
-  // const removeProfileImage = () => {
-  //   setProfileImage('https://avatar.iran.liara.run/public/41');
-  //   setShowImageOptions(false);
-  // };
 
   const removeProfileImage = async () => {
     try {
@@ -999,504 +956,7 @@ const ProfileScreen = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  const InputField = ({
-    label,
-    value,
-    placeholder,
-    secureTextEntry = false,
-    showPassword,
-    onTogglePassword,
-    onChangeText,
-    errorMessage,
-  }) => (
-    <View style={styles.phoneNumberContainer}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <View style={styles.phoneInputWrapper}>
-        <TextInput
-          style={styles.phoneInput}
-          value={value}
-          placeholder={placeholder}
-          secureTextEntry={secureTextEntry && !showPassword}
-          placeholderTextColor="#999"
-          onChangeText={onChangeText}
-        />
-        {secureTextEntry && (
-          <TouchableOpacity style={styles.eyeIcon} onPress={onTogglePassword}>
-            <Text style={styles.eyeIconText}>
-              {showPassword ? (
-                '👁️‍🗨️'
-              ) : (
-                <EyeSlash style={styles.editIcon} height={20} width={20} />
-              )}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      {errorMessage ? (
-        <Text style={styles.errorText}>{errorMessage}</Text>
-      ) : null}
-    </View>
-  );
-
-  const DropdownField = ({ label, value, placeholder }) => (
-    <View style={styles.inputContainer}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <TouchableOpacity style={styles.dropdownInput}>
-        <Text
-          style={[styles.dropdownInputText, !value && styles.placeholderText]}
-        >
-          {value || placeholder}
-        </Text>
-        <Text style={styles.dropdownArrowText}>▾</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderGeneralInfo = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabel}>First Name</Text>
-        <View style={styles.phoneInputWrapper}>
-          <TextInput
-            style={styles.phoneInput}
-            value={firstName}
-            placeholder="Enter first name"
-            placeholderTextColor="#999"
-            onChangeText={text => setFirstName(validateAlphabetsOnly(text))}
-          />
-        </View>
-      </View>
-      <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabel}>Last Name</Text>
-        <View style={styles.phoneInputWrapper}>
-          <TextInput
-            style={styles.phoneInput}
-            value={lastName}
-            placeholder="Enter last name"
-            placeholderTextColor="#999"
-            onChangeText={text => setLastName(validateAlphabetsOnly(text))}
-          />
-        </View>
-      </View>
-      <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabel}>Email</Text>
-        <View style={styles.phoneInputWrapper}>
-          <TextInput
-            style={[
-              styles.phoneInput,
-              { backgroundColor: '#f5f5f5', color: '#999' },
-            ]}
-            value={email}
-            placeholder="Enter email"
-            placeholderTextColor="#999"
-            editable={false}
-          />
-        </View>
-      </View>
-
-      {/* Language as select */}
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>Language</Text>
-        <View
-          style={{
-            borderBottomWidth: 1,
-            borderBottomColor: '#B0B0B0',
-            marginBottom: 10,
-          }}
-        >
-          <Picker
-            selectedValue={language}
-            style={{
-              height: 55,
-              color: '#1A1A1A',
-              backgroundColor: 'transparent',
-              borderWidth: 0,
-              borderRadius: 0,
-              padding: 0,
-            }}
-            dropdownIconColor="#007AFF"
-            onValueChange={itemValue => {
-              if (itemValue) {
-                setLanguage(itemValue);
-                setLanguageValue(getLanguageValue(itemValue));
-              }
-            }}
-          >
-            <Picker.Item label="Select language" value="" color="#999" />
-            {LANGUAGE_OPTIONS.map(option => (
-              <Picker.Item
-                key={option.value}
-                label={option.text}
-                value={option.text}
-              />
-            ))}
-          </Picker>
-        </View>
-      </View>
-
-      {/* Time Zone as select */}
-      {/* Time Zone as select */}
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>Time Zone</Text>
-        <View
-          style={{
-            borderBottomWidth: 1,
-            borderBottomColor: '#B0B0B0',
-            marginBottom: 10,
-          }}
-        >
-          <Picker
-            selectedValue={timezone}
-            style={{
-              height: 55,
-              color: '#1A1A1A',
-              backgroundColor: 'transparent',
-              borderWidth: 0,
-              borderRadius: 0,
-              padding: 0,
-            }}
-            dropdownIconColor="#007AFF"
-            onValueChange={itemValue => {
-              if (itemValue) {
-                setTimezone(itemValue);
-                setTimezoneValue(getTimezoneValue(itemValue));
-              }
-            }}
-          >
-            <Picker.Item label="Select time zone" value="" color="#999" />
-            {TIMEZONE_OPTIONS.map(option => (
-              <Picker.Item
-                key={option.value}
-                label={option.text}
-                value={option.text}
-              />
-            ))}
-          </Picker>
-        </View>
-      </View>
-      <TouchableOpacity
-        style={styles.checkboxContainer}
-        onPress={() => setUseDefaultTimeZone(!useDefaultTimeZone)}
-      >
-        <View
-          style={[
-            styles.checkbox,
-            useDefaultTimeZone && styles.checkedCheckbox,
-          ]}
-        >
-          {useDefaultTimeZone && <Text style={styles.checkmark}>✓</Text>}
-        </View>
-        <Text style={styles.checkboxLabel}>Use Default Time Zone</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderChangePassword = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabel}>Current Password</Text>
-        <View style={styles.phoneInputWrapper}>
-          <TextInput
-            style={styles.phoneInput}
-            value={currentPasswordField}
-            placeholder="Enter current password"
-            secureTextEntry={!showCurrentPassword}
-            placeholderTextColor="#999"
-            onChangeText={text => {
-              setCurrentPasswordField(text);
-              if (currentPasswordError) {
-                validateCurrentPassword(text);
-              }
-            }}
-          />
-          <TouchableOpacity
-            style={styles.eyeIcon}
-            onPress={() => setShowCurrentPassword(!showCurrentPassword)}
-          >
-            <Text style={styles.eyeIconText}>
-              {showCurrentPassword ? (
-                '👁️‍🗨️'
-              ) : (
-                <EyeSlash style={styles.editIcon} height={20} width={20} />
-              )}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        {currentPasswordError ? (
-          <Text style={styles.errorText}>{currentPasswordError}</Text>
-        ) : null}
-      </View>
-      <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabel}>New Password</Text>
-        <View style={styles.phoneInputWrapper}>
-          <TextInput
-            style={styles.phoneInput}
-            value={newPasswordField}
-            placeholder="Enter new password"
-            secureTextEntry={!showNewPassword}
-            placeholderTextColor="#999"
-            onChangeText={text => {
-              setNewPasswordField(text);
-              if (newPasswordError) {
-                validateNewPassword(text);
-              }
-              if (confirmNewPasswordField) {
-                validateConfirmPassword(confirmNewPasswordField, text);
-              }
-            }}
-          />
-          <TouchableOpacity
-            style={styles.eyeIcon}
-            onPress={() => setShowNewPassword(!showNewPassword)}
-          >
-            <Text style={styles.eyeIconText}>
-              {showNewPassword ? (
-                '👁️‍🗨️'
-              ) : (
-                <EyeSlash style={styles.editIcon} height={20} width={20} />
-              )}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        {newPasswordError ? (
-          <Text style={styles.errorText}>{newPasswordError}</Text>
-        ) : null}
-      </View>
-      <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabel}>Confirm New Password</Text>
-        <View style={styles.phoneInputWrapper}>
-          <TextInput
-            style={styles.phoneInput}
-            value={confirmNewPasswordField}
-            placeholder="Confirm new password"
-            secureTextEntry={!showConfirmPassword}
-            placeholderTextColor="#999"
-            onChangeText={text => {
-              setConfirmNewPasswordField(text);
-              if (confirmPasswordError) {
-                validateConfirmPassword(text, newPasswordField);
-              }
-            }}
-          />
-          <TouchableOpacity
-            style={styles.eyeIcon}
-            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-          >
-            <Text style={styles.eyeIconText}>
-              {showConfirmPassword ? (
-                '👁️‍🗨️'
-              ) : (
-                <EyeSlash style={styles.editIcon} height={20} width={20} />
-              )}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        {confirmPasswordError ? (
-          <Text style={styles.errorText}>{confirmPasswordError}</Text>
-        ) : null}
-      </View>
-    </View>
-  );
-
-  const DropdownFieldWithData = ({
-    label,
-    value,
-    placeholder,
-    data,
-    loading,
-    onSelect,
-    disabled = false,
-  }) => (
-    <View style={styles.inputContainer}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <View
-        style={{
-          borderBottomWidth: 1,
-          borderBottomColor: '#B0B0B0',
-          marginBottom: 10,
-          opacity: disabled ? 0.5 : 1,
-        }}
-      >
-        <Picker
-          selectedValue={value}
-          style={{
-            height: 55,
-            color: '#1A1A1A',
-            backgroundColor: 'transparent',
-            borderWidth: 0,
-            borderRadius: 0,
-            padding: 0,
-          }}
-          dropdownIconColor="#007AFF"
-          enabled={!disabled && !loading}
-          onValueChange={(itemValue, itemIndex) => {
-            if (itemIndex > 0) {
-              // Skip placeholder
-              const selectedItem = data[itemIndex - 1];
-              onSelect(selectedItem);
-            }
-          }}
-        >
-          <Picker.Item
-            label={loading ? 'Loading...' : placeholder}
-            value=""
-            color="#999"
-          />
-          {data.map(item => (
-            <Picker.Item key={item.value} label={item.text} value={item.text} />
-          ))}
-        </Picker>
-      </View>
-    </View>
-  );
-
-  const renderContactDetails = () => (
-    <View style={styles.tabContent}>
-      {phoneNumbers.map((phone, index) => (
-        <View style={styles.phoneNumberContainer} key={phone.id}>
-          <View style={styles.phoneHeaderRow}>
-            <Text
-              style={[
-                styles.inputLabel,
-                index === 0
-                  ? styles.defaultPhoneLabel
-                  : styles.inputLabelAddNewNumber,
-              ]}
-            >
-              {index === 0
-                ? 'Phone Number (Default)'
-                : 'Additional Phone Number'}
-            </Text>
-            {index > 0 && (
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => removePhoneNumber(phone.id)}
-              >
-                <Text style={styles.deleteButtonText}>Delete</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <PhoneInput
-            ref={phone.ref}
-            defaultValue={phone.phoneNumber}
-            defaultCode={phone.country as any}
-            layout="first"
-            onChangeText={text => updatePhoneNumber(phone.id, text)}
-            onChangeFormattedText={text => updatePhoneNumber(phone.id, text)}
-            textInputStyle={{
-              fontFamily: 'Poppins',
-              fontSize: 16,
-              color: '#1F2937',
-              paddingVertical: 0,
-              paddingHorizontal: 0,
-            }}
-            codeTextStyle={{
-              fontFamily: 'Poppins',
-              fontSize: 16,
-              color: '#1F2937',
-            }}
-            onChangeCountry={country => {
-              setPhoneNumbers(prev =>
-                prev.map(p =>
-                  p.id === phone.id ? { ...p, country: country.cca2 } : p,
-                ),
-              );
-            }}
-            withShadow={false}
-            withDarkTheme={false}
-            autoFocus={false}
-            disabled={isMutationLoading}
-          />
-
-          {/* Phone Error Display */}
-          {phoneErrors[index] ? (
-            <Text style={styles.errorText}>{phoneErrors[index]}</Text>
-          ) : null}
-        </View>
-      ))}
-
-      <TouchableOpacity
-        style={styles.addNumberButton}
-        onPress={addNewPhoneNumber}
-      >
-        <Text style={styles.addNumberText}>+ Add New Number</Text>
-      </TouchableOpacity>
-
-      {/* Street */}
-      <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabel}>Street</Text>
-        <View style={styles.phoneInputWrapper}>
-          <TextInput
-            style={styles.phoneInput}
-            value={street}
-            placeholder="Enter street address"
-            placeholderTextColor="#999"
-            onChangeText={setStreet}
-          />
-        </View>
-      </View>
-
-      {/* Country Dropdown */}
-      <DropdownFieldWithData
-        label="Country"
-        value={country}
-        placeholder="Select country"
-        data={countries}
-        loading={countriesLoading}
-        onSelect={selectedCountry => {
-          setCountry(selectedCountry.text);
-          setSelectedCountryValue(selectedCountry.value);
-          setState(''); // Reset state when country changes
-          setCity(''); // Reset city when country changes
-          fetchStates(selectedCountry.value);
-        }}
-      />
-
-      {/* State/Province/Region Dropdown */}
-      <DropdownFieldWithData
-        label="State/Province/Region"
-        value={state}
-        placeholder="Select state/province/region"
-        data={states}
-        loading={statesLoading}
-        disabled={!selectedCountryValue}
-        onSelect={selectedState => {
-          setState(selectedState.text);
-          setSelectedStateValue(selectedState.value);
-          setCity(''); // Reset city when state changes
-          fetchCities(selectedState.value);
-        }}
-      />
-
-      {/* City Dropdown */}
-      <DropdownFieldWithData
-        label="City"
-        value={city}
-        placeholder="Select city"
-        data={cities}
-        loading={citiesLoading}
-        disabled={!selectedStateValue}
-        onSelect={selectedCity => {
-          setCity(selectedCity.text);
-        }}
-      />
-
-      {/* Zip/Postal Code */}
-      <View style={styles.phoneNumberContainer}>
-        <Text style={styles.inputLabel}>Zip/Postal Code</Text>
-        <View style={styles.phoneInputWrapper}>
-          <TextInput
-            style={styles.phoneInput}
-            value={postalCode}
-            placeholder="Enter zip/postal code"
-            placeholderTextColor="#999"
-            onChangeText={setPostalCode}
-          />
-        </View>
-      </View>
-    </View>
-  );
+  // inlined tab renderers and input helpers moved to separate components
 
   // Check if any mutation is loading
   const isMutationLoading =
@@ -1613,9 +1073,129 @@ const ProfileScreen = ({ navigation }) => {
                 />
               </View>
               {/* Tab Content */}
-              {activeTab === 'General Info' && renderGeneralInfo()}
-              {activeTab === 'Change Password' && renderChangePassword()}
-              {activeTab === 'Contact Details' && renderContactDetails()}
+              {activeTab === 'General Info' && (
+                <GeneralInfoTab
+                  styles={styles}
+                  firstName={firstName}
+                  lastName={lastName}
+                  email={email}
+                  language={language}
+                  timezone={timezone}
+                  useDefaultTimeZone={useDefaultTimeZone}
+                  onChangeFirstName={text =>
+                    setFirstName(validateAlphabetsOnly(text))
+                  }
+                  onChangeLastName={text =>
+                    setLastName(validateAlphabetsOnly(text))
+                  }
+                  onSelectLanguage={itemText => {
+                    if (itemText) {
+                      setLanguage(itemText);
+                      setLanguageValue(getLanguageValue(itemText));
+                    }
+                  }}
+                  onSelectTimezone={itemText => {
+                    if (itemText) {
+                      setTimezone(itemText);
+                      setTimezoneValue(getTimezoneValue(itemText));
+                    }
+                  }}
+                  onToggleDefaultTimezone={() =>
+                    setUseDefaultTimeZone(!useDefaultTimeZone)
+                  }
+                />
+              )}
+              {activeTab === 'Change Password' && (
+                <ChangePasswordTab
+                  styles={styles}
+                  currentPasswordField={currentPasswordField}
+                  newPasswordField={newPasswordField}
+                  confirmNewPasswordField={confirmNewPasswordField}
+                  showCurrentPassword={showCurrentPassword}
+                  showNewPassword={showNewPassword}
+                  showConfirmPassword={showConfirmPassword}
+                  currentPasswordError={currentPasswordError}
+                  newPasswordError={newPasswordError}
+                  confirmPasswordError={confirmPasswordError}
+                  onChangeCurrentPassword={text => {
+                    setCurrentPasswordField(text);
+                    if (currentPasswordError) {
+                      validateCurrentPassword(text);
+                    }
+                  }}
+                  onChangeNewPassword={text => {
+                    setNewPasswordField(text);
+                    if (newPasswordError) {
+                      validateNewPassword(text);
+                    }
+                    if (confirmNewPasswordField) {
+                      validateConfirmPassword(confirmNewPasswordField, text);
+                    }
+                  }}
+                  onChangeConfirmPassword={text => {
+                    setConfirmNewPasswordField(text);
+                    if (confirmPasswordError) {
+                      validateConfirmPassword(text, newPasswordField);
+                    }
+                  }}
+                  onToggleShowCurrent={() =>
+                    setShowCurrentPassword(!showCurrentPassword)
+                  }
+                  onToggleShowNew={() => setShowNewPassword(!showNewPassword)}
+                  onToggleShowConfirm={() =>
+                    setShowConfirmPassword(!showConfirmPassword)
+                  }
+                />
+              )}
+              {activeTab === 'Contact Details' && (
+                <ContactDetailsTab
+                  styles={styles}
+                  phoneNumbers={phoneNumbers}
+                  phoneErrors={phoneErrors}
+                  onAddNewPhone={addNewPhoneNumber}
+                  onRemovePhone={removePhoneNumber}
+                  onChangePhone={updatePhoneNumber}
+                  onChangePhoneCountry={(id, cca2) => {
+                    setPhoneNumbers(prev =>
+                      prev.map(p =>
+                        p.id === id ? { ...p, country: cca2 } : p,
+                      ),
+                    );
+                  }}
+                  street={street}
+                  country={country}
+                  state={state}
+                  city={city}
+                  postalCode={postalCode}
+                  onChangeStreet={setStreet}
+                  onChangePostalCode={setPostalCode}
+                  onSelectCountry={selectedCountry => {
+                    setCountry(selectedCountry.text);
+                    setSelectedCountryValue(selectedCountry.value);
+                    setState('');
+                    setCity('');
+                    fetchStates(selectedCountry.value);
+                  }}
+                  onSelectState={selectedState => {
+                    setState(selectedState.text);
+                    setSelectedStateValue(selectedState.value);
+                    setCity('');
+                    fetchCities(selectedState.value);
+                  }}
+                  onSelectCity={selectedCity => {
+                    setCity(selectedCity.text);
+                  }}
+                  countries={countries}
+                  states={states}
+                  cities={cities}
+                  countriesLoading={countriesLoading}
+                  statesLoading={statesLoading}
+                  citiesLoading={citiesLoading}
+                  selectedCountryValue={selectedCountryValue}
+                  selectedStateValue={selectedStateValue}
+                  isMutationLoading={isMutationLoading}
+                />
+              )}
               {/* Action Buttons */}
               <View style={styles.actionButtons}>
                 <TouchableOpacity

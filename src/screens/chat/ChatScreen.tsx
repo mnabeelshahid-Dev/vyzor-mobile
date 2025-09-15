@@ -580,13 +580,24 @@ export default function ChatScreen({ navigation }) {
               selectedValue=""
               style={styles.picker}
               onValueChange={itemValue => {
-                if (itemValue && !groupParticipants.includes(itemValue)) {
-                  setGroupParticipants(prev => [...prev, itemValue]);
+                if (itemValue) {
+                  if (groupParticipants.includes(itemValue)) {
+                    // Remove if already selected
+                    setGroupParticipants(prev =>
+                      prev.filter(participant => participant !== itemValue),
+                    );
+                  } else {
+                    // Add if not selected
+                    setGroupParticipants(prev => [...prev, itemValue]);
+                  }
                 }
               }}
               mode="dropdown"
             >
-              <Picker.Item label="Select participants..." value="" />
+              <Picker.Item
+                label={`Select participants... (${groupParticipants.length} selected)`}
+                value=""
+              />
               {isLoadingUsers ? (
                 <Picker.Item
                   label="Loading users..."
@@ -594,44 +605,18 @@ export default function ChatScreen({ navigation }) {
                   enabled={false}
                 />
               ) : (
-                availableUsers
-                  .filter(user => !groupParticipants.includes(user.value))
-                  .map((user, idx) => (
-                    <Picker.Item
-                      key={idx}
-                      label={user.text}
-                      value={user.value}
-                    />
-                  ))
+                availableUsers.map((user, idx) => (
+                  <Picker.Item
+                    key={idx}
+                    label={`${
+                      groupParticipants.includes(user.value) ? '✓ ' : ''
+                    }${user.text}`}
+                    value={user.value}
+                  />
+                ))
               )}
             </Picker>
           </View>
-
-          {/* Selected participants display */}
-          <ScrollView style={styles.selectedParticipantsList}>
-            {groupParticipants.map((participantValue, idx) => {
-              const user = availableUsers.find(
-                u => u.value === participantValue,
-              );
-              return (
-                <View key={idx} style={styles.selectedParticipantItem}>
-                  <Text style={styles.selectedParticipantText}>
-                    {user?.text || participantValue}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.removeParticipantBtn}
-                    onPress={() =>
-                      setGroupParticipants(prev =>
-                        prev.filter(x => x !== participantValue),
-                      )
-                    }
-                  >
-                    <Text style={styles.removeParticipantBtnText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-          </ScrollView>
 
           <View style={styles.modalBtnRow}>
             <TouchableOpacity
