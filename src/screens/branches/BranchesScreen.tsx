@@ -19,6 +19,7 @@ import ArrowRight from '../../assets/svgs/rightArrow.svg';
 import LogoutIcon from '../../assets/svgs/logout.svg';
 import SettingsIcon from '../../assets/svgs/settings.svg';
 import { fetchBranches } from '../../api/branches';
+import { ApiResponse } from '../../types';
 import { useQuery } from '@tanstack/react-query';
 import { styles } from './styles';
 import { useAuthStore } from '../../store/authStore';
@@ -27,7 +28,7 @@ const BranchesScreen = ({ navigation }) => {
   const { setBranchId } = useAuthStore.getState();
   const logoutMutation = useLogout({
     onSuccess: () => {
-      navigation.navigate('Auth', { screen: 'Login' });
+  navigation.navigate('Login');
     },
   });
 
@@ -37,14 +38,15 @@ const BranchesScreen = ({ navigation }) => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [sortField, setSortField] = useState<'name' | 'number'>('name');
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  type Branch = { name: string; code: string; webId: string };
+  const { data, isLoading, isError, error, refetch } = useQuery<ApiResponse<any>, Error>({
     queryKey: ['branches', search, sortOrder, sortField],
     queryFn: async () => {
       console.log('Fetching branches...');
       const res = await fetchBranches({ search, sort: sortOrder, sortField });
       console.log('Branches response:', res);
       return res;
-    },
+    }
   });
 
   // Redirect to login if token expired in API response
@@ -54,9 +56,22 @@ const BranchesScreen = ({ navigation }) => {
       data?.message?.includes('Access token expired') ||
       (data?.success === false && data?.message?.includes('HTTP 401'))
     ) {
-      navigation.navigate('Auth', { screen: 'Login' });
+  navigation.navigate('Login');
     }
   }, [data, navigation]);
+
+  React.useEffect(() => {
+    if (isError && error) {
+      const errorObj = error as any;
+      if (
+        errorObj?.message?.includes('invalid_token') ||
+        errorObj?.message?.includes('Access token expired') ||
+        errorObj?.response?.status === 401
+      ) {
+        navigation.navigate('Login');
+      }
+    }
+  }, [isError, error, navigation]);
 
   const handleSort = (field: 'name' | 'number', order: 'asc' | 'desc') => {
     setSortField(field);

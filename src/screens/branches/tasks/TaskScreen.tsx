@@ -85,6 +85,7 @@ export default function TaskScreen({ navigation }) {
     queryFn: fetchSections,
     refetchInterval: 120000,
   });
+
   // Notes Query
   const {
     data: notesData,
