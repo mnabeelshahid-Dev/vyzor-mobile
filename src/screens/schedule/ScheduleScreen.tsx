@@ -492,7 +492,12 @@ export default function CalendarAgendaScreen({ navigation }) {
                     <Text style={styles.hourLabel}>{hour}</Text>
                   </View>
                   {/* Tasks */}
-                  <View style={styles.tasksRow}>
+                  <ScrollView
+                    horizontal
+                    style={styles.tasksRow}
+                    contentContainerStyle={styles.tasksScrollContent}
+                    showsHorizontalScrollIndicator={false}
+                  >
                     {getTasksByHour(formattedTasks, hour).map(item => (
                       <View
                         key={item.id}
@@ -518,7 +523,7 @@ export default function CalendarAgendaScreen({ navigation }) {
                           </View>
                         </View>
                         <Text style={styles.taskTitle}>{item.title}</Text>
-                        {item.scheduleType && (
+                        {/* {item.scheduleType && (
                           <Text
                             style={[
                               styles.taskScheduleType,
@@ -533,7 +538,7 @@ export default function CalendarAgendaScreen({ navigation }) {
                           >
                             {item.scheduleType}
                           </Text>
-                        )}
+                        )} */}
                       </View>
                     ))}
                     {getTasksByHour(formattedTasks, hour).length === 0 && (
@@ -543,11 +548,9 @@ export default function CalendarAgendaScreen({ navigation }) {
                           fontSize: 12,
                           fontStyle: 'italic',
                         }}
-                      >
-                        No tasks scheduled
-                      </Text>
+                      ></Text>
                     )}
-                  </View>
+                  </ScrollView>
                 </View>
               </View>
             ))
@@ -671,16 +674,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginRight: 9,
   },
-  tasksRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginLeft: 4,
-    marginTop: 8,
-  },
+  // tasksRow: {
+  //   flex: 1,
+  //   flexDirection: 'row',
+  //   alignItems: 'flex-start',
+  //   marginLeft: 4,
+  //   marginTop: 8,
+  // },
   taskCard: {
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 8,
     marginRight: 14,
     marginBottom: 4,
     padding: 12,
@@ -752,5 +755,16 @@ const styles = StyleSheet.create({
     minHeight: 340,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  tasksScrollContent: {
+    paddingRight: 16,
+    alignItems: 'flex-start',
+  },
+
+  // Update the existing tasksRow style:
+  tasksRow: {
+    flex: 1,
+    marginLeft: 4,
+    marginTop: 8,
   },
 });
