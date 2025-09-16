@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import PhoneInput from 'react-native-phone-number-input';
+import PhoneInput from 'react-native-phone-input';
+import CountryPicker from 'react-native-country-picker-modal';
 import DatePicker from 'react-native-date-picker';
 import { useThemedStyles } from '../../hooks/useThemedStyles';
 import { useRegister } from '../../hooks/useAuth';
@@ -30,6 +31,7 @@ import UserIcon from '../../assets/svgs/user.svg';
 import PhoneIcon from '../../assets/svgs/receiverIcon.svg';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
 import PlusImage from '../../assets/svgs/plusImage.svg';
+import ArrowDown from '../../assets/svgs/arrowDown.svg';
 
 /**
  * Root navigation stack parameter list
@@ -64,6 +66,30 @@ interface IFormData {
  * RegisterScreen component for user registration
  */
 const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<any>(null);
+  const [countryCode, setCountryCode] = useState('ng');
+  const phoneInputRef = useRef(null);
+  const [phoneNumber, setPhoneNumber] = useState('234');
+  const onSelectCountry = (country: any) => {
+    setCountryCode(country.cca2);
+    setSelectedCountry(country);
+    setCountryPickerVisible(false);
+    setPhoneNumber(country.callingCode.toString());
+    if (phoneInputRef.current) {
+      phoneInputRef.current.selectCountry(country.cca2.toLowerCase());
+    }
+  };
+
+  const toggleCountryPicker = () => {
+    setCountryPickerVisible(!countryPickerVisible);
+  };
+
+  useEffect(() => {
+    if (phoneInputRef.current) {
+      phoneInputRef.current.selectCountry(countryCode.toLowerCase());
+    }
+  }, [countryCode]);
   const [formData, setFormData] = useState<IFormData>({
     firstname: '',
     lastname: '',
@@ -116,6 +142,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [termsError, setTermsError] = useState('');
+
 
   const styles = useThemedStyles(createStyles);
   const registerMutation = useRegister();
@@ -444,8 +471,8 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
    */
   const validateForm = async (): Promise<boolean> => {
     try {
-  // Use the first phone number field for validation
-  const formattedPhoneNumber = phoneNumbers[0]?.value || '';
+      // Use the first phone number field for validation
+      const formattedPhoneNumber = phoneNumbers[0]?.value || '';
 
       // Validate all fields
       await registerValidationSchema.validate(
@@ -1266,28 +1293,47 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                       </Text>
                       <Text style={{ color: '#FF6B6B', marginLeft: 4, fontSize: 16, fontWeight: 'bold' }}>*</Text>
                     </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', }}>
-                      <PhoneInput
-                        ref={item.ref}
-                        defaultValue={item.value}
-                        defaultCode={item.country as any}
-                        layout="first"
-                        onChangeText={text => handlePhoneChange(idx, text)}
-                        onChangeFormattedText={text => handlePhoneChange(idx, text)}
-                        textInputStyle={{ fontFamily: 'Poppins', fontSize: 16, color: '#1F2937', paddingVertical: 0, paddingHorizontal: 0 }}
-                        codeTextStyle={{ fontFamily: 'Poppins', fontSize: 16, color: '#1F2937', }}
-                        onChangeCountry={country => handleCountryChange(idx, country.cca2)}
-                        withShadow={false}
-                        withDarkTheme={false}
-                        autoFocus={false}
-                        disabled={isLoading}
-                      />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 40, borderBottomWidth: 1, borderColor: currentlyFocusedField === `phone-${idx}` ? '#0088E7' : '#D0D5DD', paddingHorizontal: 8, backgroundColor: '#F9FAFB' }}>
+                      <TouchableOpacity onPress={toggleCountryPicker} style={{ marginRight: 8, justifyContent: 'center', alignItems: 'center', minWidth: 40 }}>
+                        <CountryPicker
+                          countryCode={
+                            (selectedCountry?.cca2
+                              ? selectedCountry.cca2
+                              : countryCode) as import('react-native-country-picker-modal').CountryCode
+                          }
+                          withCurrency={true}
+                          withFlag={true}
+                          withEmoji={false}
+                          withFilter={true}
+                          withCountryNameButton={false}
+                          withCallingCode={true}
+                          onSelect={onSelectCountry}
+                          visible={countryPickerVisible}
+                          onClose={() => setCountryPickerVisible(false)}
+                          containerButtonStyle={{ justifyContent: 'center', alignItems: 'center' }}
+                        />
+                      </TouchableOpacity>
+                      <ArrowDown width={20} height={20} />
+                      <View style={{ flex: 1 }}>
+                        <PhoneInput
+                          ref={item.ref}
+                          textProps={{ placeholder: 'Enter phone number', placeholderTextColor: '#A1A1AA', keyboardType: 'phone-pad', editable: !isLoading, selectTextOnFocus: !isLoading, style: { fontFamily: 'Poppins', fontSize: 16, color: '#1F2937', paddingVertical: 0, paddingHorizontal: 0, borderBottomWidth: 0, backgroundColor: 'transparent', minHeight: 40, } }}
+                          initialCountry={item.country as any}
+                          onChangePhoneNumber={text => handlePhoneChange(idx, text)}
+                          style={{ fontFamily: 'Poppins', fontSize: 16, color: '#1F2937', paddingVertical: 0, paddingHorizontal: 0, borderBottomWidth: 0, backgroundColor: 'transparent', minHeight: 40, }}
+                          textStyle={{ fontFamily: 'Poppins', fontSize: 16, color: '#1F2937' }}
+                          autoFormat={true}
+                          disabled={isLoading}
+                          flagStyle={{ display: 'none' }}
+                        />
+                      </View>
                       {phoneNumbers.length > 1 && (
-                        <TouchableOpacity onPress={() => removePhoneField(idx)} style={{ position: 'absolute', right: -10, top: -20 }}>
+                        <TouchableOpacity onPress={() => removePhoneField(idx)} style={{ marginLeft: 8 }}>
                           <Text style={{ color: '#FF6B6B', fontSize: 22 }}>x</Text>
                         </TouchableOpacity>
                       )}
                     </View>
+                    {/* <Text style={{ color: 'red' }}>{phoneInputRef.current?.isValidNumber() ? "" : "Please enter a valid number"}</Text> */}
                   </View>
                 ))}
                 <TouchableOpacity onPress={addPhoneField} style={{ alignSelf: 'flex-end', marginBottom: 10, justifyContent: 'center', flexDirection: 'row' }}>
@@ -1390,7 +1436,7 @@ const createStyles = (theme: {
       justifyContent: 'center',
     },
     logoText: {
-       color: '#FFFFFF',
+      color: '#FFFFFF',
       fontSize: 30,
       fontWeight: '600',
       letterSpacing: 1,
@@ -1403,7 +1449,7 @@ const createStyles = (theme: {
       paddingVertical: 20,
     },
     cardTitle: {
-   fontSize: 21,
+      fontSize: 21,
       fontWeight: '600',
       color: '#101828',
       textAlign: 'center',
@@ -1411,7 +1457,7 @@ const createStyles = (theme: {
       fontFamily: 'Poppins',
     },
     cardSubtitle: {
-       fontSize: 13,
+      fontSize: 13,
       fontWeight: '400',
       color: '#475467',
       textAlign: 'center',
@@ -1683,7 +1729,7 @@ const createStyles = (theme: {
     signUpButton: {
       backgroundColor: '#0088E7',
       borderRadius: 12,
-      paddingVertical: 16,
+      paddingVertical: 8,
       alignItems: 'center',
       marginBottom: 20,
       shadowColor: '#0088E7',
