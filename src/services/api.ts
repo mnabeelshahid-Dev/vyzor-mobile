@@ -28,7 +28,7 @@ class ApiService {
 
   private async makeRequest<T = unknown>(
     endpoint: string,
-    config: RequestConfig
+    config: RequestConfig,
   ): Promise<ApiResponse<T>> {
     try {
       let token: string | null = null;
@@ -68,7 +68,7 @@ class ApiService {
       const controller = new AbortController();
       const timeoutId = setTimeout(
         () => controller.abort(),
-        API_CONFIG.TIMEOUT
+        API_CONFIG.TIMEOUT,
       );
 
       requestConfig.signal = controller.signal;
@@ -126,27 +126,117 @@ class ApiService {
 
   async post<T = unknown>(
     endpoint: string,
-    data?: unknown
+    data?: unknown,
   ): Promise<ApiResponse<T>> {
     return this.makeRequest<T>(endpoint, { method: 'POST', body: data });
   }
 
   async put<T = unknown>(
     endpoint: string,
-    data?: unknown
+    data?: unknown,
   ): Promise<ApiResponse<T>> {
     return this.makeRequest<T>(endpoint, { method: 'PUT', body: data });
   }
 
   async patch<T = unknown>(
     endpoint: string,
-    data?: unknown
+    data?: unknown,
   ): Promise<ApiResponse<T>> {
     return this.makeRequest<T>(endpoint, { method: 'PATCH', body: data });
   }
 
   async delete<T = unknown>(endpoint: string): Promise<ApiResponse<T>> {
     return this.makeRequest<T>(endpoint, { method: 'DELETE' });
+  }
+
+  async postFormData<T = unknown>(
+    endpoint: string,
+    formData: FormData,
+  ): Promise<ApiResponse<T>> {
+    try {
+      let token: string | null = null;
+      try {
+        token = await storage.getSecureString(AUTH_CONFIG.ACCESS_TOKEN_KEY);
+      } catch (storageError) {
+        if (FEATURE_FLAGS.DEBUG_API_LOGS) {
+          DebugConsole.warn('Failed to retrieve auth token', storageError);
+        }
+      }
+
+      const headers: Record<string, string> = {
+        // Don't set Content-Type for FormData - let the browser set it with boundary
+      };
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const requestConfig: RequestInit = {
+        method: 'POST',
+        headers,
+        body: formData,
+      };
+
+      if (FEATURE_FLAGS.DEBUG_API_LOGS) {
+        DebugConsole.api('POST', `${this.baseURL}${endpoint}`, {
+          headers,
+          body: 'FormData (cannot display)',
+        });
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        API_CONFIG.TIMEOUT,
+      );
+
+      requestConfig.signal = controller.signal;
+      const response = await fetch(`${this.baseURL}${endpoint}`, requestConfig);
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorBody = await response.text();
+          if (errorBody) {
+            errorMessage += ` - ${errorBody}`;
+          }
+        } catch {
+          // Ignore parsing errors, use default message
+        }
+        throw new Error(errorMessage);
+      }
+
+      let data: T | string;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
+      }
+
+      if (FEATURE_FLAGS.DEBUG_API_LOGS) {
+        DebugConsole.success(`API Response ${response.status}`, {
+          url: `${this.baseURL}${endpoint}`,
+          data,
+        });
+      }
+
+      return {
+        success: true,
+        data: data as T,
+      };
+    } catch (error) {
+      if (FEATURE_FLAGS.DEBUG_API_LOGS) {
+        DebugConsole.error('ApiService', 'FormData Upload Failed', error);
+      }
+
+      return {
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
   }
 }
 
