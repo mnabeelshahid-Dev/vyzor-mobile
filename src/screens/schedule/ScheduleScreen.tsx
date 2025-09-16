@@ -14,8 +14,6 @@ import {
 import CalendarIcon from '../../assets/svgs/calendar.svg';
 import LeftArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
-import { Picker } from '@react-native-picker/picker';
-import DatePicker from 'react-native-date-picker';
 
 interface TaskSchedulingModel {
   compositeId: string;
@@ -256,19 +254,6 @@ export default function CalendarAgendaScreen({ navigation }) {
   const weekDays = getWeekDays(selectedDate);
   const [calendarVisible, setCalendarVisible] = useState(false);
 
-  const [dropdownVisible, setDropdownVisible] = useState(false);
-  const [addTaskModalVisible, setAddTaskModalVisible] = useState(false);
-  const [taskForm, setTaskForm] = useState({
-    branch: '',
-    user: '',
-    form: '',
-    startDate: new Date(),
-    endDate: new Date(),
-  });
-
-  const [startDatePickerOpen, setStartDatePickerOpen] = useState(false);
-  const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
-
   // Add React Query for fetching tasks
   const { startDate: apiStartDate, endDate: apiEndDate } =
     formatDateForAPI(selectedDate);
@@ -332,28 +317,6 @@ export default function CalendarAgendaScreen({ navigation }) {
     });
   };
 
-  const resetTaskForm = () => {
-    setTaskForm({
-      branch: '',
-      user: '',
-      form: '',
-      startDate: new Date(),
-      endDate: new Date(),
-    });
-  };
-
-  const isFormValid = () => {
-    return taskForm.branch && taskForm.user && taskForm.form;
-  };
-
-  const handleSubmitTask = () => {
-    if (isFormValid()) {
-      setAddTaskModalVisible(false);
-      resetTaskForm();
-      // Add your submission logic here later
-    }
-  };
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BLUE }}>
       {/* Header */}
@@ -375,7 +338,7 @@ export default function CalendarAgendaScreen({ navigation }) {
             {formattedDate()}
           </Text>
         </Pressable>
-        <TouchableOpacity onPress={() => setDropdownVisible(true)}>
+        <TouchableOpacity>
           <ThreeDotIcon width={20} height={20} />
         </TouchableOpacity>
       </View>
@@ -591,167 +554,6 @@ export default function CalendarAgendaScreen({ navigation }) {
           )}
         </ScrollView>
       </View>
-
-      {/* Dropdown Modal */}
-      <Modal
-        visible={dropdownVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDropdownVisible(false)}
-      >
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={() => setDropdownVisible(false)}
-        >
-          <View style={styles.dropdownMenu}>
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => {
-                setDropdownVisible(false);
-                setAddTaskModalVisible(true);
-              }}
-            >
-              <Text style={styles.dropdownText}>Add Task</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
-
-      {/* Add Task Modal */}
-      <Modal
-        visible={addTaskModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAddTaskModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.addTaskModalBox}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Task</Text>
-              <TouchableOpacity
-                onPress={() => setAddTaskModalVisible(false)}
-                hitSlop={8}
-              >
-                <Text style={styles.closeBtn}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.inputLabel}>Branch</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={taskForm.branch}
-                style={styles.picker}
-                onValueChange={itemValue =>
-                  setTaskForm({ ...taskForm, branch: itemValue })
-                }
-              >
-                <Picker.Item label="Select Branch" value="" />
-                <Picker.Item label="Branch 1" value="branch1" />
-                <Picker.Item label="Branch 2" value="branch2" />
-                <Picker.Item label="Branch 3" value="branch3" />
-              </Picker>
-            </View>
-
-            <Text style={styles.inputLabel}>User</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={taskForm.user}
-                style={styles.picker}
-                onValueChange={itemValue =>
-                  setTaskForm({ ...taskForm, user: itemValue })
-                }
-              >
-                <Picker.Item label="Select User" value="" />
-                <Picker.Item label="User 1" value="user1" />
-                <Picker.Item label="User 2" value="user2" />
-                <Picker.Item label="User 3" value="user3" />
-              </Picker>
-            </View>
-
-            <Text style={styles.inputLabel}>Form</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={taskForm.form}
-                style={styles.picker}
-                onValueChange={itemValue =>
-                  setTaskForm({ ...taskForm, form: itemValue })
-                }
-              >
-                <Picker.Item label="Select Form" value="" />
-                <Picker.Item label="Form 1" value="form1" />
-                <Picker.Item label="Form 2" value="form2" />
-                <Picker.Item label="Form 3" value="form3" />
-              </Picker>
-            </View>
-
-            <Text style={styles.inputLabel}>Start Date</Text>
-            <TouchableOpacity
-              style={styles.dateInput}
-              onPress={() => setStartDatePickerOpen(true)}
-            >
-              <Text style={styles.dateText}>
-                {taskForm.startDate.toDateString()}
-              </Text>
-            </TouchableOpacity>
-
-            <Text style={styles.inputLabel}>End Date</Text>
-            <TouchableOpacity
-              style={styles.dateInput}
-              onPress={() => setEndDatePickerOpen(true)}
-            >
-              <Text style={styles.dateText}>
-                {taskForm.endDate.toDateString()}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.modalBtnRow}>
-              <TouchableOpacity
-                style={styles.modalBtnClear}
-                onPress={resetTaskForm}
-              >
-                <Text style={styles.modalBtnClearText}>Reset</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalBtnSave,
-                  !isFormValid() && styles.modalBtnDisabled,
-                ]}
-                onPress={handleSubmitTask}
-                disabled={!isFormValid()}
-              >
-                <Text style={styles.modalBtnSaveText}>Submit</Text>
-              </TouchableOpacity>
-            </View>
-            <DatePicker
-              modal
-              open={startDatePickerOpen}
-              date={taskForm.startDate}
-              mode="date"
-              onConfirm={date => {
-                setStartDatePickerOpen(false);
-                setTaskForm({ ...taskForm, startDate: date });
-              }}
-              onCancel={() => {
-                setStartDatePickerOpen(false);
-              }}
-            />
-
-            <DatePicker
-              modal
-              open={endDatePickerOpen}
-              date={taskForm.endDate}
-              mode="date"
-              onConfirm={date => {
-                setEndDatePickerOpen(false);
-                setTaskForm({ ...taskForm, endDate: date });
-              }}
-              onCancel={() => {
-                setEndDatePickerOpen(false);
-              }}
-            />
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -950,121 +752,5 @@ const styles = StyleSheet.create({
     minHeight: 340,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 75,
-    right: 22,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    paddingVertical: 4,
-    width: 120,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  dropdownText: {
-    fontSize: 14,
-    color: DARK_BLUE,
-    fontWeight: '500',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addTaskModalBox: {
-    width: '90%',
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 20,
-    maxHeight: '85%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontWeight: 'bold',
-    fontSize: 18,
-    color: DARK_BLUE,
-    flex: 1,
-  },
-  closeBtn: {
-    fontSize: 20,
-    color: GRAY,
-    fontWeight: 'bold',
-  },
-  inputLabel: {
-    color: GRAY,
-    fontWeight: '600',
-    fontSize: 14,
-    marginBottom: 8,
-    marginTop: 10,
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    backgroundColor: BG_GRAY,
-  },
-  picker: {
-    height: 50,
-    width: '100%',
-  },
-  dateInput: {
-    backgroundColor: BG_GRAY,
-    borderRadius: 8,
-    height: 50,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  dateText: {
-    fontSize: 16,
-    color: DARK_BLUE,
-  },
-  modalBtnRow: {
-    flexDirection: 'row',
-    marginTop: 20,
-  },
-  modalBtnClear: {
-    flex: 1,
-    backgroundColor: '#E6F1FB',
-    borderRadius: 10,
-    paddingVertical: 13,
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  modalBtnSave: {
-    flex: 1,
-    backgroundColor: BLUE,
-    borderRadius: 10,
-    paddingVertical: 13,
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  modalBtnDisabled: {
-    backgroundColor: GRAY,
-    opacity: 0.5,
-  },
-  modalBtnClearText: {
-    color: BLUE,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  modalBtnSaveText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
   },
 });
