@@ -65,6 +65,7 @@ import TimeZoneIcon from '../../assets/svgs/timezone.svg';
 import LanguageIcon from '../../assets/svgs/language.svg';
 import PhoneIcon from '../../assets/svgs/phone.svg';
 import EditIcon from '../../assets/svgs/edit.svg';
+import UserProfile from '../../assets/svgs/user-profile.svg';
 // EyeSlash icon is used inside tab components now
 import LogoutIcon from '../../assets/svgs/logout.svg';
 import SettingsIcon from '../../assets/svgs/settings.svg';
@@ -1046,6 +1047,10 @@ const ProfileScreen = ({ navigation }) => {
                   disabled={uploadProfilePictureMutation.isPending}
                 >
                   <Image source={{ uri: profileImage }} style={styles.avatar} />
+                  {/* Edit Icon */}
+                  <View style={styles.editIconContainer}>
+                    <EditIcon width={16} height={16} style={styles.editIcon} />
+                  </View>
                   {uploadProfilePictureMutation.isPending && (
                     <View
                       style={{
