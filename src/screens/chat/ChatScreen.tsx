@@ -108,6 +108,7 @@ export default function ChatScreen({ navigation }) {
   const scrollViewRef = useRef<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRealTimeActive, setIsRealTimeActive] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<AvailableUser[]>([]);
 
   // Fetch conversations using React Query
   const {
@@ -124,6 +125,19 @@ export default function ChatScreen({ navigation }) {
       return response.data as ApiResponse;
     },
   });
+
+  const removeSelectedUser = (userValue: string) => {
+    setSelectedUsers(prev => prev.filter(user => user.value !== userValue));
+    setGroupParticipants(prev =>
+      prev.filter(participant => participant !== userValue),
+    );
+  };
+
+  const getSelectedUsersDisplayText = () => {
+    if (selectedUsers.length === 0) return '';
+    if (selectedUsers.length === 1) return selectedUsers[0].text;
+    return `${selectedUsers[0].text} + ${selectedUsers.length - 1}`;
+  };
 
   // Fetch current user using React Query
   const {
@@ -496,9 +510,19 @@ export default function ChatScreen({ navigation }) {
         return;
       }
 
+      // Create participants array including current user
       const participants = groupParticipants.map(participantValue => ({
         webId: parseInt(participantValue),
       }));
+
+      // Add current user to participants if not already included
+      const currentUserAlreadyIncluded = participants.some(
+        participant => participant.webId === currentUserClientId,
+      );
+
+      if (!currentUserAlreadyIncluded) {
+        participants.push({ webId: currentUserClientId });
+      }
 
       const updatePayload = {
         title: groupName,
@@ -508,6 +532,9 @@ export default function ChatScreen({ navigation }) {
       };
 
       await createConversationMutation.mutateAsync(updatePayload);
+      setGroupModal(false);
+      setGroupName('');
+      setGroupParticipants([]);
     } catch (error) {
       console.error('Error in handleAddConversation:', error);
     }
@@ -567,6 +594,7 @@ export default function ChatScreen({ navigation }) {
               <Text style={styles.closeBtn}>✕</Text>
             </TouchableOpacity>
           </View>
+          <Text style={styles.inputLabel}>Name</Text>
           <TextInput
             style={styles.input}
             placeholder="Name"
@@ -581,14 +609,23 @@ export default function ChatScreen({ navigation }) {
               style={styles.picker}
               onValueChange={itemValue => {
                 if (itemValue) {
-                  if (groupParticipants.includes(itemValue)) {
-                    // Remove if already selected
-                    setGroupParticipants(prev =>
-                      prev.filter(participant => participant !== itemValue),
-                    );
-                  } else {
-                    // Add if not selected
-                    setGroupParticipants(prev => [...prev, itemValue]);
+                  const selectedUser = availableUsers.find(
+                    user => user.value === itemValue,
+                  );
+                  if (selectedUser) {
+                    if (groupParticipants.includes(itemValue)) {
+                      // Remove if already selected
+                      setGroupParticipants(prev =>
+                        prev.filter(participant => participant !== itemValue),
+                      );
+                      setSelectedUsers(prev =>
+                        prev.filter(user => user.value !== itemValue),
+                      );
+                    } else {
+                      // Add if not selected
+                      setGroupParticipants(prev => [...prev, itemValue]);
+                      setSelectedUsers(prev => [...prev, selectedUser]);
+                    }
                   }
                 }
               }}
@@ -616,6 +653,31 @@ export default function ChatScreen({ navigation }) {
                 ))
               )}
             </Picker>
+            {selectedUsers.length > 0 && (
+              <View style={styles.selectedUsersContainer}>
+                <Text style={styles.selectedUsersLabel}>Selected:</Text>
+                <Text style={styles.selectedUsersDisplay}>
+                  {getSelectedUsersDisplayText()}
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.chipsContainer}
+                >
+                  {selectedUsers.map(user => (
+                    <View key={user.value} style={styles.userChip}>
+                      <Text style={styles.chipText}>{user.text}</Text>
+                      <TouchableOpacity
+                        onPress={() => removeSelectedUser(user.value)}
+                        style={styles.chipRemove}
+                      >
+                        <Text style={styles.chipRemoveText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
 
           <View style={styles.modalBtnRow}>
@@ -624,6 +686,7 @@ export default function ChatScreen({ navigation }) {
               onPress={() => {
                 setGroupName('');
                 setGroupParticipants([]);
+                setSelectedUsers([]);
               }}
             >
               <Text style={styles.modalBtnClearText}>Clear</Text>
@@ -642,10 +705,6 @@ export default function ChatScreen({ navigation }) {
                 }
 
                 await handleAddConversation();
-
-                setGroupModal(false);
-                setGroupName('');
-                setGroupParticipants([]);
               }}
             >
               <Text style={styles.modalBtnSaveText}>
@@ -843,7 +902,13 @@ export default function ChatScreen({ navigation }) {
       {/* Floating Group Button */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setGroupModal(true)}
+        onPress={() => {
+          // Clear any previous form data when opening modal
+          setGroupName('');
+          setGroupParticipants([]);
+          setSelectedUsers([]);
+          setGroupModal(true);
+        }}
         activeOpacity={0.8}
       >
         <MessegeIcon width={28} height={28} fill="#fff" />
@@ -1030,7 +1095,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 18,
     padding: 20,
-    maxHeight: '78%',
+    maxHeight: '95%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1291,6 +1356,52 @@ const styles = StyleSheet.create({
   removeParticipantBtnText: {
     color: '#fff',
     fontSize: 12,
+    fontWeight: 'bold',
+  },
+  selectedUsersContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  selectedUsersLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1292E6',
+    marginBottom: 8,
+  },
+  selectedUsersDisplay: {
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  chipsContainer: {
+    flexDirection: 'row',
+  },
+  userChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1292E6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  chipText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  chipRemove: {
+    marginLeft: 8,
+    padding: 2,
+  },
+  chipRemoveText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });
