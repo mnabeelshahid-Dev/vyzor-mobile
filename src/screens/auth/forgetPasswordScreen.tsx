@@ -428,7 +428,7 @@ const createStyles = (theme: {
       backgroundColor: '#0088E7',
       borderRadius: 12,
       alignItems: 'center',
-      paddingVertical: 8,
+      paddingVertical: 10,
       marginBottom: 30,
       marginTop: 20,
       shadowColor: '#0088E7',

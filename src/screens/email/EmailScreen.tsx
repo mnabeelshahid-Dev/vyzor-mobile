@@ -19,6 +19,9 @@ import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import FilterIcon from '../../assets/svgs/filterIcon.svg';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
+import LogoutIcon from '../../assets/svgs/logout.svg';
+import SettingsIcon from '../../assets/svgs/settings.svg';
+import { useLogout } from '../../hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { apiService } from '../../services/api';
@@ -80,6 +83,19 @@ export default function EmailNotificationsScreen({ navigation }) {
   });
   const [dropdown, setDropdown] = useState({ field: null, visible: false });
   const [datePicker, setDatePicker] = useState({ field: null, show: false });
+
+    const [showDropdown, setShowDropdown] = useState(false);
+
+  const logoutMutation = useLogout({
+    onSuccess: () => {
+      navigation.navigate('Auth', { screen: 'Login' });
+    },
+  });
+
+  const handleLogout = async () => {
+    await logoutMutation.mutateAsync();
+    setShowDropdown(false);
+  };
 
   const { width } = useWindowDimensions();
   const isSmall = width < 350;
@@ -289,7 +305,7 @@ export default function EmailNotificationsScreen({ navigation }) {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Email Notifications</Text>
           <TouchableOpacity>
-            <ThreeDotIcon width={20} height={20} />
+            <ThreeDotIcon width={20} height={20} onPress={() => setShowDropdown(true)} />
           </TouchableOpacity>
         </View>
       </View>
@@ -437,6 +453,50 @@ export default function EmailNotificationsScreen({ navigation }) {
             </ScrollView>
           </Pressable>
         </Pressable>
+      </Modal>
+
+         {/* Dropdown Modal */}
+      <Modal
+        visible={showDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownOverlayIcon}
+          activeOpacity={1}
+          onPress={() => setShowDropdown(false)}
+        >
+          <View style={styles.dropdownMenuIcon}>
+            <TouchableOpacity
+              style={styles.dropdownItemIcon}
+              onPress={() => {
+                setShowDropdown(false);
+                // Add navigation to settings here
+                navigation.navigate('Profile');
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <SettingsIcon
+                  width={18}
+                  height={18}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.dropdownTextIcon}>Settings</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dropdownItemIcon}
+              onPress={handleLogout}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
+                <Text style={styles.dropdownTextIcon}>Logout</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -691,5 +751,33 @@ const styles = StyleSheet.create({
   navIcon: {
     fontSize: 27,
     color: '#7A8194',
+  },
+    dropdownOverlayIcon: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+  },
+    dropdownMenuIcon: {
+    marginTop: Platform.OS === 'ios' ? 90 : 85,
+    marginRight: 24,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 8,
+    width: 140,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    // elevation: 8,
+  },
+  dropdownItemIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  dropdownTextIcon: {
+    fontSize: 16,
+    color: '#1A1A1A',
   },
 });

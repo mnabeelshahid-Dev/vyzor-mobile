@@ -350,4 +350,30 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
   },
+    dropdownOverlay: {
+    flex: 1,
+    // backgroundColor: 'rgba(0,0,0,0.18)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+  },
+  dropdownMenu: {
+    marginTop: Platform.OS === 'ios' ? 90 : 52,
+    marginRight: 20,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 8,
+    width: 150,
+    // shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#222',
+  },
 });

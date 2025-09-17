@@ -23,6 +23,9 @@ import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import MessegeIcon from '../../assets/svgs/chatMessageIcon.svg';
 import { realtimeService } from '../../services/realtimeService';
 import { Picker } from '@react-native-picker/picker';
+import LogoutIcon from '../../assets/svgs/logout.svg';
+import SettingsIcon from '../../assets/svgs/settings.svg';
+import { useLogout } from '../../hooks/useAuth';
 
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
@@ -109,6 +112,18 @@ export default function ChatScreen({ navigation }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRealTimeActive, setIsRealTimeActive] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<AvailableUser[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const logoutMutation = useLogout({
+    onSuccess: () => {
+      navigation.navigate('Auth', { screen: 'Login' });
+    },
+  });
+
+  const handleLogout = async () => {
+    await logoutMutation.mutateAsync();
+    setShowDropdown(false);
+  };
 
   // Fetch conversations using React Query
   const {
@@ -852,7 +867,11 @@ export default function ChatScreen({ navigation }) {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Chat</Text>
           <TouchableOpacity>
-            <ThreeDotIcon width={20} height={20} />
+            <ThreeDotIcon
+              width={20}
+              height={20}
+              onPress={() => setShowDropdown(true)}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -899,6 +918,7 @@ export default function ChatScreen({ navigation }) {
           />
         )}
       </View>
+
       {/* Floating Group Button */}
       <TouchableOpacity
         style={styles.fab}
@@ -914,6 +934,50 @@ export default function ChatScreen({ navigation }) {
         <MessegeIcon width={28} height={28} fill="#fff" />
       </TouchableOpacity>
       {renderGroupModal}
+
+      {/* Dropdown Modal */}
+      <Modal
+        visible={showDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDropdown(false)}
+        >
+          <View style={styles.dropdownMenu}>
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={() => {
+                setShowDropdown(false);
+                // Add navigation to settings here
+                navigation.navigate('Profile');
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <SettingsIcon
+                  width={18}
+                  height={18}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.dropdownText}>Settings</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={handleLogout}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
+                <Text style={styles.dropdownText}>Logout</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
