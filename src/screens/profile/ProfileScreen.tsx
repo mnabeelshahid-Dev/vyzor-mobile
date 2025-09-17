@@ -161,16 +161,14 @@ const ProfileScreen = ({ navigation }) => {
   const [phoneErrors, setPhoneErrors] = useState<string[]>([]);
 
   // Update the profileImage state initialization
-  const [profileImage, setProfileImage] = useState(
-    'https://avatar.iran.liara.run/public/41',
-  );
+  const [profileImage, setProfileImage] = useState(null);
 
   // Add useEffect to update profile image when profileData changes
   React.useEffect(() => {
     if (fileData?.fileUrl) {
       setProfileImage(fileData.fileUrl);
-    } else if (profileData && !profileData.fileId) {
-      setProfileImage('https://avatar.iran.liara.run/public/41');
+    } else {
+      setProfileImage(null);
     }
   }, [fileData, profileData?.fileId]);
 
@@ -453,14 +451,11 @@ const ProfileScreen = ({ navigation }) => {
         `/api/dms/file/${profileData.fileId}`,
       );
 
-      // if (response.success) {
-      setProfileImage('https://avatar.iran.liara.run/public/41');
+      // Set to null instead of the default avatar URL
+      setProfileImage(null);
       queryClient.invalidateQueries({ queryKey: ['currentUser'] });
       setSuccessMessage('Profile picture removed successfully!');
       setShowSuccessModal(true);
-      // } else {
-      //   throw new Error(response.message || 'Error removing profile picture');
-      // }
     } catch (error) {
       console.error('Error removing profile picture:', error);
       setErrorMessage('Failed to remove profile picture. Please try again.');
@@ -1046,7 +1041,18 @@ const ProfileScreen = ({ navigation }) => {
                   onPress={() => setShowImageOptions(true)}
                   disabled={uploadProfilePictureMutation.isPending}
                 >
-                  <Image source={{ uri: profileImage }} style={styles.avatar} />
+                  {profileImage ? (
+                    <Image
+                      source={{ uri: profileImage }}
+                      style={styles.avatar}
+                    />
+                  ) : (
+                    <UserProfile
+                      width={100}
+                      height={100}
+                      style={styles.avatar}
+                    />
+                  )}
                   {/* Edit Icon */}
                   <View style={styles.editIconContainer}>
                     <EditIcon width={16} height={16} style={styles.editIcon} />
