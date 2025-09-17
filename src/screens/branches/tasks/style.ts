@@ -116,6 +116,8 @@ export const styles = StyleSheet.create({
     elevation: 8,
   },
   dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
