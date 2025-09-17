@@ -128,14 +128,24 @@ export default function TaskScreen({ navigation }) {
     function formatDateFull(date) {
       return date.toISOString().split('.')[0] + 'Z';
     }
-    const updatedDate = filterDate
-      ? formatDateFull(new Date(filterDate))
-      : formatDateFull(today);
+    let startDate = formatDateFull(today);
+    let endDate;
 
-
+    if (filterDate) {
+      // If user selects a date, endDate is that date (with time 23:59:59)
+      const selected = new Date(filterDate);
+      selected.setHours(23, 59, 59, 999);
+      endDate = formatDateFull(selected);
+    } else {
+      // If not selected, endDate is next week
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 7);
+      endDate = formatDateFull(nextWeek);
+    }
 
     return {
-      updatedDate: updatedDate,
+      startDate,
+      endDate,
       siteIds: branchId ? [branchId] : [],
       userIds: [],
       scheduleStatus: filterStatus,
@@ -291,10 +301,10 @@ export default function TaskScreen({ navigation }) {
       if (s === 'completed') return 'Completed';
       return status;
     };
-    const normalizedStatus = normalizeStatus(item.siteStatus);
+    const normalizedStatus = normalizeStatus(item.scheduleType)
     const statusColor = STATUS_COLORS[normalizedStatus] || '#0088E7';
     const statusBg = STATUS_BG_COLORS[normalizedStatus] || '#E6F1FB';
-    const statusText = item.normalizedStatus || item.siteStatus;
+    const statusText = item.normalizedStatus || item.scheduleType;
     function formatTaskDateRange(startDate: any, endDate: any) {
       if (!startDate && !endDate) return 'No date';
       const format = (date: any) => {
@@ -341,7 +351,7 @@ export default function TaskScreen({ navigation }) {
         <View style={{ backgroundColor: '#F7F9FC', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0' }}>
           <View style={{ flexDirection: 'row', padding: 12, marginBottom: 16, }}>
             {/* Reassign */}
-            <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => openModal('user', branchId)}>
+            <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => openModal('user')}>
               <UserIcon width={14} height={14} color={'#1292E6'} />
               <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Reassign</Text>
             </TouchableOpacity>

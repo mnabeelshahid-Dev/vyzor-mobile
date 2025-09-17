@@ -297,10 +297,10 @@ const createStyles = (theme: {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    logoText: {
+   logoText: {
       color: '#FFFFFF',
-      fontSize: 32,
-      fontWeight: '900',
+      fontSize: 30,
+      fontWeight: '600',
       letterSpacing: 1,
       fontFamily: 'Poppins',
     },
@@ -314,16 +314,15 @@ const createStyles = (theme: {
       minHeight: 400,
     },
     cardTitle: {
-      fontSize: 24,
-      fontWeight: '900',
+      fontSize: 21,
+      fontWeight: '600',
       color: '#101828',
       textAlign: 'center',
-      marginBottom: 5,
       fontFamily: 'Poppins',
     },
     cardSubtitle: {
-      fontSize: 16,
-      fontWeight: '600',
+      fontSize: 13,
+      fontWeight: '400',
       color: '#475467',
       textAlign: 'center',
       marginBottom: 30,
@@ -343,7 +342,7 @@ const createStyles = (theme: {
     floatingLabelContainer: {
       position: 'absolute',
       left: 0,
-      top: 18,
+      top: 20,
       flexDirection: 'row',
       alignItems: 'center',
       zIndex: 1,
@@ -351,7 +350,7 @@ const createStyles = (theme: {
       paddingHorizontal: 2,
     },
     floatingLabelContainerActive: {
-      top: -10,
+      top: -2,
       backgroundColor: '#FFFFFF',
       paddingHorizontal: 4,
       marginLeft: -2,
@@ -383,11 +382,10 @@ const createStyles = (theme: {
     floatingInput: {
       fontSize: 16,
       color: '#1F2937',
-      paddingVertical: 18,
       paddingHorizontal: 0,
       backgroundColor: 'transparent',
       width: '100%',
-      paddingTop: 20,
+      paddingTop: 15,
       fontFamily: 'Poppins',
     },
     floatingInputFocused: {
@@ -429,8 +427,8 @@ const createStyles = (theme: {
     resetButton: {
       backgroundColor: '#0088E7',
       borderRadius: 12,
-      paddingVertical: 16,
       alignItems: 'center',
+      paddingVertical: 8,
       marginBottom: 30,
       marginTop: 20,
       shadowColor: '#0088E7',

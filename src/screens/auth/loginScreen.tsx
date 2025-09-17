@@ -66,10 +66,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
    * Enhanced email validation
    */
   const isValidEmail = (email: string): boolean => {
-    // More comprehensive email regex
+    // Enhanced email validation: stricter regex, checks for consecutive dots, valid TLD, and no leading/trailing dot
     const emailRegex =
-      /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-    return emailRegex.test(email);
+      /^[a-zA-Z0-9](?!.*\.\.)[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]{0,63}@[a-zA-Z0-9-]{1,63}(\.[a-zA-Z0-9-]{1,63})*\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) return false;
+    if (email.includes('..')) return false;
+    if (email.startsWith('.') || email.endsWith('.')) return false;
+    if (email.length > 254) return false;
+    return true;
   };
 
   /**
@@ -125,22 +129,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       // Show modal only if login fails
       setErrorModalVisible(true);
       console.log('Login error:', error);
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    try {
-      await emailSchema.validate(email);
-      setEmailError(''); // Clear error if validation passes
-    } catch (error: any) {
-      setEmailError(error.message);
-      return;
-    }
-
-    try {
-      await forgotPasswordMutation.mutateAsync({ email: email.trim() });
-    } catch (error) {
-      console.error('Forgot password error:', error);
     }
   };
 
@@ -616,11 +604,11 @@ const createStyles = (theme: {
     floatingInput: {
       fontSize: 14,
       color: '#1F2937',
-      paddingVertical: 4,
+      // paddingVertical: 4,
       paddingHorizontal: 0,
       backgroundColor: 'transparent',
       width: '100%',
-      paddingTop: 20,
+      paddingTop: 15,
       fontFamily: 'Poppins',
     },
     floatingInputFocused: {

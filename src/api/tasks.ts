@@ -27,6 +27,8 @@ export async function fetchNotes() {
 }
 
 export interface TaskParams {
+  startDate?: string;
+  endDate?: string;
   updatedDate?: string;
   siteIds?: (string | number)[];
   userIds?: (string | number)[];
@@ -42,6 +44,8 @@ export async function fetchTasks(params: TaskParams) {
   // Build query string
   const query: string[] = [];
   if (params.updatedDate) query.push(`updatedDate=${encodeURIComponent(params.updatedDate)}`);
+  if (params.startDate) query.push(`startDate=${encodeURIComponent(params.startDate)}`);
+  if (params.endDate) query.push(`endDate=${encodeURIComponent(params.endDate)}`);
   if (params.siteIds && params.siteIds.length) query.push(`siteIds=${params.siteIds.join(',')}`);
   if (params.userIds && params.userIds.length) query.push(`userIds=${params.userIds.join(',')}`);
   if (params.scheduleStatus) query.push(`scheduleStatus=${params.scheduleStatus}`);
@@ -51,7 +55,7 @@ export async function fetchTasks(params: TaskParams) {
   if (params.page !== undefined) query.push(`page=${params.page}`);
   if (params.size !== undefined) query.push(`size=${params.size}`);
   const qs = query.length ? `?${query.join('&')}` : '';
-  const url = `/api/document/scheduling/sqlite/documents/${qs}`;
+  const url = `/api/document/schedule${qs}`;
   console.log(`🌐 [API] GET https://vyzor.app${url}`);
   console.debug('debug.ts:94 Request:', { headers: apiService, body: undefined });
   const response = await apiService.get(url);

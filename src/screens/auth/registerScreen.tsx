@@ -66,7 +66,17 @@ interface IFormData {
  * RegisterScreen component for user registration
  */
 const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
-  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
+  // Country list for phone input and picker
+  const countries = [
+    { code: 'US', name: 'United States', dialCode: '+1' },
+    { code: 'CA', name: 'Canada', dialCode: '+1' },
+    { code: 'UK', name: 'United Kingdom', dialCode: '+44' },
+    { code: 'PAK', name: 'Pakistan', dialCode: '+92' },
+    { code: 'IND', name: 'India', dialCode: '+91' },
+    // ...add more countries as needed
+  ];
+  // Track which phone field's country picker is open (null if none)
+  const [countryPickerVisibleIdx, setCountryPickerVisibleIdx] = useState<number | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<any>(null);
   const [countryCode, setCountryCode] = useState('ng');
   const phoneInputRef = useRef(null);
@@ -74,7 +84,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const onSelectCountry = (country: any) => {
     setCountryCode(country.cca2);
     setSelectedCountry(country);
-    setCountryPickerVisible(false);
+    setCountryPickerVisibleIdx(null);
     setPhoneNumber(country.callingCode.toString());
     if (phoneInputRef.current) {
       phoneInputRef.current.selectCountry(country.cca2.toLowerCase());
@@ -82,7 +92,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   };
 
   const toggleCountryPicker = () => {
-    setCountryPickerVisible(!countryPickerVisible);
+    setCountryPickerVisibleIdx(countryPickerVisibleIdx === null ? 0 : null);
   };
 
   useEffect(() => {
@@ -110,15 +120,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   ]);
   const scrollViewRef = useRef<any>(null);
 
-  // For legacy code compatibility
-  const countries = [
-    { code: 'US', name: 'United States', dialCode: '+1' },
-    { code: 'CA', name: 'Canada', dialCode: '+1' },
-    { code: 'UK', name: 'United Kingdom', dialCode: '+44' },
-    { code: 'PAK', name: 'Pakistan', dialCode: '+92' },
-    { code: 'IND', name: 'India', dialCode: '+91' },
-    // ... (rest unchanged)
-  ];
 
   // Focus states for floating labels
   const [firstnameFocused, setFirstnameFocused] = useState(false);
@@ -130,7 +131,13 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
 
   // Date picker state
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  // Set default date to 16 years ago
+  const getDefaultDOB = () => {
+    const now = new Date();
+    // Set to exactly 16 years ago, same month/day
+    return new Date(now.getFullYear() - 16, now.getMonth(), now.getDate());
+  };
+  const [selectedDate, setSelectedDate] = useState(getDefaultDOB());
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   // Error states for validation
@@ -278,6 +285,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     setPhoneNumbers(prev => {
       const updated = [...prev];
       updated[idx].country = country;
+      // Always update phone field to selected country's dial code
+      const countryObj = countries.find(c => c.code === country);
+      if (countryObj) {
+        updated[idx].value = countryObj.dialCode;
+      }
       return updated;
     });
   };
@@ -442,7 +454,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
       formData.confirmPassword &&
       formData.password !== formData.confirmPassword
     ) {
-      setConfirmPasswordError('Passwords do not match');
+      setConfirmPasswordError('Password fields do not match');
       return false;
     }
     setConfirmPasswordError('');
@@ -470,83 +482,110 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
    * Validates the registration form using Yup schema
    */
   const validateForm = async (): Promise<boolean> => {
-    try {
-      // Use the first phone number field for validation
-      const formattedPhoneNumber = phoneNumbers[0]?.value || '';
+    // Clear all errors first
+    setFirstnameError('');
+    setLastnameError('');
+    setEmailError('');
+    setDateOfBirthError('');
+    setPhoneError('');
+    setPasswordError('');
+    setConfirmPasswordError('');
+    setTermsError('');
 
-      // Validate all fields
-      await registerValidationSchema.validate(
-        {
-          firstname: formData.firstname,
-          lastname: formData.lastname,
-          email: formData.email,
-          dateOfBirth: formData.dateOfBirth,
-          phoneNumber: formattedPhoneNumber,
-          password: formData.password,
-          confirmPassword: formData.confirmPassword,
-          agreeToTerms,
-        },
-        { abortEarly: false }
-      );
-
-      // Clear all errors if validation passes
-      setFirstnameError('');
-      setLastnameError('');
-      setEmailError('');
-      setDateOfBirthError('');
-      setPhoneError('');
-      setPasswordError('');
-      setConfirmPasswordError('');
-      setTermsError('');
-
-      return true;
-    } catch (error: any) {
-      const errors = error.inner;
-
-      // Clear all errors first
-      setFirstnameError('');
-      setLastnameError('');
-      setEmailError('');
-      setDateOfBirthError('');
-      setPhoneError('');
-      setPasswordError('');
-      setConfirmPasswordError('');
-      setTermsError('');
-
-      // Set specific error messages
-      errors.forEach((err: any) => {
-        switch (err.path) {
-          case 'firstname':
-            setFirstnameError(err.message);
-            break;
-          case 'lastname':
-            setLastnameError(err.message);
-            break;
-          case 'email':
-            setEmailError(err.message);
-            break;
-          case 'dateOfBirth':
-            setDateOfBirthError(err.message);
-            break;
-          case 'phoneNumber':
-            setPhoneError(err.message);
-            break;
-          case 'password':
-            setPasswordError(err.message);
-            break;
-          case 'confirmPassword':
-            setConfirmPasswordError(err.message);
-            break;
-          case 'agreeToTerms':
-            setTermsError(err.message);
-            break;
-          default:
-            break;
-        }
-      });
-
-      return false;
+    let valid = true;
+    // Required field checks
+    if (!formData.firstname.trim()) {
+      setFirstnameError('First name is required*');
+      valid = false;
     }
+    if (!formData.lastname.trim()) {
+      setLastnameError('Last name is required*');
+      valid = false;
+    }
+    if (!formData.email.trim()) {
+      setEmailError('Email is required*');
+      valid = false;
+    }
+    if (!formData.dateOfBirth) {
+      setDateOfBirthError('Date of birth is required*');
+      valid = false;
+    }
+    if (!phoneNumbers[0]?.value.trim()) {
+      setPhoneError('Phone number is required*');
+      valid = false;
+    }
+    if (!formData.password.trim()) {
+      setPasswordError('Password is required*');
+      valid = false;
+    }
+    if (!formData.confirmPassword.trim()) {
+      setConfirmPasswordError('Confirm password is required*');
+      valid = false;
+    }
+    if (!agreeToTerms) {
+      setTermsError('You must agree to the terms');
+      valid = false;
+    }
+    if (!valid) return false;
+
+    // First name: only letters and spaces
+    if (!/^[A-Za-z ]+$/.test(formData.firstname.trim())) {
+      setFirstnameError('First name can only contain letters and spaces');
+      valid = false;
+    }
+    // Last name: only letters and spaces
+    if (!/^[A-Za-z ]+$/.test(formData.lastname.trim())) {
+      setLastnameError('Last name can only contain letters and spaces');
+      valid = false;
+    }
+    // Email format
+    if (!isValidEmail(formData.email.trim())) {
+      setEmailError('Please enter a valid email address');
+      valid = false;
+    }
+    // Phone: only digits, min 10
+    if (!/^\d{10,}$/.test(phoneNumbers[0]?.value.trim())) {
+      setPhoneError('Phone number must be at least 10 digits and only numbers');
+      valid = false;
+    }
+    // Date of birth: must be 16 years or older
+    const dob = new Date(formData.dateOfBirth);
+    const today = new Date();
+    const age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    const d = today.getDate() - dob.getDate();
+    let is16 = age > 16 || (age === 16 && (m > 0 || (m === 0 && d >= 0)));
+    if (!is16) {
+      setDateOfBirthError('You must be at least 16 years old');
+      valid = false;
+    }
+    // Password match
+    if (formData.password !== formData.confirmPassword) {
+      setConfirmPasswordError('Passwords do not match');
+      valid = false;
+    }
+    // Password strength (reuse existing logic)
+    if (!checkPasswordRequirements(formData.password).hasMinLength) {
+      setPasswordError('Password must be at least 8 characters long');
+      valid = false;
+    }
+    if (!checkPasswordRequirements(formData.password).hasUpperCase) {
+      setPasswordError('Password must contain at least one uppercase letter');
+      valid = false;
+    }
+    if (!checkPasswordRequirements(formData.password).hasLowerCase) {
+      setPasswordError('Password must contain at least one lowercase letter');
+      valid = false;
+    }
+    if (!checkPasswordRequirements(formData.password).hasNumber) {
+      setPasswordError('Password must contain at least one number');
+      valid = false;
+    }
+    if (!checkPasswordRequirements(formData.password).hasSpecialChar) {
+      setPasswordError('Password must contain at least one special character');
+      valid = false;
+    }
+    return valid;
   };
 
   /**
@@ -708,7 +747,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     const lastname = formData.lastname;
 
     if (!lastname) {
-      setLastnameError('Last name is required');
+      setLastnameError('Last name is required *');
       return false;
     }
 
@@ -878,6 +917,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                         ]}
                       >
                         First Name
+                        <Text style={{ color: '#475467', marginLeft: 4, fontSize: 16, fontWeight: 'bold' }}>*</Text>
                       </Text>
                     </View>
                     <TextInput
@@ -942,6 +982,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                         ]}
                       >
                         Last Name
+                        <Text style={{ color: '#475467', marginLeft: 4, fontSize: 16, fontWeight: 'bold' }}>*</Text>
                       </Text>
                     </View>
                     <TextInput
@@ -981,13 +1022,15 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                   <View style={styles.floatingInputWrapper}>
                     <View
                       style={[
-                        styles.floatingLabelContainer,
-                        (emailFocused || formData.email) &&
-                        styles.floatingLabelContainerActive,
+                        [
+                          styles.floatingLabelContainer,
+                          (emailFocused || formData.email) &&
+                          styles.floatingLabelContainerActive
+                        ]
                       ]}
                     >
                       <EmailIcon
-                        style={styles.floatingIcon}
+                        style={[styles.floatingIcon, { top: 2 }]}
                         height={22}
                         width={22}
                         color={
@@ -1007,6 +1050,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                         ]}
                       >
                         Email
+                        <Text style={{ color: '#475467', marginLeft: 4, fontSize: 16, fontWeight: 'bold' }}>*</Text>
                       </Text>
                     </View>
                     <TextInput
@@ -1057,35 +1101,33 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                       style={[
                         styles.floatingLabelContainer,
                         { left: -5 },
-                        (dateOfBirthFocused || formData.dateOfBirth) &&
+                        (true || dateOfBirthFocused || formData.dateOfBirth) &&
                         [styles.floatingLabelContainerActive],
                       ]}
                     >
                       <CalendarIcon
                         style={styles.floatingIcon}
                         color={
-                          dateOfBirthFocused || formData.dateOfBirth
-                            ? dateOfBirthFocused
-                              ? '#0088E7'
-                              : '#475467'
+                          true || dateOfBirthFocused || formData.dateOfBirth
+                            ? '#0088E7'
                             : '#475467'
                         }
                       />
                       <Text
                         style={[
                           styles.floatingLabel,
-                          (dateOfBirthFocused || formData.dateOfBirth) &&
+                          (true || dateOfBirthFocused || formData.dateOfBirth) &&
                           styles.floatingLabelActive,
-                          dateOfBirthFocused && styles.floatingLabelFocused,
+                          (true || dateOfBirthFocused) && styles.floatingLabelFocused,
                         ]}
                       >
-                        Date of Birth
+                        {'Date of Birth'}
                       </Text>
                     </View>
                     <TouchableOpacity
                       style={[
                         styles.floatingInput,
-                        dateOfBirthFocused && styles.floatingInputFocused,
+                        (true || dateOfBirthFocused) && styles.floatingInputFocused,
                         dateOfBirthError && styles.floatingInputError,
                       ]}
                       onPress={handleDatePickerPress}
@@ -1100,14 +1142,14 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                           dateOfBirthError && { color: '#FF6B6B' },
                         ]}
                       >
-                        {formData.dateOfBirth &&
-                          formatDateForDisplay(formData.dateOfBirth)}
+                        {formData.dateOfBirth ?
+                          formatDateForDisplay(formData.dateOfBirth) : formatDateForDisplay(getDefaultDOB().toISOString().split('T')[0])}
                       </Text>
                     </TouchableOpacity>
                     <View
                       style={[
                         styles.underline,
-                        dateOfBirthFocused && styles.underlineFocused,
+                        (true || dateOfBirthFocused) && styles.underlineFocused,
                         dateOfBirthError && styles.underlineError,
                       ]}
                     />
@@ -1116,14 +1158,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                     <Text style={styles.errorText}>{dateOfBirthError}</Text>
                   )}
                 </View>
-
-                {/* Phone Error Display */}
-                {phoneError ? (
-                  <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{phoneError}</Text>
-                  </View>
-                ) : null}
-
                 {/* Password Input */}
                 <View style={styles.floatingInputContainer}>
                   <View style={styles.floatingInputWrapper}>
@@ -1155,6 +1189,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                         ]}
                       >
                         Password
+                        <Text style={{ color: '#475467', marginLeft: 4, fontSize: 16, fontWeight: 'bold' }}>*</Text>
                       </Text>
                     </View>
                     <TextInput
@@ -1192,14 +1227,14 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                       ]}
                     />
                   </View>
+                  {/* Password Error Display and Strength Indicator */}
+                  {passwordError && (
+                    <View style={styles.errorContainer}>
+                      <Text style={styles.errorText}>{passwordError}</Text>
+                    </View>
+                  )}
                 </View>
 
-                {/* Password Error Display and Strength Indicator */}
-                {passwordError && (
-                  <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{passwordError}</Text>
-                  </View>
-                )}
 
                 {/* Confirm Password Input */}
                 <View style={styles.floatingInputContainer}>
@@ -1233,6 +1268,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                         ]}
                       >
                         Confirm Password
+                        <Text style={{ color: '#475467', marginLeft: 4, fontSize: 16, fontWeight: 'bold' }}>*</Text>
                       </Text>
                     </View>
                     <TextInput
@@ -1274,14 +1310,14 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                       ]}
                     />
                   </View>
+                  {/* Confirm Password Error Display */}
+                  {confirmPasswordError ? (
+                    <View style={styles.errorContainer}>
+                      <Text style={styles.errorText}>{confirmPasswordError}</Text>
+                    </View>
+                  ) : null}
                 </View>
 
-                {/* Confirm Password Error Display */}
-                {confirmPasswordError ? (
-                  <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{confirmPasswordError}</Text>
-                  </View>
-                ) : null}
 
                 {/* Multi Phone Number Inputs */}
                 {phoneNumbers.map((item, idx) => (
@@ -1291,28 +1327,32 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                       <Text style={{ fontFamily: 'Poppins', fontSize: 15, color: '#475467' }}>
                         Phone Number{phoneNumbers.length > 1 ? ` ${idx + 1}` : ''}
                       </Text>
-                      <Text style={{ color: '#FF6B6B', marginLeft: 4, fontSize: 16, fontWeight: 'bold' }}>*</Text>
+                      <Text style={{ color: '#475467', marginLeft: 4, fontSize: 16, fontWeight: 'bold' }}>*</Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 40, borderBottomWidth: 1, borderColor: currentlyFocusedField === `phone-${idx}` ? '#0088E7' : '#D0D5DD', paddingHorizontal: 8, backgroundColor: '#F9FAFB' }}>
-                      <TouchableOpacity onPress={toggleCountryPicker} style={{ marginRight: 8, justifyContent: 'center', alignItems: 'center', minWidth: 40 }}>
+                      <TouchableOpacity onPress={() => {
+                        setCountryPickerVisibleIdx(idx);
+                      }} style={{ marginRight: 8, justifyContent: 'center', alignItems: 'center', minWidth: 40 }}>
                         <CountryPicker
-                          countryCode={
-                            (selectedCountry?.cca2
-                              ? selectedCountry.cca2
-                              : countryCode) as import('react-native-country-picker-modal').CountryCode
-                          }
+                          countryCode={item.country as import('react-native-country-picker-modal').CountryCode}
                           withCurrency={true}
                           withFlag={true}
                           withEmoji={false}
                           withFilter={true}
                           withCountryNameButton={false}
                           withCallingCode={true}
-                          onSelect={onSelectCountry}
-                          visible={countryPickerVisible}
-                          onClose={() => setCountryPickerVisible(false)}
+                          onSelect={country => {
+                            handleCountryChange(idx, country.cca2);
+                            setCountryPickerVisibleIdx(null);
+                          }}
+                          visible={countryPickerVisibleIdx === idx}
+                          onClose={() => setCountryPickerVisibleIdx(null)}
                           containerButtonStyle={{ justifyContent: 'center', alignItems: 'center' }}
                         />
                       </TouchableOpacity>
+                      <Text style={{ marginLeft: 4, fontSize: 16, color: '#475467' }}>+
+                        {countries.find(c => c.code === item.country)?.dialCode.replace('+', '') || '1'}
+                      </Text>
                       <ArrowDown width={20} height={20} />
                       <View style={{ flex: 1 }}>
                         <PhoneInput
@@ -1328,12 +1368,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                         />
                       </View>
                       {phoneNumbers.length > 1 && (
-                        <TouchableOpacity onPress={() => removePhoneField(idx)} style={{ marginLeft: 8 }}>
+                        <TouchableOpacity hitSlop={8} onPress={() => removePhoneField(idx)} style={{ marginLeft: 8 }}>
                           <Text style={{ color: '#FF6B6B', fontSize: 22 }}>x</Text>
                         </TouchableOpacity>
                       )}
                     </View>
-                    {/* <Text style={{ color: 'red' }}>{phoneInputRef.current?.isValidNumber() ? "" : "Please enter a valid number"}</Text> */}
+                    <Text style={styles.errorText}>{phoneError}</Text>
                   </View>
                 ))}
                 <TouchableOpacity onPress={addPhoneField} style={{ alignSelf: 'flex-end', marginBottom: 10, justifyContent: 'center', flexDirection: 'row' }}>
@@ -1379,7 +1419,8 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
           open={isDatePickerOpen}
           date={selectedDate}
           mode="date"
-          maximumDate={new Date()}
+          // User must be at least 16 years old: max date is exactly 16 years ago
+          maximumDate={getDefaultDOB()}
           minimumDate={new Date(1900, 0, 1)}
           onConfirm={handleDateConfirm}
           onCancel={handleDateCancel}
@@ -1468,7 +1509,7 @@ const createStyles = (theme: {
       paddingBottom: 30,
     },
     floatingInputContainer: {
-      marginBottom: 15,
+      // marginBottom: 15,
       paddingHorizontal: 0,
       paddingVertical: 10,
       position: 'relative',
@@ -1487,7 +1528,7 @@ const createStyles = (theme: {
       paddingHorizontal: 2,
     },
     floatingLabelContainerActive: {
-      top: -16,
+      top: -10,
       backgroundColor: '#FFFFFF',
       paddingHorizontal: 4,
       marginLeft: -2,
@@ -1503,14 +1544,14 @@ const createStyles = (theme: {
     floatingLabelActive: {
       fontSize: 14,
       color: '#475467',
-      transform: [{ translateY: -1 }],
+      transform: [{ translateY: 2 }],
       fontFamily: 'Poppins',
     },
     floatingIcon: {
       height: 25,
       width: 25,
       marginRight: 2,
-      top: 2,
+      // top: 2,
     },
     floatingIconText: {
       fontSize: 16,
@@ -1518,7 +1559,7 @@ const createStyles = (theme: {
       marginRight: 8,
     },
     floatingIconActive: {
-      transform: [{ translateY: -1 }],
+      transform: [{ translateY: 2 }],
     },
     floatingLabelFocused: {
       color: '#0088E7',
