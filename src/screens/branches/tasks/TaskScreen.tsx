@@ -31,6 +31,8 @@ import MenuIcon from '../../../assets/svgs/menuIcon.svg';
 import NotesIcon from '../../../assets/svgs/notesIcon.svg';
 import UserIcon from '../../../assets/svgs/user.svg';
 import SortIcon from '../../../assets/svgs/sortIcon.svg';
+import LogoutIcon from '../../../assets/svgs/logout.svg';
+import Settings from '../../../assets/svgs/settings.svg';
 import { useLogout } from '../../../hooks/useAuth';
 import { STATUS_BG_COLORS, STATUS_COLORS } from './utils/taskUtils';
 
@@ -867,9 +869,11 @@ export default function TaskScreen({ navigation }) {
             navigation.navigate('Profile');
           }}
         >
+          <Settings width={18} height={18} style={{ marginRight: 8 }} />
           <Text style={styles.dropdownText}>Profile</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.dropdownItem} onPress={handleLogout}>
+           <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
           <Text style={styles.dropdownText}>Logout</Text>
         </TouchableOpacity>
       </View>

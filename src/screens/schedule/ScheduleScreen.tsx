@@ -10,10 +10,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Platform,
 } from 'react-native';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
 import LeftArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
+import LogoutIcon from '../../assets/svgs/logout.svg';
+import SettingsIcon from '../../assets/svgs/settings.svg';
+import { useLogout } from '../../hooks/useAuth';
 
 interface TaskSchedulingModel {
   compositeId: string;
@@ -254,6 +258,19 @@ export default function CalendarAgendaScreen({ navigation }) {
   const weekDays = getWeekDays(selectedDate);
   const [calendarVisible, setCalendarVisible] = useState(false);
 
+    const [showDropdown, setShowDropdown] = useState(false);
+
+  const logoutMutation = useLogout({
+    onSuccess: () => {
+      navigation.navigate('Auth', { screen: 'Login' });
+    },
+  });
+
+  const handleLogout = async () => {
+    await logoutMutation.mutateAsync();
+    setShowDropdown(false);
+  };
+
   // Add React Query for fetching tasks
   const { startDate: apiStartDate, endDate: apiEndDate } =
     formatDateForAPI(selectedDate);
@@ -322,7 +339,7 @@ export default function CalendarAgendaScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity>
-          <LeftArrowIcon width={16} height={16} />
+          <LeftArrowIcon width={16} height={16} onPress={() => navigation.goBack()} />
         </TouchableOpacity>
         <Pressable
           style={styles.headerTitle}
@@ -339,7 +356,7 @@ export default function CalendarAgendaScreen({ navigation }) {
           </Text>
         </Pressable>
         <TouchableOpacity>
-          <ThreeDotIcon width={20} height={20} />
+          <ThreeDotIcon width={20} height={20} onPress={() => setShowDropdown(true)} />
         </TouchableOpacity>
       </View>
       {/* Floating Calendar Modal */}
@@ -557,6 +574,51 @@ export default function CalendarAgendaScreen({ navigation }) {
           )}
         </ScrollView>
       </View>
+
+{/* Dropdown Modal */}
+      <Modal
+        visible={showDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDropdown(false)}
+        >
+          <View style={styles.dropdownMenu}>
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={() => {
+                setShowDropdown(false);
+                // Add navigation to settings here
+                navigation.navigate('Profile');
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <SettingsIcon
+                  width={18}
+                  height={18}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.dropdownText}>Settings</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={handleLogout}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
+                <Text style={styles.dropdownText}>Logout</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -761,10 +823,37 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
 
-  // Update the existing tasksRow style:
   tasksRow: {
     flex: 1,
     marginLeft: 4,
     marginTop: 8,
   },
+    dropdownOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+  },
+    dropdownMenu: {
+      marginTop: Platform.OS === 'ios' ? 90 : 72,
+      marginRight: 24,
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      paddingVertical: 8,
+      width: 140,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    dropdownItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+    },
+    dropdownText: {
+      fontSize: 16,
+      color: '#1A1A1A',
+    },
 });

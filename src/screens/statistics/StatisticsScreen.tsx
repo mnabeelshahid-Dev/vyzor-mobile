@@ -25,6 +25,9 @@ import { useAuthStore } from '../../store/authStore';
 import { styles } from './styles';
 const { width } = Dimensions.get('window');
 import SortIcon from '../../assets/svgs/sortIcon.svg';
+import LogoutIcon from '../../assets/svgs/logout.svg';
+import SettingsIcon from '../../assets/svgs/settings.svg';
+import { useLogout } from '../../hooks/useAuth';
 const getResponsive = (val: number) => Math.round(val * (width / 390));
 
 // Card colors for statuses
@@ -108,7 +111,19 @@ export default function StatisticsScreen({ navigation }) {
   const [sortField, setSortField] = useState<'name' | 'number'>('name');
   const [filterStatus, setFilterStatus] = useState('');
   const [updatedDate, setUpdatedDate] = useState('');
-    const [showDropdown, setShowDropdown] = useState(false);
+
+      const [showDropdown, setShowDropdown] = useState(false);
+
+  const logoutMutation = useLogout({
+    onSuccess: () => {
+      navigation.navigate('Auth', { screen: 'Login' });
+    },
+  });
+
+  const handleLogout = async () => {
+    await logoutMutation.mutateAsync();
+    setShowDropdown(false);
+  };
 
   // --- Statistics API logic for stats cards, progress bars, and date range ---
   const [statisticsParams, setStatisticsParams] = useState({
@@ -351,11 +366,11 @@ export default function StatisticsScreen({ navigation }) {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <BackArrowIcon width={getResponsive(17)} height={getResponsive(17)} />
+            <BackArrowIcon width={getResponsive(17)} height={getResponsive(17)} onPress={() => navigation.goBack()} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Statistics</Text>
           <TouchableOpacity>
-            <ThreeDotIcon width={getResponsive(20)} height={getResponsive(20)} />
+            <ThreeDotIcon width={getResponsive(20)} height={getResponsive(20)} onPress={() => setShowDropdown(true)} />
           </TouchableOpacity>
         </View>
       </View>
@@ -661,6 +676,53 @@ export default function StatisticsScreen({ navigation }) {
            {showSortModal && (
           <SortModal />
         )}
+
+
+      {/* Dropdown Modal */}
+      <Modal
+        visible={showDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDropdown(false)}
+        >
+          <View style={styles.dropdownMenu}>
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={() => {
+                setShowDropdown(false);
+                // Add navigation to settings here
+                navigation.navigate('Profile');
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <SettingsIcon
+                  width={18}
+                  height={18}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.dropdownText}>Settings</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={handleLogout}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
+                <Text style={styles.dropdownText}>Logout</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+
     </SafeAreaView>
   );
 }
