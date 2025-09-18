@@ -732,7 +732,7 @@ export default function ChatScreen({ navigation }) {
 
   // Chat Detail UI
   const renderChatDetail = () => (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#1292E6' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
       {/* Header */}
       <View style={styles.detailHeader}>
         <TouchableOpacity

@@ -68,7 +68,7 @@ const DropdownFieldWithModal = ({
       }}
     >
       <Text style={{
-        fontSize: 16,
+        fontSize: 14,
         color: '#1A1A1A',
       }}>
         {item.text}
@@ -94,12 +94,12 @@ const DropdownFieldWithModal = ({
         disabled={disabled || loading}
       >
         <Text style={{
-          fontSize: 16,
+          fontSize: 14,
           color: value ? '#1A1A1A' : '#999',
         }}>
           {loading ? 'Loading...' : (value || placeholder)}
         </Text>
-        <Text style={{ fontSize: 16, color: '#007AFF' }}>▼</Text>
+        <Text style={{ fontSize: 14, color: '#007AFF' }}>▼</Text>
       </TouchableOpacity>
 
       <Modal
@@ -235,14 +235,14 @@ const ContactDetailsTab: React.FC<Props> = ({
             onChangeFormattedText={text => onChangePhone(phone.id, text)}
             textInputStyle={{
               fontFamily: 'Poppins',
-              fontSize: 16,
+              fontSize: 14,
               color: '#1F2937',
               paddingVertical: 0,
               paddingHorizontal: 0,
             }}
             codeTextStyle={{
               fontFamily: 'Poppins',
-              fontSize: 16,
+              fontSize: 14,
               color: '#1F2937',
             }}
             onChangeCountry={country => {

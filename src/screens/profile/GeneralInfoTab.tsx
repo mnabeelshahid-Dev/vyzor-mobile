@@ -113,7 +113,7 @@ const GeneralInfoTab: React.FC<Props> = ({
           onPress={() => setShowLanguageModal(true)}
         >
           <Text style={{
-            fontSize: 16,
+            fontSize: 14,
             color: language ? '#1A1A1A' : '#999',
           }}>
             {language || 'Select language'}
@@ -137,7 +137,7 @@ const GeneralInfoTab: React.FC<Props> = ({
           onPress={() => setShowTimezoneModal(true)}
         >
           <Text style={{
-            fontSize: 16,
+            fontSize: 14,
             color: timezone ? '#1A1A1A' : '#999',
           }}>
             {timezone || 'Select time zone'}
