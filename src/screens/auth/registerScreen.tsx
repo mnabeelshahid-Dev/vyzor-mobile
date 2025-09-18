@@ -281,7 +281,9 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     if (idx === 0) setFormData(prev => ({ ...prev, phoneNumber: text }));
   };
 
-  const handleCountryChange = (idx: number, country: string) => {
+  const handleCountryChange = (idx: number, country: any) => {
+    console.log('🌍 handleCountryChange called:', country);
+    
     setPhoneNumbers(prev => {
       const updated = [...prev];
       updated[idx].country = country;
@@ -290,6 +292,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
       if (countryObj) {
         updated[idx].value = countryObj.dialCode;
       }
+      console.log('🌍 Country changed:', { idx, country, updatedValue: updated[idx].value });
       return updated;
     });
   };
@@ -1321,7 +1324,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
                 {/* Multi Phone Number Inputs */}
                 {phoneNumbers.map((item, idx) => (
-                  <View key={idx} style={{ marginBottom: 18 }}>
+                  <View key={idx}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                       <PhoneIcon style={{ marginRight: 4 }} height={18} width={18} color={'#475467'} />
                       <Text style={{ fontFamily: 'Poppins', fontSize: 15, color: '#475467' }}>
@@ -1342,7 +1345,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                           withCountryNameButton={false}
                           withCallingCode={true}
                           onSelect={country => {
-                            handleCountryChange(idx, country.cca2);
+                            handleCountryChange(idx, country);
                             setCountryPickerVisibleIdx(null);
                           }}
                           visible={countryPickerVisibleIdx === idx}
@@ -1350,9 +1353,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                           containerButtonStyle={{ justifyContent: 'center', alignItems: 'center' }}
                         />
                       </TouchableOpacity>
-                      <Text style={{ marginLeft: 4, fontSize: 16, color: '#475467' }}>+
-                        {countries.find(c => c.code === item.country)?.dialCode.replace('+', '') || '1'}
-                      </Text>
                       <ArrowDown width={20} height={20} />
                       <View style={{ flex: 1 }}>
                         <PhoneInput

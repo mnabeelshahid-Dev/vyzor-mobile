@@ -35,9 +35,12 @@ import LogoutIcon from '../../../assets/svgs/logout.svg';
 import Settings from '../../../assets/svgs/settings.svg';
 import { useLogout } from '../../../hooks/useAuth';
 import { STATUS_BG_COLORS, STATUS_COLORS } from './utils/taskUtils';
+import { useAuthStore } from '../../../store/authStore';
 
 
 export default function TaskScreen({ navigation }) {
+  const user = useAuthStore((state) => state.user);
+  
   // State
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -51,8 +54,29 @@ export default function TaskScreen({ navigation }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [sortField, setSortField] = useState<'name' | 'number'>('name');
+  // Main filter state
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDate, setFilterDate] = useState('');
+  // API filter date range
+  // Default startDate: 2 days before today, endDate: 1 day in future
+  function formatDateWithOffset(date: Date, hour: number, min: number, sec: number, ms: number) {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    date.setHours(hour, min, sec, ms);
+    const yyyy = date.getFullYear();
+    const mm = pad(date.getMonth() + 1);
+    const dd = pad(date.getDate());
+    return `${yyyy}-${mm}-${dd}T${pad(hour)}:${pad(min)}:${pad(sec)}+05:00`;
+  }
+  const today = new Date();
+  const defaultStart = new Date(today);
+  defaultStart.setDate(today.getDate() - 1);
+  const defaultEnd = new Date(today);
+  defaultEnd.setDate(today.getDate() + 1);
+  const [startDate, setStartDate] = useState(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
+  const [endDate, setEndDate] = useState(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
+  // Modal temporary state
+  const [modalFilterStatus, setModalFilterStatus] = useState('');
+  const [modalFilterDate, setModalFilterDate] = useState('');
   const [updatedDate, setUpdatedDate] = useState('');
   const [calendarDate, setCalendarDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [searchUser, setSearchUser] = useState('');
@@ -114,43 +138,31 @@ export default function TaskScreen({ navigation }) {
     refetchInterval: 120000,
   });
 
-  // Add missing selectedSiteId for user modal API
-  interface UserType {
-    id?: string | number;
-    name?: string;
-    username?: string;
-    email?: string;
-  }
 
 
+
+  // Helper function for ISO date formatting
+  const formatDateFull = (date: Date) => {
+    return date.toISOString().split('.')[0] + 'Z';
+  };
 
   // Build params for API
   const buildParams = (pageParam = 1) => {
-    const today = new Date();
-    function formatDateFull(date) {
-      return date.toISOString().split('.')[0] + 'Z';
+    // Always use startDate and endDate from state if set
+    let apiStartDate = startDate;
+    let apiEndDate = endDate;
+    // If no filter date is set, fallback to today for both
+    if (!apiStartDate || !apiEndDate) {
+      const today = new Date();
+      apiStartDate = formatDateFull(today);
+      apiEndDate = formatDateFull(today);
     }
-    let startDate = formatDateFull(today);
-    let endDate;
-
-    if (filterDate) {
-      // If user selects a date, endDate is that date (with time 23:59:59)
-      const selected = new Date(filterDate);
-      selected.setHours(23, 59, 59, 999);
-      endDate = formatDateFull(selected);
-    } else {
-      // If not selected, endDate is next week
-      const nextWeek = new Date(today);
-      nextWeek.setDate(today.getDate() + 7);
-      endDate = formatDateFull(nextWeek);
-    }
-
     return {
-      startDate,
-      endDate,
+      startDate: apiStartDate,
+      endDate: apiEndDate,
       siteIds: branchId ? [branchId] : [],
-      userIds: [],
-      scheduleStatus: filterStatus,
+      userIds: [user?.id],
+      scheduleStatus: filterStatus.toUpperCase(),
       search,
       sort: sortOrder,
       sortField: sortField,
@@ -161,7 +173,6 @@ export default function TaskScreen({ navigation }) {
 
   const fetchTasksInfinite = async ({ pageParam = 1 }) => {
     const params = buildParams(pageParam);
-    console.log('API CALL: fetchTasksInfinite', { pageParam, params });
     const response = await fetchTasks(params);
     // Support both array and paginated object
     let content = [];
@@ -192,6 +203,9 @@ export default function TaskScreen({ navigation }) {
     enabled: !!branchId,
   });
 
+  console.log(isError);
+  
+
 
   // Flatten all pages, no deduplication (show all items)
   const allTasks = infiniteData?.pages.flatMap((page) => page.data) ?? [];
@@ -200,8 +214,8 @@ export default function TaskScreen({ navigation }) {
   let filteredTasks = allTasks;
   if (filterStatus) {
     filteredTasks = filteredTasks.filter((task) => {
-      // Normalize status for filter
-      const s = (task.siteStatus || task.status || '').toLowerCase();
+      // Use scheduleType for filtering if present, fallback to siteStatus/status
+      const s = (task.scheduleType || task.siteStatus || task.status || '').toLowerCase();
       return s === filterStatus.toLowerCase();
     });
   }
@@ -215,24 +229,37 @@ export default function TaskScreen({ navigation }) {
 
   // Sorting logic
   let sortedTasks = [...filteredTasks];
-  if (sortField === 'name') {
-    sortedTasks.sort((a, b) => {
+  // Custom order for scheduleType: ACTIVE, SCHEDULED, COMPLETED, EXPIRED
+  const scheduleTypeOrder = ['ACTIVE', 'SCHEDULED', 'COMPLETED', 'EXPIRED'];
+  sortedTasks.sort((a, b) => {
+    const aType = (a.scheduleType || '').toUpperCase();
+    const bType = (b.scheduleType || '').toUpperCase();
+    const aIdx = scheduleTypeOrder.indexOf(aType);
+    const bIdx = scheduleTypeOrder.indexOf(bType);
+    // If both are valid scheduleTypes, sort by custom order
+    if (aIdx !== -1 && bIdx !== -1) {
+      return aIdx - bIdx;
+    }
+    // If only one is valid, put valid first
+    if (aIdx !== -1) return -1;
+    if (bIdx !== -1) return 1;
+    // Otherwise, fallback to name or number sort
+    if (sortField === 'name') {
       if (!a.formName || !b.formName) return 0;
       if (sortOrder === 'asc') {
         return a.formName.localeCompare(b.formName);
       } else {
         return b.formName.localeCompare(a.formName);
       }
-    });
-  } else if (sortField === 'number') {
-    sortedTasks.sort((a, b) => {
+    } else if (sortField === 'number') {
       if (sortOrder === 'asc') {
         return (a.webId ?? 0) - (b.webId ?? 0);
       } else {
         return (b.webId ?? 0) - (a.webId ?? 0);
       }
-    });
-  }
+    }
+    return 0;
+  });
 
   const handleEndReached = () => {
     console.log('FlatList onEndReached', { hasNextPage, isFetchingNextPage });
@@ -307,6 +334,7 @@ export default function TaskScreen({ navigation }) {
     const statusColor = STATUS_COLORS[normalizedStatus] || '#0088E7';
     const statusBg = STATUS_BG_COLORS[normalizedStatus] || '#E6F1FB';
     const statusText = item.normalizedStatus || item.scheduleType;
+
     function formatTaskDateRange(startDate: any, endDate: any) {
       if (!startDate && !endDate) return 'No date';
       const format = (date: any) => {
@@ -323,6 +351,7 @@ export default function TaskScreen({ navigation }) {
       }
       return format(startDate || endDate);
     }
+
     return (
       <View key={item?.webId} style={[styles.taskCard, { borderRadius: 18, padding: 20, marginBottom: 22, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }]}>
         {/* Top Row: Number, Status Badge */}
@@ -399,6 +428,23 @@ export default function TaskScreen({ navigation }) {
   // Modals
   const FilterModal = (
     <Modal
+      customBackdrop={null}
+      panResponderThreshold={4}
+      swipeThreshold={100}
+      onModalShow={() => { }}
+      onModalWillShow={() => { }}
+      onModalHide={() => { }}
+      onModalWillHide={() => { }}
+      onModalDismiss={() => { }}
+      onBackButtonPress={() => { }}
+      onSwipeComplete={() => { }}
+      swipeDirection={null}
+      scrollHorizontal={false}
+      statusBarTranslucent={false}
+      supportedOrientations={['portrait', 'landscape']}
+      scrollTo={() => { }}
+      scrollOffset={0}
+      scrollOffsetMax={0}
       isVisible={filterModal}
       hasBackdrop={true}
       backdropColor="#000"
@@ -427,15 +473,15 @@ export default function TaskScreen({ navigation }) {
               <Text style={styles.closeBtn}>✕</Text>
             </TouchableOpacity>
           </View>
-        <View style={{ height: 1, backgroundColor: '#0000001A', width:'100%', marginVertical: 8 }} />
+          <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%', marginVertical: 8 }} />
           <View style={{ marginTop: 16 }}>
             {/* Status Dropdown */}
             <TouchableOpacity
               onPress={() => setShowStatusDropdown((prev) => !prev)}
-              style={[styles.input, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0, borderWidth: 1, borderColor: '#00000033', borderRadius: 8, marginBottom: 18 }]}
+              style={[styles.input, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0, borderWidth: 1, borderColor: '#00000033', borderRadius: 8 }]}
             >
               <Text style={{ flex: 1, fontSize: 15, color: '#363942', marginLeft: 14 }}>
-                {filterStatus ? filterStatus : 'Status'}
+                {modalFilterStatus ? modalFilterStatus : 'Status'}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 14 }}>
                 <ArrowDown width={18} height={18} style={{ marginLeft: 6 }} />
@@ -443,19 +489,19 @@ export default function TaskScreen({ navigation }) {
             </TouchableOpacity>
             {/* Status Dropdown List */}
             {showStatusDropdown && (
-              <View style={{ backgroundColor: '#fff', borderRadius: 8, marginTop: 4, marginHorizontal: 14, elevation: 2, shadowColor: '#0002', borderWidth: 0.5, borderColor: '#00000033' }}>
+              <View style={{ backgroundColor: '#fff', borderRadius: 8, marginVertical: 4, marginHorizontal: 3, elevation: 2, shadowColor: '#0002', borderWidth: 1, borderColor: '#00000033', top:-10, zIndex: 10 }}>
                 {['Active', 'Scheduled', 'Completed', 'Expired'].map((status) => (
                   <TouchableOpacity
                     key={status}
                     style={{
                       padding: 12,
-                      backgroundColor: filterStatus === status ? '#E6F1FB' : '#fff',
+                      backgroundColor: modalFilterStatus === status ? '#E6F1FB' : '#fff',
                       borderRadius: 6,
                       borderBottomWidth: 0.35,
                       borderBottomColor: '#00000033'
                     }}
                     onPress={() => {
-                      setFilterStatus(status);
+                      setModalFilterStatus(status);
                       setShowStatusDropdown(false);
                     }}
                   >
@@ -465,12 +511,12 @@ export default function TaskScreen({ navigation }) {
               </View>
             )}
             {/* Date Picker */}
-            <TouchableOpacity style={[styles.inputRow, { borderWidth: 1, borderColor: '#00000033', borderRadius: 8 }]} onPress={() => setShowDatePicker(true)}>
+            <TouchableOpacity style={[styles.inputRow, { borderWidth: 1, borderColor: '#00000033', borderRadius: 8, marginTop: 16 }]} onPress={() => setShowDatePicker(true)}>
               <TextInput
                 placeholder="Selected Date"
                 style={[styles.input, { flex: 1, marginRight: 8 }]}
-                value={filterDate}
-                onChangeText={setFilterDate}
+                value={modalFilterDate}
+                onChangeText={setModalFilterDate}
                 editable={false}
               />
               <View style={styles.inputIcon}>
@@ -492,12 +538,29 @@ export default function TaskScreen({ navigation }) {
               avoidKeyboard={true}
               coverScreen={true}
               style={{ margin: 0 }}
-              onBackdropPress={() => setShowDatePicker(false)}
               useNativeDriver={true}
               hideModalContentWhileAnimating={false}
               propagateSwipe={false}
               deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
               deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
+              customBackdrop={null}
+              panResponderThreshold={4}
+              swipeThreshold={100}
+              onModalShow={() => { }}
+              onModalWillShow={() => { }}
+              onModalHide={() => { }}
+              onModalWillHide={() => { }}
+              onModalDismiss={() => { }}
+              onBackButtonPress={() => { }}
+              onSwipeComplete={() => { }}
+              swipeDirection={null}
+              scrollHorizontal={false}
+              statusBarTranslucent={false}
+              supportedOrientations={['portrait', 'landscape']}
+              onBackdropPress={() => setShowDatePicker(false)}
+              scrollTo={() => { }}
+              scrollOffset={0}
+              scrollOffsetMax={0}
             >
               <View style={{ justifyContent: 'center', alignItems: 'center', flex: 1 }}>
                 <View style={{ backgroundColor: '#fff', borderRadius: 16, width: '90%', paddingBottom: 16 }}>
@@ -531,7 +594,7 @@ export default function TaskScreen({ navigation }) {
                       <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => {
-                      setFilterDate(new Date(calendarDate).toLocaleDateString());
+                      setModalFilterDate(new Date(calendarDate).toLocaleDateString());
                       setShowDatePicker(false);
                     }}>
                       <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>OK</Text>
@@ -541,21 +604,48 @@ export default function TaskScreen({ navigation }) {
               </View>
             </Modal>
           </View>
-        <View style={{ height: 1, backgroundColor: '#0000001A', width:'100%' }} />
+          <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%' }} />
           <View style={styles.modalBtnRow}>
             <TouchableOpacity
               style={styles.modalBtnApply}
               onPress={() => {
+                setModalFilterStatus('');
+                setModalFilterDate('');
                 setFilterStatus('');
                 setFilterDate('');
+                closeModal();
+                setUpdatedDate('');
+                setStartDate('');
+                setEndDate('');
+                refetch();
               }}
             >
               <Text style={styles.modalBtnApplyText}>Reset</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalBtnApply} onPress={() => {
               // Apply filter changes and trigger refetch
-              setUpdatedDate(filterDate ? filterDate : '');
-              // Optionally, you can parse filterDate to API format if needed
+              setFilterStatus(modalFilterStatus);
+              if (modalFilterDate) {
+                const selected = new Date(modalFilterDate);
+                if (!isNaN(selected.getTime())) {
+                  setFilterDate(modalFilterDate);
+                  setUpdatedDate(modalFilterDate);
+                  setStartDate(formatDateWithOffset(new Date(selected), 0, 0, 0, 0));
+                  setEndDate(formatDateWithOffset(new Date(selected), 23, 59, 59, 0));
+                } else {
+                  setFilterDate('');
+                  setUpdatedDate('');
+                  // Reset to default range
+                  setStartDate(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
+                  setEndDate(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
+                }
+              } else {
+                setFilterDate('');
+                setUpdatedDate('');
+                // Reset to default range
+                setStartDate(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
+                setEndDate(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
+              }
               closeModal();
               refetch();
             }}>
@@ -569,6 +659,23 @@ export default function TaskScreen({ navigation }) {
   const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
   const UserModal = (
     <Modal
+      customBackdrop={null}
+      panResponderThreshold={4}
+      swipeThreshold={100}
+      onModalShow={() => { }}
+      onModalWillShow={() => { }}
+      onModalHide={() => { }}
+      onModalWillHide={() => { }}
+      onModalDismiss={() => { }}
+      onBackButtonPress={() => { }}
+      onSwipeComplete={() => { }}
+      swipeDirection={null}
+      scrollHorizontal={false}
+      statusBarTranslucent={false}
+      supportedOrientations={['portrait', 'landscape']}
+      scrollTo={() => { }}
+      scrollOffset={0}
+      scrollOffsetMax={0}
       isVisible={userModal}
       hasBackdrop={true}
       backdropColor="#000"
@@ -625,7 +732,7 @@ export default function TaskScreen({ navigation }) {
                 data={filteredUsers}
                 keyExtractor={(item, idx) => (item.id ? item.id.toString() : idx.toString())}
                 renderItem={({ item }) => (
-                  <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 10, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
+                  <View key={item.id} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 10, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
                     <Text style={{ fontWeight: '500', fontSize: 16, color: '#222E44' }}>{item.name || item.username || item.storeEmail}</Text>
                     <Text style={{ color: '#0088E7', fontSize: 14 }}>
                       {item.email ? item.email : <Text style={{ color: '#0088E7' }}>email@example.com</Text>}
@@ -648,6 +755,23 @@ export default function TaskScreen({ navigation }) {
 
   const SectionsModal = (
     <Modal
+      customBackdrop={null}
+      panResponderThreshold={4}
+      swipeThreshold={100}
+      onModalShow={() => { }}
+      onModalWillShow={() => { }}
+      onModalHide={() => { }}
+      onModalWillHide={() => { }}
+      onModalDismiss={() => { }}
+      onBackButtonPress={() => { }}
+      onSwipeComplete={() => { }}
+      swipeDirection={null}
+      scrollHorizontal={false}
+      statusBarTranslucent={false}
+      supportedOrientations={['portrait', 'landscape']}
+      scrollTo={() => { }}
+      scrollOffset={0}
+      scrollOffsetMax={0}
       isVisible={sectionsModal}
       hasBackdrop={true}
       backdropColor="#000"
@@ -717,6 +841,23 @@ export default function TaskScreen({ navigation }) {
 
   const DevicesModal = (
     <Modal
+      customBackdrop={null}
+      panResponderThreshold={4}
+      swipeThreshold={100}
+      onModalShow={() => { }}
+      onModalWillShow={() => { }}
+      onModalHide={() => { }}
+      onModalWillHide={() => { }}
+      onModalDismiss={() => { }}
+      onBackButtonPress={() => { }}
+      onSwipeComplete={() => { }}
+      swipeDirection={null}
+      scrollHorizontal={false}
+      statusBarTranslucent={false}
+      supportedOrientations={['portrait', 'landscape']}
+      scrollTo={() => { }}
+      scrollOffset={0}
+      scrollOffsetMax={0}
       isVisible={devicesModal}
       hasBackdrop={true}
       backdropColor="#000"
@@ -783,6 +924,23 @@ export default function TaskScreen({ navigation }) {
 
   const NotesModal = (
     <Modal
+      customBackdrop={null}
+      panResponderThreshold={4}
+      swipeThreshold={100}
+      onModalShow={() => { }}
+      onModalWillShow={() => { }}
+      onModalHide={() => { }}
+      onModalWillHide={() => { }}
+      onModalDismiss={() => { }}
+      onBackButtonPress={() => { }}
+      onSwipeComplete={() => { }}
+      swipeDirection={null}
+      scrollHorizontal={false}
+      statusBarTranslucent={false}
+      supportedOrientations={['portrait', 'landscape']}
+      scrollTo={() => { }}
+      scrollOffset={0}
+      scrollOffsetMax={0}
       isVisible={notesModal}
       hasBackdrop={true}
       backdropColor="#000"
@@ -883,7 +1041,7 @@ export default function TaskScreen({ navigation }) {
           <Text style={styles.dropdownText}>Profile</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.dropdownItem} onPress={handleLogout}>
-           <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
+          <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
           <Text style={styles.dropdownText}>Logout</Text>
         </TouchableOpacity>
       </View>
@@ -905,7 +1063,7 @@ export default function TaskScreen({ navigation }) {
             </View>
           </TouchableOpacity>
         </View>
-        <View style={{ height: 1, backgroundColor: '#0000001A', width:'100%', marginVertical: 8 }} />
+        <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%', marginVertical: 8 }} />
         <View style={styles.sortModalBody}>
           <Text style={styles.sortModalField}>Name</Text>
           <View style={styles.sortModalOrderBtns}>
@@ -923,7 +1081,7 @@ export default function TaskScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
-        <View style={{ height: 1, backgroundColor: '#0000001A', width:'100%',marginTop: 10 }} />
+        <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%', marginTop: 10 }} />
         <View style={[styles.sortModalBody, { marginTop: 10 }]}>
           <Text style={styles.sortModalField}>Number</Text>
           <View style={styles.sortModalOrderBtns}>
@@ -1001,7 +1159,7 @@ export default function TaskScreen({ navigation }) {
             </View>
           ) : isError ? (
             <Text style={{ color: 'red', fontSize: 18, textAlign: 'center', marginTop: 40 }}>Error loading tasks</Text>
-          ) : allTasks.length === 0 ? (
+          ) : sortedTasks.length === 0 ? (
             <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
               <Text style={{ fontSize: 20, color: '#888', marginBottom: 12 }}>No tasks Found</Text>
             </View>

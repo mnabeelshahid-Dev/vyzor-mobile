@@ -60,7 +60,9 @@ export class DebugConsole {
    * @param error - Error object or unknown error data
    */
   static error(context: string, message: string, error?: unknown): void {
-    if (__DEV__) {
+    // Only log errors to console if running in remote JS debugger
+    // __DEV__ is true in development, but we want to restrict to debugger only
+    if (typeof atob === 'function') { // atob only exists in remote JS debugging
       console.error(`❌ [ERROR] ${context}: ${message}`, error ?? '');
 
       const errorObj = error as IErrorWithStack;

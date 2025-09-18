@@ -221,8 +221,8 @@ export default function EmailNotificationsScreen({ navigation }) {
       options = getToOptions();
     }
     return (
-      <View style={styles.dropdownOverlay}>
-        <View style={[styles.dropdownMenu, { maxHeight: 260 }]}> {/* Increased maxHeight for more scrollable area */}
+      <View style={[styles.dropdownOverlay, { pointerEvents: 'box-none' }]}> {/* pointerEvents for overlay */}
+        <View style={[styles.dropdownMenu, { maxHeight: 260, overflow: 'scroll' }]}> {/* overflow: scroll for FlatList */}
           <FlatList
             data={options}
             keyExtractor={(item) => item}
@@ -243,6 +243,7 @@ export default function EmailNotificationsScreen({ navigation }) {
                 </Text>
               </TouchableOpacity>
             )}
+            style={{ maxHeight: 260 }}
             showsVerticalScrollIndicator={true}
             contentContainerStyle={{ paddingBottom: 8 }}
           />
@@ -383,7 +384,7 @@ export default function EmailNotificationsScreen({ navigation }) {
                   style={styles.closeBtnWrap}
                   onPress={() => setFilterModal(false)}
                 >
-                  <Text style={styles.closeBtn}>×</Text>
+                  <Text style={styles.closeBtn}>x</Text>
                 </TouchableOpacity>
               </View>
               {/* Filter Fields */}
@@ -427,15 +428,16 @@ export default function EmailNotificationsScreen({ navigation }) {
               <View style={styles.filterBtnRow}>
                 <TouchableOpacity
                   style={[styles.clearBtn, { flex: 1, height: inputHeight * 0.95 }]}
-                  onPress={() =>
+                  onPress={() => {
                     setFilters({
                       to: 'All',
                       type: 'All',
                       status: 'All',
                       startDate: '',
                       endDate: '',
-                    })
-                  }
+                    });
+                    setFilterModal(false);
+                  }}
                 >
                   <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: labelFont }}>
                     Clear
@@ -698,15 +700,18 @@ const styles = StyleSheet.create({
   closeBtnWrap: {
     backgroundColor: '#0088E71A',
     borderRadius: 50,
-    paddingHorizontal: 7,
-    paddingBottom: 1,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // paddingHorizontal: 7,
   },
   closeBtn: {
     fontSize: 22,
     color: '#007AFF',
     fontWeight: 'bold',
     marginLeft: 0,
-    marginTop: -1,
+    marginTop: -4,
   },
   filterInput: {
     backgroundColor: '#fff',

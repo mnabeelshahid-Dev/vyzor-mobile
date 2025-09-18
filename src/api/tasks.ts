@@ -41,6 +41,9 @@ export interface TaskParams {
 }
 
 export async function fetchTasks(params: TaskParams) {
+  console.log('====================================');
+  console.log('Fetching tasks with params:', params);
+  console.log('====================================');
   // Build query string
   const query: string[] = [];
   if (params.updatedDate) query.push(`updatedDate=${encodeURIComponent(params.updatedDate)}`);

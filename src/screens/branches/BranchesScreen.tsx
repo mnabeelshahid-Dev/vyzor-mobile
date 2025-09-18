@@ -36,14 +36,14 @@ const BranchesScreen = ({ navigation }) => {
   const [showSortModal, setShowSortModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [sortField, setSortField] = useState<'name' | 'number'>('name');
+  const [sortField, setSortField] = useState<'name' | 'code'>('name');
 
   type Branch = { name: string; code: string; webId: string };
   const { data, isLoading, isError, error, refetch } = useQuery<ApiResponse<any>, Error>({
     queryKey: ['branches', search, sortOrder, sortField],
     queryFn: async () => {
       console.log('Fetching branches...');
-      const res = await fetchBranches({ search, sort: sortOrder, sortField });
+      const res = await fetchBranches({ status: 'ACTIVE', search, sortOrder, sortField });
       console.log('Branches response:', res);
       return res;
     }
@@ -73,7 +73,7 @@ const BranchesScreen = ({ navigation }) => {
     }
   }, [isError, error, navigation]);
 
-  const handleSort = (field: 'name' | 'number', order: 'asc' | 'desc') => {
+  const handleSort = (field: 'name' | 'code', order: 'asc' | 'desc') => {
     setSortField(field);
     setSortOrder(order);
     setShowSortModal(false);
@@ -103,7 +103,7 @@ const BranchesScreen = ({ navigation }) => {
     >
       <View style={{ width: '80%' }}>
         <Text style={styles.branchName}>{item.name}</Text>
-        <Text style={styles.branchNumber}>Branch #; {item.code}</Text>
+        <Text style={styles.branchNumber}>Branch #: {item.code}</Text>
       </View>
       <View style={{ width: '20%', alignItems: 'flex-end' }}>
         <View style={styles.rightCircle}>
@@ -257,17 +257,17 @@ const BranchesScreen = ({ navigation }) => {
           </View>
           <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%', marginTop: 10 }} />
           <View style={[styles.sortModalBody, { marginTop: 10 }]}>
-            <Text style={styles.sortModalField}>Number</Text>
+            <Text style={styles.sortModalField}>Code</Text>
             <View style={styles.sortModalOrderBtns}>
               <TouchableOpacity
-                style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
-                onPress={() => handleSort('number', 'desc')}
+                style={[styles.sortModalOrderBtn, sortField === 'code' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+                onPress={() => handleSort('code', 'desc')}
               >
                 <ArrowDownWard width={15} height={15} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
-                onPress={() => handleSort('number', 'asc')}
+                style={[styles.sortModalOrderBtn, sortField === 'code' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+                onPress={() => handleSort('code', 'asc')}
               >
                 <ArrowUpIcon width={15} height={15} />
               </TouchableOpacity>

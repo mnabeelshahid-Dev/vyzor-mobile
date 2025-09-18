@@ -17,7 +17,7 @@ export async function fetchStatisticsUserDetail(params: any) {
 	if (params.status) query.append('status', params.status);
 	if (params.size !== undefined) query.append('size', params.size);
 	if (params.search) query.append('search', params.search);
-	if (params.userId) query.append('userId', params.userId);
+	if (params.userId) query.append('userIds', ([params.userId]).toString());
 	if (params.sort) query.append('sort', params.sort);
 	if (params.startDate) query.append('startDate', params.startDate);
 	if (params.endDate) query.append('endDate', params.endDate);
