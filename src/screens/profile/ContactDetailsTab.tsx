@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, TextInput, FlatList } from 'react-native';
 import PhoneInput from 'react-native-phone-number-input';
-import { Picker } from '@react-native-picker/picker';
+import Modal from 'react-native-modal';
 
 type Option = { value: string; text: string };
 
@@ -42,7 +42,7 @@ type Props = {
   isMutationLoading: boolean;
 };
 
-const DropdownFieldWithData = ({
+const DropdownFieldWithModal = ({
   styles,
   label,
   value,
@@ -51,48 +51,119 @@ const DropdownFieldWithData = ({
   loading,
   disabled,
   onSelect,
-}: any) => (
-  <View style={styles.inputContainer}>
-    <Text style={styles.inputLabel}>{label}</Text>
-    <View
+}: any) => {
+  const [showModal, setShowModal] = useState(false);
+
+  const renderModalItem = ({ item }) => (
+    <TouchableOpacity
       style={{
-        borderBottomWidth: 1,
-        borderBottomColor: '#B0B0B0',
-        marginBottom: 10,
-        opacity: disabled ? 0.5 : 1,
+        paddingVertical: 15,
+        paddingHorizontal: 20,
+        borderBottomWidth: 0.5,
+        borderBottomColor: '#E8E8E8',
+      }}
+      onPress={() => {
+        onSelect(item);
+        setShowModal(false);
       }}
     >
-      <Picker
-        selectedValue={value}
+      <Text style={{
+        fontSize: 14,
+        color: '#1A1A1A',
+      }}>
+        {item.text}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={styles.inputContainer}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TouchableOpacity
         style={{
-          height: 55,
-          color: '#1A1A1A',
-          backgroundColor: 'transparent',
-          borderWidth: 0,
-          borderRadius: 0,
-          padding: 0,
+          borderBottomWidth: 1,
+          borderBottomColor: '#B0B0B0',
+          marginBottom: 10,
+          paddingVertical: 15,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          opacity: disabled ? 0.5 : 1,
         }}
-        dropdownIconColor="#007AFF"
-        enabled={!disabled && !loading}
-        onValueChange={(itemValue, itemIndex) => {
-          if (itemIndex > 0) {
-            const selectedItem = data[itemIndex - 1];
-            onSelect(selectedItem);
-          }
+        onPress={() => !disabled && !loading && setShowModal(true)}
+        disabled={disabled || loading}
+      >
+        <Text style={{
+          fontSize: 14,
+          color: value ? '#1A1A1A' : '#999',
+        }}>
+          {loading ? 'Loading...' : (value || placeholder)}
+        </Text>
+        <Text style={{ fontSize: 14, color: '#007AFF' }}>▼</Text>
+      </TouchableOpacity>
+
+      <Modal
+        isVisible={showModal}
+        onBackdropPress={() => setShowModal(false)}
+        backdropOpacity={0.5}
+        style={{
+          margin: 0,
+          justifyContent: 'center',
+          alignItems: 'center',
         }}
       >
-        <Picker.Item
-          label={loading ? 'Loading...' : placeholder}
-          value=""
-          color="#999"
-        />
-        {data.map((item: Option) => (
-          <Picker.Item key={item.value} label={item.text} value={item.text} />
-        ))}
-      </Picker>
+        <View style={{
+          backgroundColor: 'white',
+          borderRadius: 12,
+          margin: 20,
+          maxHeight: '70%',
+          width: '80%',
+          overflow: 'hidden',
+        }}>
+          <View style={{
+            paddingVertical: 20,
+            paddingHorizontal: 20,
+            borderBottomWidth: 1,
+            borderBottomColor: '#E8E8E8',
+          }}>
+            <Text style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: '#1A1A1A',
+              textAlign: 'center',
+            }}>
+              {label}
+            </Text>
+          </View>
+          <FlatList
+            data={data}
+            keyExtractor={(item) => item.value}
+            renderItem={renderModalItem}
+            showsVerticalScrollIndicator={true}
+          />
+          <TouchableOpacity
+            style={{
+              paddingVertical: 15,
+              paddingHorizontal: 20,
+              borderTopWidth: 1,
+              borderTopColor: '#E8E8E8',
+              alignItems: 'center',
+            }}
+            onPress={() => setShowModal(false)}
+          >
+            <Text style={{
+              fontSize: 16,
+              color: '#007AFF',
+              fontWeight: '600',
+            }}>
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
-  </View>
-);
+  );
+};
 
 const ContactDetailsTab: React.FC<Props> = ({
   styles,
@@ -164,14 +235,14 @@ const ContactDetailsTab: React.FC<Props> = ({
             onChangeFormattedText={text => onChangePhone(phone.id, text)}
             textInputStyle={{
               fontFamily: 'Poppins',
-              fontSize: 16,
+              fontSize: 14,
               color: '#1F2937',
               paddingVertical: 0,
               paddingHorizontal: 0,
             }}
             codeTextStyle={{
               fontFamily: 'Poppins',
-              fontSize: 16,
+              fontSize: 14,
               color: '#1F2937',
             }}
             onChangeCountry={country => {
@@ -206,7 +277,7 @@ const ContactDetailsTab: React.FC<Props> = ({
         </View>
       </View>
 
-      <DropdownFieldWithData
+      <DropdownFieldWithModal
         styles={styles}
         label="Country"
         value={country}
@@ -217,7 +288,7 @@ const ContactDetailsTab: React.FC<Props> = ({
         onSelect={onSelectCountry}
       />
 
-      <DropdownFieldWithData
+      <DropdownFieldWithModal
         styles={styles}
         label="State/Province/Region"
         value={state}
@@ -228,7 +299,7 @@ const ContactDetailsTab: React.FC<Props> = ({
         onSelect={onSelectState}
       />
 
-      <DropdownFieldWithData
+      <DropdownFieldWithModal
         styles={styles}
         label="City"
         value={city}

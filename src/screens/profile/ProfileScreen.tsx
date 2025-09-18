@@ -1048,8 +1048,8 @@ const ProfileScreen = ({ navigation }) => {
                     />
                   ) : (
                     <UserProfile
-                      width={100}
-                      height={100}
+                      width={84}
+                      height={84}
                       style={styles.avatar}
                     />
                   )}
@@ -1477,7 +1477,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#007AFF',
-    paddingTop: Platform.OS === 'ios' ? 12 : 12,
+    paddingTop: Platform.OS === 'ios' ? 12 : 50,
     paddingBottom: 10,
     paddingHorizontal: 0,
     alignItems: 'center',
@@ -1494,7 +1494,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold',
     textAlign: 'center',
     flex: 1,
   },
@@ -1508,7 +1507,7 @@ const styles = StyleSheet.create({
   },
   profileHeader: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 0,
     paddingHorizontal: 24,
   },
   avatarContainer: {

@@ -609,7 +609,7 @@ export default function ChatScreen({ navigation }) {
               <Text style={styles.closeBtn}>✕</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.inputLabel}>Name</Text>
+          {/* <Text style={styles.inputLabel}>Name</Text> */}
           <TextInput
             style={styles.input}
             placeholder="Name"
@@ -617,82 +617,80 @@ export default function ChatScreen({ navigation }) {
             onChangeText={setGroupName}
             placeholderTextColor="#AAB3BB"
           />
-          <Text style={styles.inputLabel}>Participants</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue=""
-              style={styles.picker}
-              onValueChange={itemValue => {
-                if (itemValue) {
-                  const selectedUser = availableUsers.find(
-                    user => user.value === itemValue,
-                  );
-                  if (selectedUser) {
-                    if (groupParticipants.includes(itemValue)) {
-                      // Remove if already selected
-                      setGroupParticipants(prev =>
-                        prev.filter(participant => participant !== itemValue),
-                      );
-                      setSelectedUsers(prev =>
-                        prev.filter(user => user.value !== itemValue),
-                      );
-                    } else {
-                      // Add if not selected
-                      setGroupParticipants(prev => [...prev, itemValue]);
-                      setSelectedUsers(prev => [...prev, selectedUser]);
-                    }
-                  }
-                }
-              }}
-              mode="dropdown"
-            >
-              <Picker.Item
-                label={`Select participants... (${groupParticipants.length} selected)`}
-                value=""
-              />
-              {isLoadingUsers ? (
-                <Picker.Item
-                  label="Loading users..."
-                  value=""
-                  enabled={false}
-                />
-              ) : (
-                availableUsers.map((user, idx) => (
-                  <Picker.Item
-                    key={idx}
-                    label={`${
-                      groupParticipants.includes(user.value) ? '✓ ' : ''
-                    }${user.text}`}
-                    value={user.value}
-                  />
-                ))
-              )}
-            </Picker>
+          {/* <Text style={styles.inputLabel}>Participants</Text> */}
+          <View style={styles.participantsInputContainer}>
+            {/* Selected users chips */}
             {selectedUsers.length > 0 && (
-              <View style={styles.selectedUsersContainer}>
-                <Text style={styles.selectedUsersLabel}>Selected:</Text>
-                <Text style={styles.selectedUsersDisplay}>
-                  {getSelectedUsersDisplayText()}
-                </Text>
+              <View style={styles.chipsContainer}>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  style={styles.chipsContainer}
+                  contentContainerStyle={styles.chipsScrollContent}
                 >
                   {selectedUsers.map(user => (
-                    <View key={user.value} style={styles.userChip}>
-                      <Text style={styles.chipText}>{user.text}</Text>
+                    <View key={user.value} style={styles.inputChip}>
+                      <Text style={styles.inputChipText}>{user.text}</Text>
                       <TouchableOpacity
                         onPress={() => removeSelectedUser(user.value)}
-                        style={styles.chipRemove}
+                        style={styles.inputChipRemove}
+                        hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                       >
-                        <Text style={styles.chipRemoveText}>✕</Text>
+                        <Text style={styles.inputChipRemoveText}>✕</Text>
                       </TouchableOpacity>
                     </View>
                   ))}
                 </ScrollView>
               </View>
             )}
+
+            {/* Full width dropdown picker */}
+            <View style={styles.fullWidthDropdownContainer}>
+              <Picker
+                selectedValue=""
+                style={styles.fullWidthDropdownPicker}
+                onValueChange={itemValue => {
+                  if (itemValue) {
+                    const selectedUser = availableUsers.find(
+                      user => user.value === itemValue,
+                    );
+                    if (
+                      selectedUser &&
+                      !groupParticipants.includes(itemValue)
+                    ) {
+                      setGroupParticipants(prev => [...prev, itemValue]);
+                      setSelectedUsers(prev => [...prev, selectedUser]);
+                    }
+                  }
+                }}
+                mode="dropdown"
+              >
+                <Picker.Item
+                  label={
+                    selectedUsers.length === 0
+                      ? 'Participants'
+                      : 'Add more participants...'
+                  }
+                  value=""
+                />
+                {isLoadingUsers ? (
+                  <Picker.Item
+                    label="Loading users..."
+                    value=""
+                    enabled={false}
+                  />
+                ) : (
+                  availableUsers
+                    .filter(user => !groupParticipants.includes(user.value))
+                    .map((user, idx) => (
+                      <Picker.Item
+                        key={idx}
+                        label={user.text}
+                        value={user.value}
+                      />
+                    ))
+                )}
+              </Picker>
+            </View>
           </View>
 
           <View style={styles.modalBtnRow}>
@@ -734,7 +732,7 @@ export default function ChatScreen({ navigation }) {
 
   // Chat Detail UI
   const renderChatDetail = () => (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#1292E6' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
       {/* Header */}
       <View style={styles.detailHeader}>
         <TouchableOpacity
@@ -748,9 +746,9 @@ export default function ChatScreen({ navigation }) {
         <Text style={styles.detailHeaderTitle}>
           {conversationDetails?.title || selectedChat?.title || 'Loading...'}
         </Text>
-        <View style={{ marginLeft: 'auto' }}>
+        {/* <View style={{ marginLeft: 'auto' }}>
           <Text style={{ color: '#fff', fontSize: 26 }}>⋮</Text>
-        </View>
+        </View> */}
       </View>
       {/* Chat Content */}
       <View style={styles.chatDetailCard}>
@@ -893,8 +891,8 @@ export default function ChatScreen({ navigation }) {
         style={{
           flex: 1,
           backgroundColor: '#F2F2F2',
-          borderTopLeftRadius: 30,
-          borderTopRightRadius: 30,
+          borderTopLeftRadius: 18,
+          borderTopRightRadius: 18,
           paddingTop: 50,
         }}
       >
@@ -1095,6 +1093,8 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
+    borderLeftWidth: 5,
+    borderLeftColor: '#007bff',
   },
   chatTitle: {
     color: '#222E44',
@@ -1185,6 +1185,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
     marginBottom: 10,
+    marginTop: 16,
     color: '#222',
   },
   inputLabel: {
@@ -1225,7 +1226,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E6F1FB',
     borderRadius: 10,
-    paddingVertical: 13,
+    paddingVertical: 8,
     alignItems: 'center',
     marginRight: 8,
   },
@@ -1233,7 +1234,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1292E6',
     borderRadius: 10,
-    paddingVertical: 13,
+    paddingVertical: 8,
     alignItems: 'center',
     marginLeft: 8,
   },
@@ -1252,7 +1253,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1292E6',
-    paddingVertical: 20,
+    paddingVertical: 50,
     paddingHorizontal: 18,
     borderBottomLeftRadius: 22,
     borderBottomRightRadius: 22,
@@ -1262,7 +1263,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 21,
     fontWeight: 'bold',
-    marginLeft: 18,
+    marginLeft: 0,
     flex: 1,
     textAlign: 'center',
   },
@@ -1422,50 +1423,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  selectedUsersContainer: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
+  participantsInputContainer: {
     borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  selectedUsersLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1292E6',
-    marginBottom: 8,
-  },
-  selectedUsersDisplay: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 12,
-    fontWeight: '500',
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    backgroundColor: '#F7F9FC',
+    marginVertical: 8,
+    paddingVertical: 4,
   },
   chipsContainer: {
-    flexDirection: 'row',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minHeight: 40,
   },
-  userChip: {
+  chipsScrollContent: {
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  inputChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1292E6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginRight: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 6,
+    marginVertical: 2,
   },
-  chipText: {
+  inputChipText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '500',
   },
-  chipRemove: {
-    marginLeft: 8,
-    padding: 2,
+  inputChipRemove: {
+    marginLeft: 4,
+    padding: 1,
   },
-  chipRemoveText: {
+  inputChipRemoveText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: 'bold',
+  },
+  fullWidthDropdownContainer: {
+    width: '100%',
+    paddingHorizontal: 4,
+  },
+  fullWidthDropdownPicker: {
+    width: '100%',
+    height: 55,
   },
 });

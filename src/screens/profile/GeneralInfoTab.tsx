@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, FlatList } from 'react-native';
+import Modal from 'react-native-modal';
 import { LANGUAGE_OPTIONS, TIMEZONE_OPTIONS } from './constants';
 
 type Props = {
@@ -32,6 +32,31 @@ const GeneralInfoTab: React.FC<Props> = ({
   onSelectTimezone,
   onToggleDefaultTimezone,
 }) => {
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showTimezoneModal, setShowTimezoneModal] = useState(false);
+
+  const renderModalItem = ({ item, onSelect, onClose }) => (
+    <TouchableOpacity
+      style={{
+        paddingVertical: 15,
+        paddingHorizontal: 20,
+        borderBottomWidth: 0.5,
+        borderBottomColor: '#E8E8E8',
+      }}
+      onPress={() => {
+        onSelect(item.text);
+        onClose();
+      }}
+    >
+      <Text style={{
+        fontSize: 16,
+        color: '#1A1A1A',
+      }}>
+        {item.text}
+      </Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.tabContent}>
       <View style={styles.phoneNumberContainer}>
@@ -75,70 +100,50 @@ const GeneralInfoTab: React.FC<Props> = ({
 
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>Language</Text>
-        <View
+        <TouchableOpacity
           style={{
             borderBottomWidth: 1,
             borderBottomColor: '#B0B0B0',
             marginBottom: 10,
+            paddingVertical: 15,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
           }}
+          onPress={() => setShowLanguageModal(true)}
         >
-          <Picker
-            selectedValue={language}
-            style={{
-              height: 55,
-              color: '#1A1A1A',
-              backgroundColor: 'transparent',
-              borderWidth: 0,
-              borderRadius: 0,
-              padding: 0,
-            }}
-            dropdownIconColor="#007AFF"
-            onValueChange={itemValue => {
-              if (itemValue) {
-                onSelectLanguage(itemValue as string);
-              }
-            }}
-          >
-            <Picker.Item label="Select language" value="" color="#999" />
-            {LANGUAGE_OPTIONS.map(option => (
-              <Picker.Item key={option.value} label={option.text} value={option.text} />
-            ))}
-          </Picker>
-        </View>
+          <Text style={{
+            fontSize: 14,
+            color: language ? '#1A1A1A' : '#999',
+          }}>
+            {language || 'Select language'}
+          </Text>
+          <Text style={{ fontSize: 16, color: '#007AFF' }}>▼</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>Time Zone</Text>
-        <View
+        <TouchableOpacity
           style={{
             borderBottomWidth: 1,
             borderBottomColor: '#B0B0B0',
             marginBottom: 10,
+            paddingVertical: 15,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
           }}
+          onPress={() => setShowTimezoneModal(true)}
         >
-          <Picker
-            selectedValue={timezone}
-            style={{
-              height: 55,
-              color: '#1A1A1A',
-              backgroundColor: 'transparent',
-              borderWidth: 0,
-              borderRadius: 0,
-              padding: 0,
-            }}
-            dropdownIconColor="#007AFF"
-            onValueChange={itemValue => {
-              if (itemValue) {
-                onSelectTimezone(itemValue as string);
-              }
-            }}
-          >
-            <Picker.Item label="Select time zone" value="" color="#999" />
-            {TIMEZONE_OPTIONS.map(option => (
-              <Picker.Item key={option.value} label={option.text} value={option.text} />
-            ))}
-          </Picker>
-        </View>
+          <Text style={{
+            fontSize: 14,
+            color: timezone ? '#1A1A1A' : '#999',
+          }}>
+            {timezone || 'Select time zone'}
+          </Text>
+          <Text style={{ fontSize: 16, color: '#007AFF' }}>▼</Text>
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity
@@ -155,10 +160,138 @@ const GeneralInfoTab: React.FC<Props> = ({
         </View>
         <Text style={styles.checkboxLabel}>Use Default Time Zone</Text>
       </TouchableOpacity>
+
+      {/* Language Modal */}
+      <Modal
+        isVisible={showLanguageModal}
+        onBackdropPress={() => setShowLanguageModal(false)}
+        backdropOpacity={0.5}
+        style={{
+          margin: 0,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <View style={{
+          backgroundColor: 'white',
+          borderRadius: 12,
+          margin: 20,
+          maxHeight: '70%',
+          width: '80%',
+          overflow: 'hidden',
+        }}>
+          <View style={{
+            paddingVertical: 20,
+            paddingHorizontal: 20,
+            borderBottomWidth: 1,
+            borderBottomColor: '#E8E8E8',
+          }}>
+            <Text style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: '#1A1A1A',
+              textAlign: 'center',
+            }}>
+              Select Language
+            </Text>
+          </View>
+          <FlatList
+            data={LANGUAGE_OPTIONS}
+            keyExtractor={(item) => item.value}
+            renderItem={({ item }) => renderModalItem({
+              item,
+              onSelect: onSelectLanguage,
+              onClose: () => setShowLanguageModal(false),
+            })}
+            showsVerticalScrollIndicator={true}
+          />
+          <TouchableOpacity
+            style={{
+              paddingVertical: 15,
+              paddingHorizontal: 20,
+              borderTopWidth: 1,
+              borderTopColor: '#E8E8E8',
+              alignItems: 'center',
+            }}
+            onPress={() => setShowLanguageModal(false)}
+          >
+            <Text style={{
+              fontSize: 16,
+              color: '#007AFF',
+              fontWeight: '600',
+            }}>
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Timezone Modal */}
+      <Modal
+        isVisible={showTimezoneModal}
+        onBackdropPress={() => setShowTimezoneModal(false)}
+        backdropOpacity={0.5}
+        style={{
+          margin: 0,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <View style={{
+          backgroundColor: 'white',
+          borderRadius: 12,
+          margin: 20,
+          maxHeight: '70%',
+          width: '80%',
+          overflow: 'hidden',
+        }}>
+          <View style={{
+            paddingVertical: 20,
+            paddingHorizontal: 20,
+            borderBottomWidth: 1,
+            borderBottomColor: '#E8E8E8',
+          }}>
+            <Text style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: '#1A1A1A',
+              textAlign: 'center',
+            }}>
+              Select Time Zone
+            </Text>
+          </View>
+          <FlatList
+            data={TIMEZONE_OPTIONS}
+            keyExtractor={(item) => item.value}
+            renderItem={({ item }) => renderModalItem({
+              item,
+              onSelect: onSelectTimezone,
+              onClose: () => setShowTimezoneModal(false),
+            })}
+            showsVerticalScrollIndicator={true}
+          />
+          <TouchableOpacity
+            style={{
+              paddingVertical: 15,
+              paddingHorizontal: 20,
+              borderTopWidth: 1,
+              borderTopColor: '#E8E8E8',
+              alignItems: 'center',
+            }}
+            onPress={() => setShowTimezoneModal(false)}
+          >
+            <Text style={{
+              fontSize: 16,
+              color: '#007AFF',
+              fontWeight: '600',
+            }}>
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 export default GeneralInfoTab;
-
-

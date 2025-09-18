@@ -66,14 +66,15 @@ const RED = '#f44336';
 const GRAY = '#7A8194';
 const BG_GRAY = '#F6F6F6';
 
-// Replace the HOUR_LIST constant with this:
-const HOUR_LIST = Array.from({ length: 24 }, (_, i) => {
-  const hour = i;
+const HOUR_LIST = Array.from({ length: 48 }, (_, i) => {
+  const totalMinutes = i * 30;
+  const hour = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
   const period = hour >= 12 ? 'PM' : 'AM';
   const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return `${displayHour.toString().padStart(2, '0')}.00 ${period}`;
+  const minutesStr = minutes === 0 ? '00' : '30';
+  return `${displayHour.toString().padStart(2, '0')}.${minutesStr} ${period}`;
 });
-
 const mockTasks = [
   {
     id: '1',
@@ -147,23 +148,35 @@ const mockTasks = [
   },
 ];
 
-// Replace the formatTasksForUI function with this improved version:
 function formatTasksForUI(tasks: TaskSchedulingModel[]) {
   return tasks.map(task => {
     const startTime = new Date(task.startDate);
     const endTime = new Date(task.endDate);
 
-    // Format time to match HOUR_LIST format exactly
+    // Format time to match HOUR_LIST format for 30-minute intervals
     const formatTime = (date: Date) => {
       const hour = date.getHours();
+      const minutes = date.getMinutes();
       const period = hour >= 12 ? 'PM' : 'AM';
       const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-      return `${displayHour.toString().padStart(2, '0')}.00 ${period}`;
+
+      // Round minutes to nearest 30-minute slot
+      const roundedMinutes = minutes < 30 ? 0 : 30;
+      const minutesStr = roundedMinutes === 0 ? '00' : '30';
+
+      return `${displayHour
+        .toString()
+        .padStart(2, '0')}.${minutesStr} ${period}`;
     };
 
-    // Determine border color based on scheduleType
-    let borderColor = GREEN;
-    let bg = '#E5F6EC';
+    // Calculate task duration and determine type
+    const durationMs = endTime.getTime() - startTime.getTime();
+    const durationMinutes = durationMs / (1000 * 60);
+    const taskType = durationMinutes <= 30 ? 'mini' : 'main';
+
+    // Determine border color and background based on scheduleType
+    let borderColor = BLUE; // Default for ON_TIME
+    let bg = '#E3F2FD'; // Light blue background
 
     if (task.scheduleType === 'EXPIRED') {
       borderColor = RED;
@@ -171,6 +184,9 @@ function formatTasksForUI(tasks: TaskSchedulingModel[]) {
     } else if (task.scheduleType === 'SCHEDULED') {
       borderColor = GREEN;
       bg = '#E5F6EC';
+    } else if (task.scheduleType === 'ON_TIME') {
+      borderColor = BLUE;
+      bg = '#E3F2FD';
     }
 
     return {
@@ -181,11 +197,12 @@ function formatTasksForUI(tasks: TaskSchedulingModel[]) {
       user: task.userName || 'Unassigned',
       borderColor,
       bg,
-      type: 'main',
+      type: taskType,
       startDate: task.startDate,
       endDate: task.endDate,
       scheduleType: task.scheduleType,
-      rawStartTime: startTime, // Keep original for debugging
+      rawStartTime: startTime,
+      duration: durationMinutes,
     };
   });
 }
@@ -258,7 +275,7 @@ export default function CalendarAgendaScreen({ navigation }) {
   const weekDays = getWeekDays(selectedDate);
   const [calendarVisible, setCalendarVisible] = useState(false);
 
-    const [showDropdown, setShowDropdown] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const logoutMutation = useLogout({
     onSuccess: () => {
@@ -339,7 +356,11 @@ export default function CalendarAgendaScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity>
-          <LeftArrowIcon width={16} height={16} onPress={() => navigation.goBack()} />
+          <LeftArrowIcon
+            width={16}
+            height={16}
+            onPress={() => navigation.goBack()}
+          />
         </TouchableOpacity>
         <Pressable
           style={styles.headerTitle}
@@ -356,7 +377,11 @@ export default function CalendarAgendaScreen({ navigation }) {
           </Text>
         </Pressable>
         <TouchableOpacity>
-          <ThreeDotIcon width={20} height={20} onPress={() => setShowDropdown(true)} />
+          <ThreeDotIcon
+            width={20}
+            height={20}
+            onPress={() => setShowDropdown(true)}
+          />
         </TouchableOpacity>
       </View>
       {/* Floating Calendar Modal */}
@@ -523,8 +548,8 @@ export default function CalendarAgendaScreen({ navigation }) {
                           {
                             borderColor: item.borderColor,
                             backgroundColor: item.bg,
-                            minWidth: item.type === 'mini' ? 60 : 100,
-                            maxWidth: 200,
+                            minWidth: item.type === 'mini' ? 120 : 150,
+                            maxWidth: item.type === 'mini' ? 150 : 250,
                             shadowColor: '#184B74',
                             shadowOffset: { width: 0, height: 2 },
                             shadowOpacity: 0.12,
@@ -536,18 +561,34 @@ export default function CalendarAgendaScreen({ navigation }) {
                         <View style={styles.taskMetaRow}>
                           <Text style={styles.taskNumber}>{item.number}</Text>
                           <View style={styles.taskUserPill}>
-                            <Text style={styles.taskUserText}>{item.user}</Text>
+                            <Text style={styles.taskUserText}>
+                              {item.type === 'mini'
+                                ? item.user.split(' ')[0]
+                                : item.user}
+                            </Text>
                           </View>
                         </View>
-                        <Text style={styles.taskTitle}>{item.title}</Text>
-                        {/* {item.scheduleType && (
+                        <Text
+                          style={[
+                            styles.taskTitle,
+                            { fontSize: item.type === 'mini' ? 11 : 12 },
+                          ]}
+                          numberOfLines={item.type === 'mini' ? 2 : 3}
+                        >
+                          {item.title}
+                        </Text>
+                        {item.scheduleType && (
                           <Text
                             style={[
                               styles.taskScheduleType,
                               {
                                 color:
-                                  item.scheduleType === 'EXPIRED' ? RED : GREEN,
-                                fontSize: 10,
+                                  item.scheduleType === 'EXPIRED'
+                                    ? RED
+                                    : item.scheduleType === 'SCHEDULED'
+                                    ? GREEN
+                                    : BLUE,
+                                fontSize: item.type === 'mini' ? 9 : 10,
                                 fontWeight: '500',
                                 marginTop: 2,
                               },
@@ -555,7 +596,18 @@ export default function CalendarAgendaScreen({ navigation }) {
                           >
                             {item.scheduleType}
                           </Text>
-                        )} */}
+                        )}
+                        {/* {item.duration && (
+    <Text
+      style={{
+        color: GRAY,
+        fontSize: item.type === 'mini' ? 8 : 9,
+        marginTop: 1,
+      }}
+    >
+      {item.duration}min
+    </Text>
+  )} */}
                       </View>
                     ))}
                     {getTasksByHour(formattedTasks, hour).length === 0 && (
@@ -575,7 +627,7 @@ export default function CalendarAgendaScreen({ navigation }) {
         </ScrollView>
       </View>
 
-{/* Dropdown Modal */}
+      {/* Dropdown Modal */}
       <Modal
         visible={showDropdown}
         transparent={true}
@@ -618,7 +670,6 @@ export default function CalendarAgendaScreen({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
-
     </SafeAreaView>
   );
 }
@@ -704,7 +755,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   hourBlock: {
-    minHeight: 88,
+    minHeight: 44,
     justifyContent: 'flex-start',
     position: 'relative',
   },
@@ -828,32 +879,32 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     marginTop: 8,
   },
-    dropdownOverlay: {
+  dropdownOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.18)',
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
   },
-    dropdownMenu: {
-      marginTop: Platform.OS === 'ios' ? 90 : 72,
-      marginRight: 24,
-      backgroundColor: '#fff',
-      borderRadius: 12,
-      paddingVertical: 8,
-      width: 140,
-      shadowColor: '#000',
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
-      elevation: 8,
-    },
-    dropdownItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-    },
-    dropdownText: {
-      fontSize: 16,
-      color: '#1A1A1A',
-    },
+  dropdownMenu: {
+    marginTop: Platform.OS === 'ios' ? 90 : 72,
+    marginRight: 24,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 8,
+    width: 140,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#1A1A1A',
+  },
 });
