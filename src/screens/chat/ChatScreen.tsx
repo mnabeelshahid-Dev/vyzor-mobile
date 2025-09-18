@@ -643,7 +643,7 @@ export default function ChatScreen({ navigation }) {
               </View>
             )}
 
-            {/* Full width dropdown picker */}y
+            {/* Full width dropdown picker */}
             <View style={styles.fullWidthDropdownContainer}>
               <Picker
                 selectedValue=""
@@ -667,7 +667,7 @@ export default function ChatScreen({ navigation }) {
                 <Picker.Item
                   label={
                     selectedUsers.length === 0
-                      ? 'Select participants...'
+                      ? 'Participants'
                       : 'Add more participants...'
                   }
                   value=""
@@ -746,9 +746,9 @@ export default function ChatScreen({ navigation }) {
         <Text style={styles.detailHeaderTitle}>
           {conversationDetails?.title || selectedChat?.title || 'Loading...'}
         </Text>
-        <View style={{ marginLeft: 'auto' }}>
+        {/* <View style={{ marginLeft: 'auto' }}>
           <Text style={{ color: '#fff', fontSize: 26 }}>⋮</Text>
-        </View>
+        </View> */}
       </View>
       {/* Chat Content */}
       <View style={styles.chatDetailCard}>
@@ -891,8 +891,8 @@ export default function ChatScreen({ navigation }) {
         style={{
           flex: 1,
           backgroundColor: '#F2F2F2',
-          borderTopLeftRadius: 30,
-          borderTopRightRadius: 30,
+          borderTopLeftRadius: 18,
+          borderTopRightRadius: 18,
           paddingTop: 50,
         }}
       >
@@ -1183,6 +1183,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
     marginBottom: 10,
+    marginTop: 16,
     color: '#222',
   },
   inputLabel: {
@@ -1223,7 +1224,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E6F1FB',
     borderRadius: 10,
-    paddingVertical: 13,
+    paddingVertical: 8,
     alignItems: 'center',
     marginRight: 8,
   },
@@ -1231,7 +1232,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1292E6',
     borderRadius: 10,
-    paddingVertical: 13,
+    paddingVertical: 8,
     alignItems: 'center',
     marginLeft: 8,
   },
@@ -1250,7 +1251,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1292E6',
-    paddingVertical: 20,
+    paddingVertical: 50,
     paddingHorizontal: 18,
     borderBottomLeftRadius: 22,
     borderBottomRightRadius: 22,
@@ -1260,7 +1261,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 21,
     fontWeight: 'bold',
-    marginLeft: 18,
+    marginLeft: 0,
     flex: 1,
     textAlign: 'center',
   },
