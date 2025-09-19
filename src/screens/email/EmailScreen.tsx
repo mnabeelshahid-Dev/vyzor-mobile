@@ -656,7 +656,7 @@ export default function EmailNotificationsScreen({ navigation }) {
                       fontSize: labelFont,
                     }}
                   >
-                    Clear
+                    Reset
                   </Text>
                 </TouchableOpacity>
 
