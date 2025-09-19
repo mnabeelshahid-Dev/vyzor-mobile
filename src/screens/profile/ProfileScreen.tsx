@@ -1881,7 +1881,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    // marginBottom: 8,
   },
   defaultPhoneLabel: {
     fontSize: 14,
@@ -1916,5 +1916,47 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#1A1A1A',
   },
+  phoneInputWithDeleteContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+phoneInputFlexContainer: {
+  flex: 1,
+},
+phoneDeleteIconButton: {
+  marginLeft: 12,
+  width: 32,
+  height: 32,
+  // backgroundColor: '#FF3B30',
+  borderRadius: 16,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+phoneDeleteIconText: {
+  fontSize: 14,
+  color: '#fff',
+},
+addNewNumberIconButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginBottom: 20,
+},
+addNewNumberIcon: {
+  width: 24,
+  height: 24,
+  backgroundColor: '#007AFF',
+  color: '#fff',
+  borderRadius: 12,
+  textAlign: 'center',
+  // lineHeight: 24,
+  fontSize: 16,
+  // fontWeight: 'bold',
+  marginLeft: 8,
+},
+addNewNumberLabel: {
+  color: '#007AFF',
+  fontSize: 14,
+  fontWeight: '600',
+},
 });
 export default ProfileScreen;
