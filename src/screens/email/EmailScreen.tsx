@@ -11,6 +11,7 @@ import {
   Modal,
   Pressable,
   useWindowDimensions,
+  ActivityIndicator,
   ScrollView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -44,12 +45,12 @@ const FILTER_OPTIONS = {
     'Document Deleted',
     'Document Created',
     'Password Reset',
-    'User Updated'
+    'User Updated',
   ],
   status: ['All', 'Pending', 'Failed', 'Success'],
 };
 
-function formatDate(dateStrOrObj: string | Date = ""): string {
+function formatDate(dateStrOrObj: string | Date = ''): string {
   if (!dateStrOrObj) return '';
   let dateObj: Date;
   if (typeof dateStrOrObj === 'string') {
@@ -74,8 +75,23 @@ function formatDate(dateStrOrObj: string | Date = ""): string {
 export default function EmailNotificationsScreen({ navigation }) {
   const [filterModal, setFilterModal] = useState(false);
   const [search, setSearch] = useState('');
+
+  const { data: usersData, isLoading: loadingUsers } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      try {
+        const response = await apiService.get('/api/security/filter/USERS');
+        return Array.isArray(response.data) ? response.data : [];
+      } catch (err) {
+        console.error('Users API fetch error:', err);
+        return [];
+      }
+    },
+  });
+
   const [filters, setFilters] = useState({
     to: 'All',
+    toUserId: '', // Add this new field to store the selected user ID
     type: 'All',
     status: 'All',
     startDate: '',
@@ -84,7 +100,18 @@ export default function EmailNotificationsScreen({ navigation }) {
   const [dropdown, setDropdown] = useState({ field: null, visible: false });
   const [datePicker, setDatePicker] = useState({ field: null, show: false });
 
-    const [showDropdown, setShowDropdown] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  const [appliedFilters, setAppliedFilters] = useState({
+    to: 'All',
+    toUserId: '', // Add this new field to store the applied user ID
+    type: 'All',
+    status: 'All',
+    startDate: '',
+    endDate: '',
+  });
 
   const logoutMutation = useLogout({
     onSuccess: () => {
@@ -106,16 +133,25 @@ export default function EmailNotificationsScreen({ navigation }) {
     const params = new URLSearchParams();
     params.append('page', '0');
     params.append('size', '20');
-    params.append('search', search || '');
+    params.append('search', debouncedSearch || '');
     params.append('sort', 'createdDate,desc');
-    if (filters.to && filters.to !== 'All') params.append('to', filters.to);
-    if (filters.type && filters.type !== 'All') params.append('emailType', filters.type);
-    if (filters.status && filters.status !== 'All') {
-      // Map status to uppercase enum value
-      params.append('status', filters.status.toUpperCase());
+
+    // Update this section to use userIds instead of to
+    if (appliedFilters.toUserId && appliedFilters.toUserId !== 'All')
+      params.append('userIds', appliedFilters.toUserId);
+    if (appliedFilters.type && appliedFilters.type !== 'All')
+      params.append(
+        'type',
+        appliedFilters.type.toUpperCase().replace(/ /g, '_'),
+      );
+    if (appliedFilters.status && appliedFilters.status !== 'All') {
+      params.append('status', appliedFilters.status.toUpperCase());
     }
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (appliedFilters.startDate)
+      params.append('startDate', appliedFilters.startDate);
+    if (appliedFilters.endDate)
+      params.append('endDate', appliedFilters.endDate);
+
     return params.toString();
   };
 
@@ -126,14 +162,19 @@ export default function EmailNotificationsScreen({ navigation }) {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['emails', filters, search],
+    queryKey: ['emails', appliedFilters, debouncedSearch], // Changed from filters to appliedFilters
     queryFn: async () => {
       const params = getEmailParams();
       try {
-        const response = await apiService.get(`/api/notification/emails?${params}`);
+        const response = await apiService.get(
+          `/api/notification/emails?${params}`,
+        );
         if (Array.isArray(response.data)) return response.data;
-        if (response.data && Array.isArray((response.data as { content?: unknown[] }).content)) return (response.data as { content: unknown[] }).content;
-        if (response.data && Array.isArray((response.data as { content?: unknown[] }).content)) return (response.data as { content: unknown[] }).content;
+        if (
+          response.data &&
+          Array.isArray((response.data as { content?: unknown[] }).content)
+        )
+          return (response.data as { content: unknown[] }).content;
         return [];
       } catch (err) {
         console.error('Emails API fetch error:', err);
@@ -144,39 +185,19 @@ export default function EmailNotificationsScreen({ navigation }) {
   const emails = Array.isArray(emailData) ? emailData : [];
 
   useEffect(() => {
-      refetch();
-    }, [refetch]
-  );
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Filtering logic
-  const filteredEmails = emails.filter(item => {
-    if (filters.to !== 'All' && item.email !== filters.to) return false;
-    if (filters.type !== 'All' && item.title !== filters.type) return false;
-    if (filters.status !== 'All' && item.status !== filters.status) return false;
-    if (filters.startDate) {
-      const [sday, smonth, syear] = filters.startDate.split('-');
-      const itemDate = new Date(item.date.split(' at')[0].split('-').reverse().join('-'));
-      const filterDate = new Date(`${syear}-${smonth}-${sday}`);
-      if (itemDate < filterDate) return false;
-    }
-    if (filters.endDate) {
-      const [eday, emonth, eyear] = filters.endDate.split('-');
-      const itemDate = new Date(item.date.split(' at')[0].split('-').reverse().join('-'));
-      const filterDate = new Date(`${eyear}-${emonth}-${eday}`);
-      if (itemDate > filterDate) return false;
-    }
-    if (
-      search &&
-      !(
-        item.title.toLowerCase().includes(search.toLowerCase()) ||
-        item.email.toLowerCase().includes(search.toLowerCase())
-      )
-    )
-      return false;
-    return true;
-  });
+  const filteredEmails = emails;
 
-  const renderEmail = ({ item: { subject = "", recipientEmails = "", startDate = "", status = "" } }) => (
+  const renderEmail = ({
+    item: { subject = '', recipientEmails = '', startDate = '', status = '' },
+  }) => (
     <View style={[styles.emailRow, { padding: containerPadding }]}>
       <View style={styles.emailTextBlock}>
         <Text style={styles.emailTitle}>{subject}</Text>
@@ -205,55 +226,82 @@ export default function EmailNotificationsScreen({ navigation }) {
 
   // Dropdown menu (now: overlays just under input, no red dot, matches Figma)
   const getToOptions = () => {
-    // Always start with 'All'
-    const userNames = emails
-      .flatMap(email => Array.isArray(email.emailRecipientModel) ? email.emailRecipientModel.map(r => r.name) : [])
-      .filter(Boolean);
-    // Remove duplicates
-    const uniqueNames = Array.from(new Set(userNames));
-    return [ ...uniqueNames];
+    if (!usersData || !Array.isArray(usersData)) return ['All'];
+    const userOptions = usersData.map(user => ({
+      text: user.text,
+      value: user.value,
+    }));
+    return [{ text: 'All', value: 'All' }, ...userOptions];
   };
 
-  const renderDropdown = (field) => {
+  const renderDropdown = field => {
     if (!(dropdown.visible && dropdown.field === field)) return null;
     let options = FILTER_OPTIONS[field];
+    let optionsToRender = [];
+
     if (field === 'to') {
-      options = getToOptions();
+      const userOptions = getToOptions();
+      optionsToRender = userOptions;
+    } else {
+      optionsToRender = options.map(opt => ({ text: opt, value: opt }));
     }
+
     return (
-      <View style={[styles.dropdownOverlay, { pointerEvents: 'box-none' }]}> {/* pointerEvents for overlay */}
-        <View style={[styles.dropdownMenu, { maxHeight: 260, overflow: 'scroll' }]}> {/* overflow: scroll for FlatList */}
-          <FlatList
-            data={options}
-            keyExtractor={(item) => item}
-            renderItem={({ item }) => (
+      <View
+        style={[
+          styles.dropdownOverlay,
+          { position: 'relative', top: 0, zIndex: 1000 },
+        ]}
+      >
+        <View style={[styles.dropdownMenu, { maxHeight: 150 }]}>
+          <ScrollView
+            style={{ maxHeight: 150 }}
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={{ paddingBottom: 8 }}
+            nestedScrollEnabled={true}
+          >
+            {optionsToRender.map((item, index) => (
               <TouchableOpacity
-                key={item}
+                key={`${field}-${index}`}
                 style={styles.dropdownItem}
                 onPress={() => {
-                  setFilters((f) => ({ ...f, [field]: item }));
+                  if (field === 'to') {
+                    setFilters(f => ({
+                      ...f,
+                      to: item.text,
+                      toUserId: item.value,
+                    }));
+                  } else {
+                    setFilters(f => ({
+                      ...f,
+                      [field]: item.text || item.value,
+                    }));
+                  }
                   setDropdown({ field: null, visible: false });
                 }}
               >
                 <Text
-                  style={[styles.dropdownText, filters[field] === item && { color: '#1292E6', fontWeight: 'bold' }]}
+                  style={[
+                    styles.dropdownText,
+                    filters[field] === (item.text || item.value) && {
+                      color: '#1292E6',
+                      fontWeight: 'bold',
+                    },
+                  ]}
                   numberOfLines={1}
                 >
-                  {item}
+                  {item.text || item.value}
                 </Text>
               </TouchableOpacity>
-            )}
-            style={{ maxHeight: 260 }}
-            showsVerticalScrollIndicator={true}
-            contentContainerStyle={{ paddingBottom: 8 }}
-          />
+            ))}
+          </ScrollView>
         </View>
       </View>
     );
   };
 
   // Date picker (native)
-  const renderDatePicker = (field) =>
+  const renderDatePicker = field =>
     datePicker.show && datePicker.field === field ? (
       <DateTimePicker
         value={
@@ -266,7 +314,7 @@ export default function EmailNotificationsScreen({ navigation }) {
         onChange={(event, selectedDate) => {
           setDatePicker({ field: null, show: false });
           if (selectedDate) {
-            setFilters((f) => ({
+            setFilters(f => ({
               ...f,
               [field]: formatDate(selectedDate),
             }));
@@ -279,9 +327,31 @@ export default function EmailNotificationsScreen({ navigation }) {
   const getInputText = (field, isDate = false) => {
     if (isDate) {
       if (filters[field]) {
-        return <Text style={{ fontSize: labelFont, color: '#184B74', flex: 1, textAlign: 'left' }}>{filters[field]}</Text>;
+        return (
+          <Text
+            style={{
+              fontSize: labelFont,
+              color: '#184B74',
+              flex: 1,
+              textAlign: 'left',
+            }}
+          >
+            {filters[field]}
+          </Text>
+        );
       } else {
-        return <Text style={{ fontSize: labelFont, color: '#7A8194', flex: 1, textAlign: 'left' }}>{field === 'startDate' ? 'Start Date' : 'End Date'}</Text>;
+        return (
+          <Text
+            style={{
+              fontSize: labelFont,
+              color: '#7A8194',
+              flex: 1,
+              textAlign: 'left',
+            }}
+          >
+            {field === 'startDate' ? 'Start Date' : 'End Date'}
+          </Text>
+        );
       }
     }
     // Dropdown fields
@@ -290,9 +360,33 @@ export default function EmailNotificationsScreen({ navigation }) {
     if (field === 'type') placeholder = 'Email Type';
     if (field === 'status') placeholder = 'Status';
     if (!filters[field] || filters[field] === 'All') {
-      return <Text style={{ fontSize: labelFont, color: '#7A8194', flex: 1, textAlign: 'left', fontWeight: '400' }}>{placeholder}</Text>;
+      return (
+        <Text
+          style={{
+            fontSize: labelFont,
+            color: '#7A8194',
+            flex: 1,
+            textAlign: 'left',
+            fontWeight: '400',
+          }}
+        >
+          {placeholder}
+        </Text>
+      );
     }
-    return <Text style={{ fontSize: labelFont, color: '#184B74', flex: 1, textAlign: 'left', fontWeight: '600' }}>{filters[field]}</Text>;
+    return (
+      <Text
+        style={{
+          fontSize: labelFont,
+          color: '#184B74',
+          flex: 1,
+          textAlign: 'left',
+          fontWeight: '600',
+        }}
+      >
+        {filters[field]}
+      </Text>
+    );
   };
 
   return (
@@ -306,7 +400,11 @@ export default function EmailNotificationsScreen({ navigation }) {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Email Notifications</Text>
           <TouchableOpacity>
-            <ThreeDotIcon width={20} height={20} onPress={() => setShowDropdown(true)} />
+            <ThreeDotIcon
+              width={20}
+              height={20}
+              onPress={() => setShowDropdown(true)}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -341,15 +439,70 @@ export default function EmailNotificationsScreen({ navigation }) {
           paddingHorizontal: 16,
         }}
       >
-        {/* Email List */}
-        <FlatList
-          data={filteredEmails}
-          keyExtractor={(item) => item.id}
-          renderItem={renderEmail}
-          style={styles.emailList}
-          contentContainerStyle={{ paddingBottom: 24 }}
-          showsVerticalScrollIndicator={false}
-        />
+        {/* Loading State */}
+        {loadingEmails ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Loading emails...</Text>
+          </View>
+        ) : isError ? (
+          /* Error State */
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
+            <Text style={styles.errorMessage}>
+              {error?.message || 'Unable to fetch emails. Please try again.'}
+            </Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => refetch()}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : filteredEmails.length === 0 ? (
+          /* No Data State */
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataTitle}>No emails found</Text>
+            <Text style={styles.noDataMessage}>
+              No data found for this query or filter. Try adjusting your search
+              criteria.
+            </Text>
+            <TouchableOpacity
+              style={styles.clearFiltersButton}
+              onPress={() => {
+                const clearedFilters = {
+                  to: 'All',
+                  toUserId: 'All',
+                  type: 'All',
+                  status: 'All',
+                  startDate: '',
+                  endDate: '',
+                };
+                setFilters(clearedFilters);
+                setAppliedFilters(clearedFilters);
+                setSearch('');
+              }}
+            >
+              <Text style={styles.clearFiltersButtonText}>
+                Clear All Filters
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          /* Email List */
+          <FlatList
+            data={filteredEmails}
+            keyExtractor={(item, index) =>
+              item.id?.toString() || `email-${index}`
+            }
+            renderItem={renderEmail}
+            style={styles.emailList}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            showsVerticalScrollIndicator={false}
+            refreshing={loadingEmails}
+            onRefresh={refetch}
+          />
+        )}
       </View>
 
       {/* Filter Modal */}
@@ -371,48 +524,93 @@ export default function EmailNotificationsScreen({ navigation }) {
                 padding: Math.max(16, modalWidth * 0.06),
               },
             ]}
-            onPress={(e) => e.stopPropagation()}
+            onPress={e => e.stopPropagation()}
           >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { fontSize: labelFont }]}>
+                Filter Options
+              </Text>
+              <TouchableOpacity
+                style={styles.closeBtnWrap}
+                onPress={() => {
+                  // Clear all filters when cross button is clicked
+                  const clearedFilters = {
+                    to: 'All',
+                    toUserId: 'All',
+                    type: 'All',
+                    status: 'All',
+                    startDate: '',
+                    endDate: '',
+                  };
+                  setFilters(clearedFilters);
+                  setAppliedFilters(clearedFilters);
+                  setDropdown({ field: null, visible: false });
+                  setFilterModal(false);
+                }}
+              >
+                <Text style={styles.closeBtn}>x</Text>
+              </TouchableOpacity>
+            </View>
+
             <ScrollView
-              // style={{ maxHeight: 420 }}
-              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: 420 }}
+              showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
             >
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { fontSize: labelFont }]}>Filter Options</Text>
-                <TouchableOpacity
-                  style={styles.closeBtnWrap}
-                  onPress={() => setFilterModal(false)}
-                >
-                  <Text style={styles.closeBtn}>x</Text>
-                </TouchableOpacity>
-              </View>
               {/* Filter Fields */}
-              {['to', 'type', 'status'].map((field) => (
-                <View key={field} style={{ marginBottom: 16, zIndex: dropdown.visible && dropdown.field === field ? 999 : 1 }}>
+              {['to', 'type', 'status'].map(field => (
+                <View
+                  key={field}
+                  style={{
+                    marginBottom: 16,
+                    zIndex:
+                      dropdown.visible && dropdown.field === field ? 999 : 1,
+                  }}
+                >
                   <TouchableOpacity
-                    style={[
-                      styles.filterInput,
-                      { height: inputHeight },
-                    ]}
+                    style={[styles.filterInput, { height: inputHeight }]}
                     activeOpacity={0.7}
                     onPress={() =>
-                      setDropdown({ field, visible: !dropdown.visible || dropdown.field !== field })
+                      setDropdown({
+                        field,
+                        visible: !dropdown.visible || dropdown.field !== field,
+                      })
                     }
                   >
                     {getInputText(field, false)}
-                    <Text style={{ fontSize: 13, color: '#A6B0C3', marginLeft: 'auto' }}>▼</Text>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        color: '#A6B0C3',
+                        marginLeft: 'auto',
+                      }}
+                    >
+                      ▼
+                    </Text>
                   </TouchableOpacity>
-                  {dropdown.visible && dropdown.field === field && renderDropdown(field)}
+                  {dropdown.visible &&
+                    dropdown.field === field &&
+                    renderDropdown(field)}
                 </View>
               ))}
               <TouchableOpacity
-                style={[styles.filterInput, { flex: 1, height: inputHeight, marginBottom: 15 }]}
-                onPress={() => setDatePicker({ field: 'startDate', show: true })}
+                style={[
+                  styles.filterInput,
+                  { flex: 1, height: inputHeight, marginBottom: 15 },
+                ]}
+                onPress={() =>
+                  setDatePicker({ field: 'startDate', show: true })
+                }
                 activeOpacity={0.7}
               >
                 {getInputText('startDate', true)}
-                <CalendarIcon width={16} height={16} color={'#A6B0C3'} style={{ marginLeft: 'auto' }} />
+                <CalendarIcon
+                  width={16}
+                  height={16}
+                  color={'#A6B0C3'}
+                  style={{ marginLeft: 'auto' }}
+                />
               </TouchableOpacity>
               {renderDatePicker('startDate')}
               <TouchableOpacity
@@ -421,35 +619,79 @@ export default function EmailNotificationsScreen({ navigation }) {
                 activeOpacity={0.7}
               >
                 {getInputText('endDate', true)}
-                <CalendarIcon width={16} height={16} color={'#A6B0C3'} style={{ marginLeft: 'auto' }} />
+                <CalendarIcon
+                  width={16}
+                  height={16}
+                  color={'#A6B0C3'}
+                  style={{ marginLeft: 'auto' }}
+                />
               </TouchableOpacity>
               {renderDatePicker('endDate')}
               {/* Buttons */}
               <View style={styles.filterBtnRow}>
                 <TouchableOpacity
-                  style={[styles.clearBtn, { flex: 1, height: inputHeight * 0.95 }]}
+                  style={[
+                    styles.clearBtn,
+                    { flex: 1, height: inputHeight * 0.95 },
+                  ]}
                   onPress={() => {
-                    setFilters({
+                    const clearedFilters = {
                       to: 'All',
+                      toUserId: 'All',
                       type: 'All',
                       status: 'All',
                       startDate: '',
                       endDate: '',
-                    });
+                    };
+                    setFilters(clearedFilters);
+                    setAppliedFilters(clearedFilters);
+                    setDropdown({ field: null, visible: false });
                     setFilterModal(false);
                   }}
                 >
-                  <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: labelFont }}>
+                  <Text
+                    style={{
+                      color: '#1292E6',
+                      fontWeight: '600',
+                      fontSize: labelFont,
+                    }}
+                  >
                     Clear
                   </Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
-                  style={[styles.applyBtn, { flex: 1, height: inputHeight * 0.95 }]}
-                  onPress={() => setFilterModal(false)}
+                  style={[
+                    styles.applyBtn,
+                    {
+                      flex: 1,
+                      height: inputHeight * 0.95,
+                      opacity: loadingEmails ? 0.7 : 1,
+                    },
+                  ]}
+                  onPress={() => {
+                    setAppliedFilters({
+                      ...filters,
+                      toUserId: filters.toUserId || 'All',
+                    });
+                    setDropdown({ field: null, visible: false });
+                    setFilterModal(false);
+                  }}
+                  disabled={loadingEmails}
                 >
-                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: labelFont }}>
-                    Apply Filters
-                  </Text>
+                  {loadingEmails ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text
+                      style={{
+                        color: '#fff',
+                        fontWeight: '600',
+                        fontSize: labelFont,
+                      }}
+                    >
+                      Apply Filters
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -457,7 +699,7 @@ export default function EmailNotificationsScreen({ navigation }) {
         </Pressable>
       </Modal>
 
-         {/* Dropdown Modal */}
+      {/* Dropdown Modal */}
       <Modal
         visible={showDropdown}
         transparent={true}
@@ -595,12 +837,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginTop: 2,
     shadowColor: '#000',
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 8,
     width: '100%',
     minWidth: 210,
     maxWidth: 340,
+    maxHeight: 200, // Add fixed max height
   },
   dropdownItem: {
     paddingVertical: 12,
@@ -709,7 +952,7 @@ const styles = StyleSheet.create({
   closeBtn: {
     fontSize: 22,
     color: '#007AFF',
-    fontWeight: 'bold',
+    // fontWeight: 'bold',
     marginLeft: 0,
     marginTop: -4,
   },
@@ -757,13 +1000,13 @@ const styles = StyleSheet.create({
     fontSize: 27,
     color: '#7A8194',
   },
-    dropdownOverlayIcon: {
+  dropdownOverlayIcon: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.18)',
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
   },
-    dropdownMenuIcon: {
+  dropdownMenuIcon: {
     marginTop: Platform.OS === 'ios' ? 90 : 85,
     marginRight: 24,
     backgroundColor: '#fff',
@@ -784,5 +1027,83 @@ const styles = StyleSheet.create({
   dropdownTextIcon: {
     fontSize: 16,
     color: '#1A1A1A',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#E4190A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  noDataContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  noDataTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  noDataMessage: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  clearFiltersButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#1292E6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  clearFiltersButtonText: {
+    color: '#1292E6',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
