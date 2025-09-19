@@ -50,32 +50,19 @@ export const useRegister = () => {
   const { register } = useAuthStore();
 
   return useMutation({
-    mutationFn: async ({
-      firstname,
-      lastname,
-      email,
-      dateOfBirth,
-      password,
-      confirmPassword,
-      phoneNumber,
-    }: {
-      firstname: string;
-      lastname: string;
+    mutationFn: async (payload: {
+      firstName: string;
+      lastName: string;
       email: string;
-      dateOfBirth: string;
+      birthday: string;
       password: string;
       confirmPassword: string;
-      phoneNumber: string;
+      userRoleModels: any[];
+      language: string;
+      status: string;
+      userPhoneModels: any[];
     }) => {
-      const success = await register(
-        firstname,
-        lastname,
-        email,
-        dateOfBirth,
-        password,
-        confirmPassword,
-        phoneNumber,
-      );
+      const success = await register(payload);
       if (!success) {
         throw new Error('Registration failed');
       }
@@ -89,6 +76,7 @@ export const useRegister = () => {
       );
       console.log(
         '✅ Registration mutation successful, screen will handle navigation',
+        data
       );
     },
     onError: (error: Error) => {

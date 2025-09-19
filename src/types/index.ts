@@ -13,6 +13,7 @@ export interface User {
   phoneNumber?: string;
   createdAt: string;
   updatedAt: string;
+  emailVerified?: boolean;
 }
 
 export interface AuthTokens {

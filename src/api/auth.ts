@@ -2,6 +2,7 @@ import { AuthTokens, User, ApiResponse } from '../types';
 import { ApiClient, createUrlParams } from '../utils/apiHelpers';
 import { base64Encode } from '../utils/base64';
 import { debugFetch } from '../utils/networkDebugger';
+import { networkDebugger } from '../utils/networkDebugger';
 
 interface LoginResponse {
   user: User;
@@ -87,70 +88,40 @@ export const authApi = {
   },
 
   async register(
-    name: string,
-    email: string,
-    password: string,
-    confirmPassword: string,
-    phoneNumber: string,
-    dateOfBirth?: string,
+    payload: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      birthday: string;
+      password: string;
+      userRoleModels: any[];
+      language: string;
+      status: string;
+      userPhoneModels: any[];
+    }
   ): Promise<ApiResponse<RegisterResponse>> {
     console.log('🔗 [API] Starting registration request...');
 
     try {
-      const nameParts = name.trim().split(' ');
-      const firstName = nameParts[0] || 'User';
-      const lastName = nameParts.slice(1).join(' ') || '';
-
-      const formattedBirthday = dateOfBirth
-        ? new Date(dateOfBirth).toISOString()
-        : new Date('1990-01-01').toISOString();
-
-      // Clean phone number - ensure it has proper format with country code
-      const cleanPhoneNumber = phoneNumber.startsWith('+')
-        ? phoneNumber
-        : `+${phoneNumber.replace(/\D/g, '')}`;
-
-      console.log('📞 Phone number formatting:', {
-        original: phoneNumber,
-        cleaned: cleanPhoneNumber,
-      });
-
-      const requestBody = {
-        firstName,
-        lastName,
-        email: email.trim().toLowerCase(),
-        birthday: formattedBirthday,
-        password,
-        userRoleModels: [],
-        language: '',
-        status: 'INACTIVE',
-        userPhoneModels: [
-          {
-            phoneModel: {
-              phoneNumber: cleanPhoneNumber,
-              type: 'CALL',
-              defaultPhone: true,
-            },
-          },
-        ],
+      // Fix: log the actual payload and ensure userPhoneModels is sent correctly
+      // Fix: ensure userPhoneModels is sent, not userRoleModels
+      const backendPayload = {
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        email: payload.email,
+        birthday: payload.birthday,
+        password: payload.password,
+        userRoleModels: payload.userRoleModels,
+        language: payload.language,
+        status: payload.status,
+        userPhoneModels: payload.userPhoneModels,
       };
-
-      console.log('🔗 [API] Request body:', {
-        ...requestBody,
-        password: '***',
-        userPhoneModels: [
-          {
-            phoneModel: {
-              phoneNumber: cleanPhoneNumber,
-              type: 'CALL',
-              defaultPhone: true,
-            },
-          },
-        ],
-      });
-
-      const response = await apiClient.post<any>('/newUser', requestBody);
-      console.log('🔗 [API] Registration response:', response);
+      console.log('🔗 [API] Request body:', { ...backendPayload, password: '***' });
+      const response = await apiClient.post<any>('/newUser', backendPayload);
+      console.log('🔗 [API] Registration response (FULL):', response);
+      if (response && response.data) {
+        console.log('🔗 [API] Registration response data:', response.data);
+      }
 
       if (response.success && response.data) {
         console.log('🔗 [API] Registration successful');
@@ -160,12 +131,12 @@ export const authApi = {
           data: {
             user: {
               id: response.data.user?.id || 'user-id',
-              email: email,
-              name: name,
-              firstName,
-              lastName,
-              dateOfBirth: dateOfBirth || '',
-              phoneNumber: cleanPhoneNumber,
+              email: payload.email,
+              name: `${payload.firstName} ${payload.lastName}`,
+              firstName: payload.firstName,
+              lastName: payload.lastName,
+              dateOfBirth: payload.birthday || '',
+              phoneNumber: payload.userPhoneModels?.[0]?.phoneModel?.phoneNumber || '',
               emailVerified: response.data.user?.emailVerified || false,
               createdAt:
                 response.data.user?.createdAt || new Date().toISOString(),
@@ -191,6 +162,10 @@ export const authApi = {
       };
     } catch (error: any) {
       console.error('🔗 [API] Registration error:', error);
+      if (error.response) {
+        console.error('🔗 [API] Error response:', error.response);
+        console.error('🔗 [API] Error response data:', error.response.data);
+      }
       console.error('🔗 [API] Error details:', {
         message: error.message,
         status: error.response?.status,

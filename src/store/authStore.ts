@@ -19,15 +19,18 @@ interface AuthState extends LoadingState {
   setBranchId: (branchId: string) => void;
 
   login: (email: string, password: string) => Promise<boolean>;
-  register: (
-    firstname: string,
-    lastname: string,
-    email: string,
-    dateOfBirth: string,
-    password: string,
-    confirmPassword: string,
-    phoneNumber: string
-  ) => Promise<boolean>;
+  register: (payload: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    birthday: string;
+    password: string;
+    confirmPassword: string;
+    userRoleModels: any[];
+    language: string;
+    status: string;
+    userPhoneModels: any[];
+  }) => Promise<boolean>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<boolean>;
   refreshTokens: () => Promise<boolean>;
@@ -123,76 +126,70 @@ export const useAuthStore = create<AuthState>()(
       },
 
       register: async (
-        name: string,
-        email: string,
-        dateOfBirth: string,
-        password: string,
-        confirmPassword: string,
-        phoneNumber: string
+        payload: {
+          firstName: string;
+          lastName: string;
+          email: string;
+          birthday: string;
+          password: string;
+          confirmPassword: string;
+          userRoleModels: any[];
+          language: string;
+          status: string;
+          userPhoneModels: any[];
+        }
       ): Promise<boolean> => {
-        console.log('🏪 [STORE] Starting registration process...');
-        set({ isLoading: true, error: null });
+          console.log('🏪 [STORE] Starting registration process...');
+          set({ isLoading: true, error: null });
 
-        try {
-          console.log('🏪 [STORE] Calling authApi.register...');
-          const response = await authApi.register(
-            name,
-            email,
-            password,
-            confirmPassword,
-            phoneNumber,
-            dateOfBirth
-          );
-          console.log('🏪 [STORE] API response:', response);
+          try {
+            console.log('🏪 [STORE] Calling authApi.register...');
+            const response = await authApi.register(payload);
+            console.log('🏪 [STORE] API response:', response);
 
-          if (response.success && response.data) {
-            console.log(
-              '🏪 [STORE] Registration successful, saving session...'
-            );
-            const { user, tokens } = response.data;
-            await StorageHelper.saveUserSession(user, tokens);
+            if (response.success && response.data) {
+              console.log(
+                '🏪 [STORE] Registration successful, not authenticating user yet.'
+              );
+              // Optionally save user data if needed, but do NOT set isAuthenticated
+              set({
+                user: response.data.user,
+                isLoading: false,
+                error: null,
+              });
 
-            set({
-              user,
-              isAuthenticated: true,
-              isLoading: false,
-              error: null,
-            });
+              console.log('🏪 [STORE] Registration success, showing success toast...');
+              const { showSuccessToast } = await import('../components/toast');
+              showSuccessToast('REGISTER');
 
-            console.log('🏪 [STORE] Session saved, showing success toast...');
-            // Show success toast
-            const { showSuccessToast } = await import('../components/toast');
-            showSuccessToast('REGISTER');
+              console.log('🏪 [STORE] Registration completed successfully');
+              return true;
+            } else {
+              console.log('🏪 [STORE] Registration failed:', response.message);
+              const errorMessage = response.message || 'Registration failed';
+              set({ isLoading: false, error: errorMessage });
 
-            console.log('🏪 [STORE] Registration completed successfully');
-            return true;
-          } else {
-            console.log('🏪 [STORE] Registration failed:', response.message);
-            const errorMessage = response.message || 'Registration failed';
+              // Show error toast
+              const { showApiErrorToast } = await import('../components/toast');
+              showApiErrorToast(
+                { status: 400, message: errorMessage },
+                'Please check your details and try again'
+              );
+
+              return false;
+            }
+          } catch (error: any) {
+            console.log('🏪 [STORE] Registration exception:', error.message);
+            const errorMessage = error.message || 'Registration failed';
             set({ isLoading: false, error: errorMessage });
 
             // Show error toast
             const { showApiErrorToast } = await import('../components/toast');
-            showApiErrorToast(
-              { status: 422, message: errorMessage },
-              'Please check your information and try again'
-            );
+            showApiErrorToast(error, 'Unable to connect to server');
 
             return false;
           }
-        } catch (error: any) {
-          console.log('🏪 [STORE] Registration exception:', error);
-          const errorMessage = error.message || 'Registration failed';
-          set({ isLoading: false, error: errorMessage });
-
-          // Show error toast
-          const { showApiErrorToast } = await import('../components/toast');
-          showApiErrorToast(error, 'Unable to create account');
-
-          return false;
-        }
-      },
-
+        },
       logout: async (): Promise<void> => {
         await StorageHelper.clearUserSession();
         set({
