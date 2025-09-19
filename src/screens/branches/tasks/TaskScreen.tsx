@@ -635,17 +635,18 @@ export default function TaskScreen({ navigation }) {
                 } else {
                   setFilterDate('');
                   setUpdatedDate('');
-                  // Reset to default range
                   setStartDate(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
                   setEndDate(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
                 }
               } else {
                 setFilterDate('');
                 setUpdatedDate('');
-                // Reset to default range
                 setStartDate(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
                 setEndDate(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
               }
+              // Reset modal fields after applying
+              setModalFilterStatus('');
+              setModalFilterDate('');
               closeModal();
               refetch();
             }}>
