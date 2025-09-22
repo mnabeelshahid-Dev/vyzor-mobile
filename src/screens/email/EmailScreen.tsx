@@ -36,20 +36,19 @@ const STATUS_COLORS = {
 const FILTER_OPTIONS = {
   to: ['All', 'jack@vyzor.com', 'jill@vyzor.com'],
   type: [
-    'All',
-    'Create User',
-    'Event Created',
-    'Event Document',
-    'Document Completed',
-    'Document Expired',
-    'Document Deleted',
-    'Document Created',
-    'Password Reset',
-    'User Updated',
+    { key: 'All', value: 'All' },
+    { key: 'User Created', value: 'Create User' },
+    { key: 'Event Created', value: 'Event Created' },
+    { key: 'Event Document', value: 'Event Document' },
+    { key: 'Document Completed', value: 'Document Completed' },
+    { key: 'Document Expired', value: 'Document Expired' },
+    { key: 'Document Deleted', value: 'Document Deleted' },
+    { key: 'Document Created', value: 'Document Created' },
+    { key: 'Password Reset', value: 'Password Reset' },
+    { key: 'User Updated', value: 'User Updated' },
   ],
   status: ['All', 'Pending', 'Failed', 'Success'],
 };
-
 function formatDate(dateStrOrObj: string | Date = ''): string {
   if (!dateStrOrObj) return '';
   let dateObj: Date;
@@ -69,21 +68,36 @@ function formatDate(dateStrOrObj: string | Date = ''): string {
   hours = hours % 12;
   hours = hours ? hours : 12; // 0 should be 12
 
-  return `${dd}-${mm}-${yyyy} at ${hours}:${minutes} ${ampm}`;
+  return `${dd}-${mm}-${yyyy}`;
 }
 
 export default function EmailNotificationsScreen({ navigation }) {
   const [filterModal, setFilterModal] = useState(false);
   const [search, setSearch] = useState('');
 
+  // const { data: usersData, isLoading: loadingUsers } = useQuery({
+  //   queryKey: ['users'],
+  //   queryFn: async () => {
+  //     try {
+  //       const response = await apiService.get('/api/security/filter/USERS');
+  //       return Array.isArray(response.data) ? response.data : [];
+  //     } catch (err) {
+  //       console.error('Users API fetch error:', err);
+  //       return [];
+  //     }
+  //   },
+  // });
+
   const { data: usersData, isLoading: loadingUsers } = useQuery({
-    queryKey: ['users'],
+    queryKey: ['currentUser'],
     queryFn: async () => {
       try {
-        const response = await apiService.get('/api/security/filter/USERS');
-        return Array.isArray(response.data) ? response.data : [];
+        const response = await apiService.get(
+          '/api/security/userAccounts/currentUser/',
+        );
+        return response.data ? [response.data] : [];
       } catch (err) {
-        console.error('Users API fetch error:', err);
+        console.error('Current User API fetch error:', err);
         return [];
       }
     },
@@ -91,7 +105,7 @@ export default function EmailNotificationsScreen({ navigation }) {
 
   const [filters, setFilters] = useState({
     to: 'All',
-    toUserId: '', // Add this new field to store the selected user ID
+    toUserId: '', // This will be set when current user data loads
     type: 'All',
     status: 'All',
     startDate: '',
@@ -106,7 +120,7 @@ export default function EmailNotificationsScreen({ navigation }) {
 
   const [appliedFilters, setAppliedFilters] = useState({
     to: 'All',
-    toUserId: '', // Add this new field to store the applied user ID
+    toUserId: '', // This will be set when current user data loads
     type: 'All',
     status: 'All',
     startDate: '',
@@ -136,21 +150,42 @@ export default function EmailNotificationsScreen({ navigation }) {
     params.append('search', debouncedSearch || '');
     params.append('sort', 'createdDate,desc');
 
-    // Update this section to use userIds instead of to
-    if (appliedFilters.toUserId && appliedFilters.toUserId !== 'All')
-      params.append('userIds', appliedFilters.toUserId);
-    if (appliedFilters.type && appliedFilters.type !== 'All')
-      params.append(
-        'type',
-        appliedFilters.type.toUpperCase().replace(/ /g, '_'),
+    // Always include current user ID - get it from usersData
+    const currentUserId =
+      usersData && usersData[0] ? usersData[0].webId.toString() : '';
+    if (currentUserId) {
+      params.append('userIds', currentUserId);
+    }
+
+    if (appliedFilters.type && appliedFilters.type !== 'All') {
+      // Find the corresponding value for the selected type key
+      const typeOption = FILTER_OPTIONS.type.find(
+        opt => opt.key === appliedFilters.type,
       );
+      const typeValue = typeOption ? typeOption.value : appliedFilters.type;
+      params.append('type', typeValue.toUpperCase().replace(/ /g, '_'));
+    }
+
     if (appliedFilters.status && appliedFilters.status !== 'All') {
       params.append('status', appliedFilters.status.toUpperCase());
     }
-    if (appliedFilters.startDate)
-      params.append('startDate', appliedFilters.startDate);
-    if (appliedFilters.endDate)
-      params.append('endDate', appliedFilters.endDate);
+
+    // Updated date format to match standard API format
+    if (appliedFilters.startDate) {
+      const startDate = new Date(
+        appliedFilters.startDate.split('-').reverse().join('-'),
+      );
+      const formattedStartDate =
+        startDate.toISOString().slice(0, 19) + '-07:00';
+      params.append('startDate', formattedStartDate);
+    }
+    if (appliedFilters.endDate) {
+      const endDate = new Date(
+        appliedFilters.endDate.split('-').reverse().join('-'),
+      );
+      const formattedEndDate = endDate.toISOString().slice(0, 19) + '-07:00';
+      params.append('endDate', formattedEndDate);
+    }
 
     return params.toString();
   };
@@ -169,6 +204,7 @@ export default function EmailNotificationsScreen({ navigation }) {
         const response = await apiService.get(
           `/api/notification/emails?${params}`,
         );
+        console.log('Email API Params:', params);
         if (Array.isArray(response.data)) return response.data;
         if (
           response.data &&
@@ -191,6 +227,44 @@ export default function EmailNotificationsScreen({ navigation }) {
 
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Add this useEffect after your existing useEffect
+  useEffect(() => {
+    if (usersData && usersData[0]) {
+      const currentUserId = usersData[0].webId.toString();
+      const currentUserName = usersData[0].firstName;
+
+      // Update both filters and appliedFilters to always have current user selected
+      setFilters(prev => ({
+        ...prev,
+        to: currentUserName,
+        toUserId: currentUserId,
+      }));
+
+      setAppliedFilters(prev => ({
+        ...prev,
+        to: currentUserName,
+        toUserId: currentUserId,
+      }));
+    }
+  }, [usersData]);
+
+  // Helper function to get cleared filters with current user
+  const getClearedFiltersWithCurrentUser = () => {
+    const currentUserId =
+      usersData && usersData[0] ? usersData[0].webId.toString() : '';
+    const currentUserName =
+      usersData && usersData[0] ? usersData[0].firstName : 'All';
+
+    return {
+      to: currentUserName,
+      toUserId: currentUserId,
+      type: 'All',
+      status: 'All',
+      startDate: '',
+      endDate: '',
+    };
+  };
 
   // Filtering logic
   const filteredEmails = emails;
@@ -225,13 +299,24 @@ export default function EmailNotificationsScreen({ navigation }) {
   const inputHeight = isSmall ? 38 : 44;
 
   // Dropdown menu (now: overlays just under input, no red dot, matches Figma)
+  // const getToOptions = () => {
+  //   if (!usersData || !Array.isArray(usersData)) return ['All'];
+  //   const userOptions = usersData.map(user => ({
+  //     text: user.text,
+  //     value: user.value,
+  //   }));
+  //   return [{ text: 'All', value: 'All' }, ...userOptions];
+  // };
+
   const getToOptions = () => {
-    if (!usersData || !Array.isArray(usersData)) return ['All'];
+    if (!usersData || !Array.isArray(usersData) || usersData.length === 0)
+      return ['All'];
     const userOptions = usersData.map(user => ({
-      text: user.text,
-      value: user.value,
+      text: user.firstName,
+      value: user.webId.toString(),
     }));
-    return [{ text: 'All', value: 'All' }, ...userOptions];
+    // return [{ text: 'All', value: 'All' }, ...userOptions];
+    return [...userOptions];
   };
 
   const renderDropdown = field => {
@@ -242,7 +327,14 @@ export default function EmailNotificationsScreen({ navigation }) {
     if (field === 'to') {
       const userOptions = getToOptions();
       optionsToRender = userOptions;
+    } else if (field === 'type') {
+      // Handle key-value pairs for type
+      optionsToRender = options.map(opt => ({
+        text: opt.key,
+        value: opt.value,
+      }));
     } else {
+      // Handle simple arrays for other fields
       optionsToRender = options.map(opt => ({ text: opt, value: opt }));
     }
 
@@ -463,30 +555,24 @@ export default function EmailNotificationsScreen({ navigation }) {
           /* No Data State */
           <View style={styles.noDataContainer}>
             <Text style={styles.noDataTitle}>No emails found</Text>
-            <Text style={styles.noDataMessage}>
+            {/* <Text style={styles.noDataMessage}>
               No data found for this query or filter. Try adjusting your search
               criteria.
             </Text>
             <TouchableOpacity
               style={styles.clearFiltersButton}
               onPress={() => {
-                const clearedFilters = {
-                  to: 'All',
-                  toUserId: 'All',
-                  type: 'All',
-                  status: 'All',
-                  startDate: '',
-                  endDate: '',
-                };
+                const clearedFilters = getClearedFiltersWithCurrentUser();
                 setFilters(clearedFilters);
                 setAppliedFilters(clearedFilters);
-                setSearch('');
+                setDropdown({ field: null, visible: false });
+                setFilterModal(false);
               }}
             >
               <Text style={styles.clearFiltersButtonText}>
                 Clear All Filters
               </Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         ) : (
           /* Email List */
@@ -533,15 +619,7 @@ export default function EmailNotificationsScreen({ navigation }) {
               <TouchableOpacity
                 style={styles.closeBtnWrap}
                 onPress={() => {
-                  // Clear all filters when cross button is clicked
-                  const clearedFilters = {
-                    to: 'All',
-                    toUserId: 'All',
-                    type: 'All',
-                    status: 'All',
-                    startDate: '',
-                    endDate: '',
-                  };
+                  const clearedFilters = getClearedFiltersWithCurrentUser();
                   setFilters(clearedFilters);
                   setAppliedFilters(clearedFilters);
                   setDropdown({ field: null, visible: false });
@@ -635,14 +713,7 @@ export default function EmailNotificationsScreen({ navigation }) {
                     { flex: 1, height: inputHeight * 0.95 },
                   ]}
                   onPress={() => {
-                    const clearedFilters = {
-                      to: 'All',
-                      toUserId: 'All',
-                      type: 'All',
-                      status: 'All',
-                      startDate: '',
-                      endDate: '',
-                    };
+                    const clearedFilters = getClearedFiltersWithCurrentUser();
                     setFilters(clearedFilters);
                     setAppliedFilters(clearedFilters);
                     setDropdown({ field: null, visible: false });
@@ -1080,9 +1151,9 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   noDataTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 22,
+    fontWeight: '400',
+    color: '#6c6c6cff',
     marginBottom: 8,
     textAlign: 'center',
   },
