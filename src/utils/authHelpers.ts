@@ -130,13 +130,12 @@ export const createAuthOperation = <T extends any[]>(
     );
   };
 };
-
 export const isValidEmail = (email: string): boolean => {
-  const schema = yup.string().email().matches(/^\w+([.-]?\w+)@\w+([.-]?\w+)(\.\w{2,3})+$/, "Invalid email address");
+  const schema = yup.string().email().matches(/^[\w-]+(\.[\w-]+)*@[\w-]+(\.[\w-]+)*(\.[a-zA-Z]{2,})$/, "Invalid email address");
   try {
     schema.validateSync(email);
     return true;
   } catch {
-    return false
+    return false;
   }
 };

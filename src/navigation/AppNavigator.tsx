@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { useCurrentUser } from '../hooks/useAuth';
 
 // Auth Screens
-import RegisterScreen from '../screens/auth/registerScreen';
+import RegisterScreen from '../screens/auth/register/registerScreen';
 import ForgotPasswordScreen from '../screens/auth/forgetPasswordScreen';
 
 // Main App Screens

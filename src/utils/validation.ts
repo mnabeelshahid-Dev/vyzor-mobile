@@ -15,10 +15,10 @@ export const ValidationMessages = {
   PHONE_INVALID: 'Please enter a valid phone number',
   FIRSTNAME_REQUIRED: 'Firstname is required',
   FIRSTNAME_MIN_LENGTH: 'Firstname must be at least 3 characters long',
-  FIRSTNAME_MAX_LENGTH: 'Firstname must be less than 20 characters',
+    FIRSTNAME_MAX_LENGTH: 'Firstname must be less than 15 characters',
   LASTNAME_REQUIRED: 'Lastname is required',
   LASTNAME_MIN_LENGTH: 'Lastname must be at least 3 characters long',
-  LASTNAME_MAX_LENGTH: 'Lastname must be less than 20 characters',
+    LASTNAME_MAX_LENGTH: 'Lastname must be less than 15 characters',
   CONFIRM_PASSWORD_REQUIRED: 'Please confirm your password',
   PASSWORDS_NOT_MATCH: 'Passwords do not match',
   TERMS_REQUIRED: 'Please agree to terms and conditions',
@@ -31,7 +31,7 @@ export const ValidationPatterns = {
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   PHONE: /^[\+]?[1-9][\d]{0,15}$/,
   PASSWORD: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
-  USERNAME: /^[a-zA-Z0-9_]{3,20}$/,
+    USERNAME: /^[A-Za-z ]{3,15}$/,
 };
 
 /**
@@ -69,7 +69,7 @@ export const firstnameSchema = yup
   .string()
   .required(ValidationMessages.FIRSTNAME_REQUIRED)
   .min(3, ValidationMessages.FIRSTNAME_MIN_LENGTH)
-  .max(20, ValidationMessages.FIRSTNAME_MAX_LENGTH)
+    .max(15, ValidationMessages.FIRSTNAME_MAX_LENGTH)
   .matches(
     ValidationPatterns.USERNAME,
     'Firstname can only contain letters, numbers, and underscores'
@@ -83,10 +83,10 @@ export const lastnameSchema = yup
   .string()
   .required(ValidationMessages.LASTNAME_REQUIRED)
   .min(3, ValidationMessages.LASTNAME_MIN_LENGTH)
-  .max(20, ValidationMessages.LASTNAME_MAX_LENGTH)
+    .max(15, ValidationMessages.LASTNAME_MAX_LENGTH)
   .matches(
-    ValidationPatterns.USERNAME,
-    'Lastname can only contain letters, numbers, and underscores'
+    /^[A-Za-z ]+$/,
+    'Last name can only contain letters and spaces'
   );
 
 /**
@@ -151,14 +151,21 @@ export const loginValidationSchema = yup.object({
 });
 
 /**
- * Register form validation schema
+ * Generic function to build validation schema
  */
-export const registerValidationSchema = yup.object({
+export function buildValidationSchema(fields: Record<string, any>) {
+  return yup.object(fields);
+}
+
+/**
+ * Register form validation schema (phone number optional)
+ */
+export const registerValidationSchema = buildValidationSchema({
   firstname: firstnameSchema,
   lastname: lastnameSchema,
   email: emailSchema,
   dateOfBirth: dateOfBirthSchema,
-  phoneNumber: phoneSchema,
+  phoneNumber: phoneSchema.optional(),
   password: passwordSchema,
   confirmPassword: yup
     .string()
