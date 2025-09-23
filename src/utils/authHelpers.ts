@@ -1,5 +1,5 @@
 import { showErrorToast, showSuccessToast } from '../components/toast';
-
+import * as yup from "yup";
 /**
  * Generic API response handler
  */
@@ -129,4 +129,14 @@ export const createAuthOperation = <T extends any[]>(
       errorMessage
     );
   };
+};
+
+export const isValidEmail = (email: string): boolean => {
+  const schema = yup.string().email().matches(/^\w+([.-]?\w+)@\w+([.-]?\w+)(\.\w{2,3})+$/, "Invalid email address");
+  try {
+    schema.validateSync(email);
+    return true;
+  } catch {
+    return false
+  }
 };

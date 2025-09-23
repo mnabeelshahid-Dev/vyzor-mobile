@@ -253,9 +253,9 @@ export default function TaskScreen({ navigation }) {
       }
     } else if (sortField === 'number') {
       if (sortOrder === 'asc') {
-        return (a.webId ?? 0) - (b.webId ?? 0);
+        return (a.documentId ?? 0) - (b.documentId ?? 0);
       } else {
-        return (b.webId ?? 0) - (a.webId ?? 0);
+        return (b.documentId ?? 0) - (a.documentId ?? 0);
       }
     }
     return 0;
@@ -353,10 +353,10 @@ export default function TaskScreen({ navigation }) {
     }
 
     return (
-      <View key={item?.webId} style={[styles.taskCard, { borderRadius: 18, padding: 20, marginBottom: 22, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }]}>
+      <View key={item?.documentId} style={[styles.taskCard, { borderRadius: 18, padding: 20, marginBottom: 22, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }]}>
         {/* Top Row: Number, Status Badge */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-          <Text style={{ color: statusColor, fontWeight: '500', fontSize: 15 }}>#{item.webId}</Text>
+          <Text style={{ color: statusColor, fontWeight: '500', fontSize: 15 }}>#{item.documentId}</Text>
           <View style={{ flex: 1 }} />
           <View style={{ backgroundColor: statusColor, borderRadius: 6, paddingHorizontal: 16 }}>
             <Text style={{ color: '#fff', fontSize: 14, fontWeight: '400' }}>{statusText}</Text>
@@ -645,8 +645,8 @@ export default function TaskScreen({ navigation }) {
                 setEndDate(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
               }
               // Reset modal fields after applying
-              setModalFilterStatus('');
-              setModalFilterDate('');
+              // setModalFilterStatus('');
+              // setModalFilterDate('');
               closeModal();
               refetch();
             }}>
@@ -808,7 +808,7 @@ export default function TaskScreen({ navigation }) {
               <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading sections</Text>
             ) : Array.isArray(sectionsData?.data?.content) && sectionsData.data.content.length > 0 ? (
               sectionsData.data.content.map((section, idx) => (
-                <View key={section.webId || idx} style={{ backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#F1F1F6', padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2, marginHorizontal: 4 }}>
+                <View key={section.documentId || idx} style={{ backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#F1F1F6', padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2, marginHorizontal: 4 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontWeight: '500', fontSize: 15, color: '#222E44', marginBottom: 2 }}>{section.name || 'Cleaning'}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
@@ -1168,7 +1168,7 @@ export default function TaskScreen({ navigation }) {
             <FlatList
               data={sortedTasks}
               renderItem={renderTask}
-              keyExtractor={(item) => item.id?.toString()}
+              keyExtractor={(item, idx) => (item.documentId ? item.documentId.toString() : idx.toString())}
               contentContainerStyle={{ paddingVertical: 24, paddingTop: 40 }}
               showsVerticalScrollIndicator={false}
               onEndReached={() => {

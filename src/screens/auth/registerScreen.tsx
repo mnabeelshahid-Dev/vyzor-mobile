@@ -505,19 +505,19 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     let valid = true;
     // Required field checks
     if (!formData.firstname.trim()) {
-      setFirstnameError('First name is required*');
+      setFirstnameError('First name is required');
       valid = false;
     }
     if (!formData.lastname.trim()) {
-      setLastnameError('Last name is required*');
+      setLastnameError('Last name is required');
       valid = false;
     }
     if (!formData.email.trim()) {
-      setEmailError('Email is required*');
+      setEmailError('Email is required');
       valid = false;
     }
     if (!formData.dateOfBirth) {
-      setDateOfBirthError('Date of birth is required*');
+      setDateOfBirthError('Date of birth is required');
       valid = false;
     }
     // Validate multi-phone numbers
@@ -774,7 +774,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     const lastname = formData.lastname;
 
     if (!lastname) {
-      setLastnameError('Last name is required *');
+      setLastnameError('Last name is required');
       return false;
     }
 
@@ -844,12 +844,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   };
 
   const handleDateConfirm = (date: Date) => {
-  setSelectedDate(date);
-  // Use ISO date format (YYYY-MM-DD) for better parsing reliability
-  const formattedDate = date.toISOString().split('T')[0];
-  handleInputChange('dateOfBirth', formattedDate);
-  setIsDatePickerOpen(false);
-  setDateOfBirthFocused(false);
+    setSelectedDate(date);
+    // Use ISO date format (YYYY-MM-DD) for better parsing reliability
+    const formattedDate = date.toISOString().split('T')[0];
+    handleInputChange('dateOfBirth', formattedDate);
+    setIsDatePickerOpen(false);
+    setDateOfBirthFocused(false);
   };
 
   const handleDateCancel = () => {
@@ -939,7 +939,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                         style={[
                           styles.floatingLabel,
                           (firstnameFocused || formData.firstname) &&
-                            styles.floatingLabelActive,
+                          styles.floatingLabelActive,
                           firstnameFocused && styles.floatingLabelFocused,
                         ]}
                       >
@@ -1155,7 +1155,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                         ]}
                       >
                         Date of Birth {''}
-                        <Text style={{ color: '#FF1200', fontSize: 14, fontWeight: 'bold', marginLeft: 4 }}>*</Text>
+                        <Text style={{ color: '#FF6B6B', fontSize: 14, fontWeight: 'bold', marginLeft: 4 }}>*</Text>
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -1301,7 +1301,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                         ]}
                       >
                         Confirm Password {''}
-                        <Text style={{ color: '#FF1200', fontSize: 14, fontWeight: 'bold', marginLeft: 4 }}>*</Text>
+                        <Text style={{ color: '#FF6B6B', fontSize: 14, fontWeight: 'bold', marginLeft: 4 }}>*</Text>
                       </Text>
                     </View>
                     <TextInput

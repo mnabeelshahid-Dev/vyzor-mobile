@@ -72,7 +72,7 @@ import EmailScreen from '../screens/email/EmailScreen';
 import BranchesScreen from '../screens/branches/BranchesScreen';
 import StatisticsScreen from '../screens/statistics/StatisticsScreen';
 import ScheduleScreen from '../screens/schedule/ScheduleScreen';
-import LoginScreen from '../screens/auth/loginScreen';
+import LoginScreen from '../screens/auth/login/loginScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 
