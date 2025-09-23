@@ -59,7 +59,7 @@ interface TaskSchedulingModel {
 }
 
 // Color constants
-const BLUE = '#1292E6';
+const BLUE = '#007AFF';
 const DARK_BLUE = '#184B74';
 const GREEN = '#1bc768';
 const RED = '#f44336';
@@ -149,7 +149,12 @@ const mockTasks = [
 ];
 
 function formatTasksForUI(tasks: TaskSchedulingModel[]) {
-  return tasks.map(task => {
+  // Filter out tasks with empty or whitespace-only userNames
+  const filteredTasks = tasks.filter(task => {
+    return task.userName && task.userName.trim().length > 0;
+  });
+
+  return filteredTasks.map(task => {
     const startTime = new Date(task.startDate);
     const endTime = new Date(task.endDate);
 
@@ -194,7 +199,7 @@ function formatTasksForUI(tasks: TaskSchedulingModel[]) {
       hour: formatTime(startTime),
       number: `#${task.documentId}`,
       title: task.formName || task.documentName || 'No Title',
-      user: task.userName || 'Unassigned',
+      user: task.userName, // No fallback needed since we filtered out empty ones
       borderColor,
       bg,
       type: taskType,
@@ -676,7 +681,7 @@ export default function CalendarAgendaScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: BLUE,
+    backgroundColor: "#007AFF",
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 22,
