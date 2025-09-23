@@ -59,7 +59,7 @@ interface TaskSchedulingModel {
 }
 
 // Color constants
-const BLUE = '#1292E6';
+const BLUE = '#007AFF';
 const DARK_BLUE = '#184B74';
 const GREEN = '#1bc768';
 const RED = '#f44336';
@@ -676,7 +676,7 @@ export default function CalendarAgendaScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: BLUE,
+    backgroundColor: "#007AFF",
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 22,

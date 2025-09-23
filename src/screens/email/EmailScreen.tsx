@@ -36,20 +36,20 @@ const STATUS_COLORS = {
 const FILTER_OPTIONS = {
   to: ['All', 'jack@vyzor.com', 'jill@vyzor.com'],
   type: [
-    'All',
-    'Create User',
-    'Event Created',
-    'Event Document',
-    'Document Completed',
-    'Document Expired',
-    'Document Deleted',
-    'Document Created',
-    'Password Reset',
-    'User Updated',
+    { key: 'All', value: 'All' },
+    { key: 'User Created', value: 'Create User' },
+    { key: 'Event Created', value: 'Scheduled Event' },
+    { key: 'Event Document', value: 'Event Form' },
+    { key: 'Document Completed', value: 'Document Completed' },
+    { key: 'Document Expired', value: 'Document Expired' },
+    { key: 'Document Deleted', value: 'Document Deleted' },
+    { key: 'Document Created', value: 'Document Created' },
+    { key: 'Document Updated', value: 'Document Updated' },
+    { key: 'Password Reset', value: 'Password Reset' },
+    { key: 'User Updated', value: 'Update User' },
   ],
   status: ['All', 'Pending', 'Failed', 'Success'],
 };
-
 function formatDate(dateStrOrObj: string | Date = ''): string {
   if (!dateStrOrObj) return '';
   let dateObj: Date;
@@ -69,15 +69,40 @@ function formatDate(dateStrOrObj: string | Date = ''): string {
   hours = hours % 12;
   hours = hours ? hours : 12; // 0 should be 12
 
-  return `${dd}-${mm}-${yyyy} at ${hours}:${minutes} ${ampm}`;
+  return `${dd}-${mm}-${yyyy}`;
 }
 
 export default function EmailNotificationsScreen({ navigation }) {
   const [filterModal, setFilterModal] = useState(false);
   const [search, setSearch] = useState('');
 
-  const { data: usersData, isLoading: loadingUsers } = useQuery({
-    queryKey: ['users'],
+  // Add this helper function after the formatDate function
+  function isUserAdmin(userData: any): boolean {
+    if (!userData || !userData.userRoleModels) return false;
+    return userData.userRoleModels.some(
+      (role: any) => role.name && role.name.toLowerCase() === 'admin',
+    );
+  }
+
+  // Replace the existing usersData query with this:
+  const { data: currentUserData, isLoading: loadingCurrentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: async () => {
+      try {
+        const response = await apiService.get(
+          '/api/security/userAccounts/currentUser/',
+        );
+        return response.data || null;
+      } catch (err) {
+        console.error('Current User API fetch error:', err);
+        return null;
+      }
+    },
+  });
+
+  // Add this new query for all users (only for admins)
+  const { data: allUsersData, isLoading: loadingAllUsers } = useQuery({
+    queryKey: ['allUsers'],
     queryFn: async () => {
       try {
         const response = await apiService.get('/api/security/filter/USERS');
@@ -87,11 +112,21 @@ export default function EmailNotificationsScreen({ navigation }) {
         return [];
       }
     },
+    enabled: currentUserData ? isUserAdmin(currentUserData) : false, // Only fetch if user is admin
   });
+
+  // Add these variables after the queries
+  const isAdmin = currentUserData ? isUserAdmin(currentUserData) : false;
+  const usersData = isAdmin
+    ? allUsersData
+    : currentUserData
+    ? [currentUserData]
+    : [];
+  const loadingUsers = isAdmin ? loadingAllUsers : loadingCurrentUser;
 
   const [filters, setFilters] = useState({
     to: 'All',
-    toUserId: '', // Add this new field to store the selected user ID
+    toUserId: '', // This will be set when current user data loads
     type: 'All',
     status: 'All',
     startDate: '',
@@ -106,7 +141,7 @@ export default function EmailNotificationsScreen({ navigation }) {
 
   const [appliedFilters, setAppliedFilters] = useState({
     to: 'All',
-    toUserId: '', // Add this new field to store the applied user ID
+    toUserId: '', // This will be set when current user data loads
     type: 'All',
     status: 'All',
     startDate: '',
@@ -129,31 +164,63 @@ export default function EmailNotificationsScreen({ navigation }) {
   const containerPadding = Math.max(12, width * 0.04);
   const modalWidth = Math.min(420, width - 2 * containerPadding);
 
-  const getEmailParams = () => {
-    const params = new URLSearchParams();
-    params.append('page', '0');
-    params.append('size', '20');
-    params.append('search', debouncedSearch || '');
-    params.append('sort', 'createdDate,desc');
+const getEmailParams = () => {
+  const params = new URLSearchParams();
+  params.append('page', '0');
+  params.append('size', '20');
+  params.append('search', debouncedSearch || '');
+  params.append('sort', 'createdDate,desc');
 
-    // Update this section to use userIds instead of to
-    if (appliedFilters.toUserId && appliedFilters.toUserId !== 'All')
-      params.append('userIds', appliedFilters.toUserId);
-    if (appliedFilters.type && appliedFilters.type !== 'All')
-      params.append(
-        'type',
-        appliedFilters.type.toUpperCase().replace(/ /g, '_'),
-      );
-    if (appliedFilters.status && appliedFilters.status !== 'All') {
-      params.append('status', appliedFilters.status.toUpperCase());
+  // For non-admins, always use current user ID
+  // For admins, use selected user or all users
+  if (!isAdmin) {
+    // Non-admin: always use current user ID
+    const currentUserId = currentUserData ? currentUserData.webId.toString() : '';
+    if (currentUserId) {
+      params.append('userIds', currentUserId);
     }
-    if (appliedFilters.startDate)
-      params.append('startDate', appliedFilters.startDate);
-    if (appliedFilters.endDate)
-      params.append('endDate', appliedFilters.endDate);
+  } else {
+    // Admin: use selected user ID if not 'All'
+    if (appliedFilters.toUserId && appliedFilters.toUserId !== 'All') {
+      params.append('userIds', appliedFilters.toUserId);
+    }
+    // If 'All' or no selection, don't add userIds param to get all users
+  }
 
-    return params.toString();
-  };
+  if (appliedFilters.type && appliedFilters.type !== 'All') {
+    const typeOption = FILTER_OPTIONS.type.find(
+      opt => opt.key === appliedFilters.type,
+    );
+    const typeValue = typeOption ? typeOption.value : appliedFilters.type;
+    params.append('type', typeValue.toUpperCase().replace(/ /g, '_'));
+  }
+
+  if (appliedFilters.status && appliedFilters.status !== 'All') {
+    params.append('status', appliedFilters.status.toUpperCase());
+  }
+
+// Start date - beginning of day (00:00:00) in UTC
+if (appliedFilters.startDate) {
+  const startDate = new Date(
+    appliedFilters.startDate.split('-').reverse().join('-'),
+  );
+  const formattedStartDate = startDate.toISOString().slice(0, 19) + 'Z';
+  params.append('startDate', formattedStartDate);
+}
+
+// End date - end of day (23:59:59) in UTC
+if (appliedFilters.endDate) {
+  const endDate = new Date(
+    appliedFilters.endDate.split('-').reverse().join('-'),
+  );
+  // Set to end of day (23:59:59)
+  endDate.setHours(23, 59, 59, 999);
+  const formattedEndDate = endDate.toISOString().slice(0, 19) + 'Z';
+  params.append('endDate', formattedEndDate);
+}
+
+  return params.toString();
+};
 
   const {
     data: emailData,
@@ -169,6 +236,7 @@ export default function EmailNotificationsScreen({ navigation }) {
         const response = await apiService.get(
           `/api/notification/emails?${params}`,
         );
+        console.log('Email API Params:', params);
         if (Array.isArray(response.data)) return response.data;
         if (
           response.data &&
@@ -191,6 +259,73 @@ export default function EmailNotificationsScreen({ navigation }) {
 
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Replace the existing useEffect that sets initial user data with this:
+  useEffect(() => {
+    if (currentUserData) {
+      const currentUserId = currentUserData.webId.toString();
+      const currentUserName = currentUserData.firstName;
+
+      if (isAdmin) {
+        // For admins, set to 'All' initially
+        setFilters(prev => ({
+          ...prev,
+          to: 'All',
+          toUserId: 'All',
+        }));
+
+        setAppliedFilters(prev => ({
+          ...prev,
+          to: 'All',
+          toUserId: 'All',
+        }));
+      } else {
+        // For non-admins, always set to current user
+        setFilters(prev => ({
+          ...prev,
+          to: currentUserName,
+          toUserId: currentUserId,
+        }));
+
+        setAppliedFilters(prev => ({
+          ...prev,
+          to: currentUserName,
+          toUserId: currentUserId,
+        }));
+      }
+    }
+  }, [currentUserData, isAdmin]);
+
+  // Helper function to get cleared filters with current user
+  // Replace the existing getClearedFiltersWithCurrentUser function with this:
+  const getClearedFiltersWithCurrentUser = () => {
+    if (isAdmin) {
+      return {
+        to: 'All',
+        toUserId: 'All',
+        type: 'All',
+        status: 'All',
+        startDate: '',
+        endDate: '',
+      };
+    } else {
+      const currentUserId = currentUserData
+        ? currentUserData.webId.toString()
+        : '';
+      const currentUserName = currentUserData
+        ? currentUserData.firstName
+        : 'All';
+
+      return {
+        to: currentUserName,
+        toUserId: currentUserId,
+        type: 'All',
+        status: 'All',
+        startDate: '',
+        endDate: '',
+      };
+    }
+  };
 
   // Filtering logic
   const filteredEmails = emails;
@@ -225,13 +360,38 @@ export default function EmailNotificationsScreen({ navigation }) {
   const inputHeight = isSmall ? 38 : 44;
 
   // Dropdown menu (now: overlays just under input, no red dot, matches Figma)
+  // const getToOptions = () => {
+  //   if (!usersData || !Array.isArray(usersData)) return ['All'];
+  //   const userOptions = usersData.map(user => ({
+  //     text: user.text,
+  //     value: user.value,
+  //   }));
+  //   return [{ text: 'All', value: 'All' }, ...userOptions];
+  // };
+
+  // const getToOptions = () => {
+  //   if (!usersData || !Array.isArray(usersData) || usersData.length === 0)
+  //     return ['All'];
+  //   const userOptions = usersData.map(user => ({
+  //     text: user.firstName,
+  //     value: user.webId.toString(),
+  //   }));
+  //   // return [{ text: 'All', value: 'All' }, ...userOptions];
+  //   return [...userOptions];
+  // };
+
   const getToOptions = () => {
-    if (!usersData || !Array.isArray(usersData)) return ['All'];
+    if (!usersData || !Array.isArray(usersData) || usersData.length === 0)
+      return isAdmin ? [{ text: 'All', value: 'All' }] : [];
+
     const userOptions = usersData.map(user => ({
-      text: user.text,
-      value: user.value,
+      text: user.firstName || user.text,
+      value: user.webId ? user.webId.toString() : user.value,
     }));
-    return [{ text: 'All', value: 'All' }, ...userOptions];
+
+    return isAdmin
+      ? [{ text: 'All', value: 'All' }, ...userOptions]
+      : userOptions;
   };
 
   const renderDropdown = field => {
@@ -242,7 +402,14 @@ export default function EmailNotificationsScreen({ navigation }) {
     if (field === 'to') {
       const userOptions = getToOptions();
       optionsToRender = userOptions;
+    } else if (field === 'type') {
+      // Handle key-value pairs for type
+      optionsToRender = options.map(opt => ({
+        text: opt.key,
+        value: opt.value,
+      }));
     } else {
+      // Handle simple arrays for other fields
       optionsToRender = options.map(opt => ({ text: opt, value: opt }));
     }
 
@@ -463,30 +630,24 @@ export default function EmailNotificationsScreen({ navigation }) {
           /* No Data State */
           <View style={styles.noDataContainer}>
             <Text style={styles.noDataTitle}>No emails found</Text>
-            <Text style={styles.noDataMessage}>
+            {/* <Text style={styles.noDataMessage}>
               No data found for this query or filter. Try adjusting your search
               criteria.
             </Text>
             <TouchableOpacity
               style={styles.clearFiltersButton}
               onPress={() => {
-                const clearedFilters = {
-                  to: 'All',
-                  toUserId: 'All',
-                  type: 'All',
-                  status: 'All',
-                  startDate: '',
-                  endDate: '',
-                };
+                const clearedFilters = getClearedFiltersWithCurrentUser();
                 setFilters(clearedFilters);
                 setAppliedFilters(clearedFilters);
-                setSearch('');
+                setDropdown({ field: null, visible: false });
+                setFilterModal(false);
               }}
             >
               <Text style={styles.clearFiltersButtonText}>
                 Clear All Filters
               </Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         ) : (
           /* Email List */
@@ -533,15 +694,7 @@ export default function EmailNotificationsScreen({ navigation }) {
               <TouchableOpacity
                 style={styles.closeBtnWrap}
                 onPress={() => {
-                  // Clear all filters when cross button is clicked
-                  const clearedFilters = {
-                    to: 'All',
-                    toUserId: 'All',
-                    type: 'All',
-                    status: 'All',
-                    startDate: '',
-                    endDate: '',
-                  };
+                  const clearedFilters = getClearedFiltersWithCurrentUser();
                   setFilters(clearedFilters);
                   setAppliedFilters(clearedFilters);
                   setDropdown({ field: null, visible: false });
@@ -559,41 +712,44 @@ export default function EmailNotificationsScreen({ navigation }) {
               nestedScrollEnabled={true}
             >
               {/* Filter Fields */}
-              {['to', 'type', 'status'].map(field => (
-                <View
-                  key={field}
-                  style={{
-                    marginBottom: 16,
-                    zIndex:
-                      dropdown.visible && dropdown.field === field ? 999 : 1,
-                  }}
-                >
-                  <TouchableOpacity
-                    style={[styles.filterInput, { height: inputHeight }]}
-                    activeOpacity={0.7}
-                    onPress={() =>
-                      setDropdown({
-                        field,
-                        visible: !dropdown.visible || dropdown.field !== field,
-                      })
-                    }
+              {(isAdmin ? ['to', 'type', 'status'] : ['type', 'status']).map(
+                field => (
+                  <View
+                    key={field}
+                    style={{
+                      marginBottom: 16,
+                      zIndex:
+                        dropdown.visible && dropdown.field === field ? 999 : 1,
+                    }}
                   >
-                    {getInputText(field, false)}
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        color: '#A6B0C3',
-                        marginLeft: 'auto',
-                      }}
+                    <TouchableOpacity
+                      style={[styles.filterInput, { height: inputHeight }]}
+                      activeOpacity={0.7}
+                      onPress={() =>
+                        setDropdown({
+                          field,
+                          visible:
+                            !dropdown.visible || dropdown.field !== field,
+                        })
+                      }
                     >
-                      ▼
-                    </Text>
-                  </TouchableOpacity>
-                  {dropdown.visible &&
-                    dropdown.field === field &&
-                    renderDropdown(field)}
-                </View>
-              ))}
+                      {getInputText(field, false)}
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          color: '#A6B0C3',
+                          marginLeft: 'auto',
+                        }}
+                      >
+                        ▼
+                      </Text>
+                    </TouchableOpacity>
+                    {dropdown.visible &&
+                      dropdown.field === field &&
+                      renderDropdown(field)}
+                  </View>
+                ),
+              )}
               <TouchableOpacity
                 style={[
                   styles.filterInput,
@@ -635,14 +791,7 @@ export default function EmailNotificationsScreen({ navigation }) {
                     { flex: 1, height: inputHeight * 0.95 },
                   ]}
                   onPress={() => {
-                    const clearedFilters = {
-                      to: 'All',
-                      toUserId: 'All',
-                      type: 'All',
-                      status: 'All',
-                      startDate: '',
-                      endDate: '',
-                    };
+                    const clearedFilters = getClearedFiltersWithCurrentUser();
                     setFilters(clearedFilters);
                     setAppliedFilters(clearedFilters);
                     setDropdown({ field: null, visible: false });
@@ -1080,9 +1229,9 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   noDataTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 22,
+    fontWeight: '400',
+    color: '#6c6c6cff',
     marginBottom: 8,
     textAlign: 'center',
   },

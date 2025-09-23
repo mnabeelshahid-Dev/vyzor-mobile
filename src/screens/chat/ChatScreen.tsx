@@ -754,7 +754,7 @@ export default function ChatScreen({ navigation }) {
       <View style={styles.chatDetailCard}>
         {isLoadingConversationDetails || isLoadingMessages ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#1292E6" />
+            <ActivityIndicator size="large" color="#007AFF" />
             <Text style={styles.loadingText}>
               {isLoadingConversationDetails
                 ? 'Loading conversation...'
@@ -1252,7 +1252,7 @@ const styles = StyleSheet.create({
   detailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1292E6',
+    backgroundColor: '#007AFF',
     paddingVertical: 50,
     paddingHorizontal: 18,
     borderBottomLeftRadius: 22,
