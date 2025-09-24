@@ -239,7 +239,7 @@ export default function StatisticsScreen({ navigation }) {
       filterSiteIds: branchId,
       startDate: updatedStartDate ? updatedStartDate : statisticsParams.startDate ? statisticsParams.startDate : '',
       endDate: updatedEndDate ? updatedEndDate : statisticsParams.endDate ? statisticsParams.endDate : '',
-      status: statisticsParams.status ?? 'ACTIVE',
+      status: filterStatus && filterStatus.trim() !== '' ? filterStatus : 'ACTIVE',
       userIds: user?.id ? [user.id] : [],
     };
     return params;
@@ -627,17 +627,17 @@ export default function StatisticsScreen({ navigation }) {
           {/* On Time = Completed Task Count */}
           <View style={[styles.statCard, { borderLeftColor: '#22C55E', width: statCardWidth }]}>
             <Text style={[styles.statTitle, { color: '#8C8C98' }]}>On Time</Text>
-            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.onTime ?? 0}</Text> of {Number(totalTasks) ?? 0}</Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>{Number(stats.onTime) ?? 0}</Text> of {Number(totalTasks) ?? 0}</Text>
           </View>
           {/* Outside = Scheduled Task Count */}
           <View style={[styles.statCard, { borderLeftColor: '#ebb748ff', width: statCardWidth }]}>
             <Text style={[styles.statTitle, { color: '#8C8C98' }]}>Outside Period</Text>
-            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.outside ?? 0}</Text> of {Number(totalTasks) ?? 0}</Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>{Number(stats.outside) ?? 0}</Text> of {Number(totalTasks) ?? 0}</Text>
           </View>
           {/* Expired = Expired Task Count */}
           <View style={[styles.statCard, { borderLeftColor: '#EF4444', width: statCardWidth }]}>
             <Text style={[styles.statTitle, { color: '#8C8C98' }]}>Expired</Text>
-            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.expired ?? 0}</Text> of {Number(totalTasks) ?? 0}</Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>{Number(stats.expired) ?? 0}</Text> of {Number(totalTasks) ?? 0}</Text>
           </View>
         </View>
 
