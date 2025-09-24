@@ -10,6 +10,8 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import LogoutIcon from '../../assets/svgs/logout.svg';
+import SettingsIcon from '../../assets/svgs/settings.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import FilterIcon from '../../assets/svgs/filterIcon.svg';
@@ -133,17 +135,19 @@ export default function StatisticsScreen({ navigation }) {
 
   // --- Statistics API logic for stats cards, progress bars, and date range ---
   const [statisticsParams, setStatisticsParams] = useState({
-  startDate: '',
-  endDate: '',
-  status: '',
-  userIds: [],
-  filterSiteIds: branchId,
-  search: '',
-  sort: '',
-  page: 1,
-  size: 10,
+    startDate: '',
+    endDate: '',
+    status: '',
+    userIds: [],
+    filterSiteIds: branchId,
+    search: '',
+    sort: '',
+    page: 0,
+    size: 10,
   });
 
+  let updatedStartDate = '';
+  let updatedEndDate = '';
   useEffect(() => {
     const today = new Date();
     function formatDateWithOffset(date: Date, isStart: boolean) {
@@ -158,8 +162,6 @@ export default function StatisticsScreen({ navigation }) {
       return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}+05:00`;
     }
 
-    let updatedStartDate = '';
-    let updatedEndDate = '';
 
     if (filterDate) {
       updatedStartDate = formatDateWithOffset(new Date(filterDate), true);
@@ -174,18 +176,18 @@ export default function StatisticsScreen({ navigation }) {
       setStatisticsParams((prev) => ({
         ...prev,
         search: search ?? '',
-        sort: '',
+        sort: sortOrder ?? '',
         status: filterStatus && filterStatus.trim() !== '' ? filterStatus : 'ACTIVE',
         startDate: updatedStartDate,
         endDate: updatedEndDate,
-        userIds: user.id ? [user.id] : [],
-        filterSiteIds: branchId ? branchId : undefined,
+        userIds: [user.id], // only userIds
+        filterSiteIds: branchId,
       }));
     }
   }, [search, sortOrder, filterStatus, filterDate, user]);
-       console.log('====================================jfksffas');
-       console.log(statisticsParams);
-       console.log('====================================');
+  console.log('====================================jfksffas');
+  console.log(statisticsParams);
+  console.log('====================================');
   const { data: statsData, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['statisticsUserDetail', statisticsParams],
     queryFn: () => {
@@ -209,9 +211,9 @@ export default function StatisticsScreen({ navigation }) {
     },
     enabled: Array.isArray(statisticsParams.userIds) && statisticsParams.userIds.length > 0,
   });
-     console.log('====================================');
-     console.log(statsData);
-     console.log('====================================');
+  console.log('====================================');
+  console.log(statsData);
+  console.log('====================================');
   const statsTyped = (statsData as { data?: { content?: any[] } })?.data?.content[0] as any || {};
   const stats = {
     onTime: statsTyped.onTime,
@@ -232,39 +234,20 @@ export default function StatisticsScreen({ navigation }) {
     const params: any = {
       page: pageParam,
       size: 10,
-      startDate: statisticsParams.startDate,
-      endDate: statisticsParams.endDate,
+      sort: sortOrder ?? '',
+      search: search ?? '',
+      filterSiteIds: branchId,
+      startDate: updatedStartDate ? updatedStartDate : statisticsParams.startDate ? statisticsParams.startDate : '',
+      endDate: updatedEndDate ? updatedEndDate : statisticsParams.endDate ? statisticsParams.endDate : '',
+      status: statisticsParams.status ?? 'ACTIVE',
+      userIds: user?.id ? [user.id] : [],
     };
-    if (statisticsParams.userIds && statisticsParams.userIds.length > 0) {
-      params.userIds = statisticsParams.userIds;
-    }
-    if (statisticsParams.filterSiteIds) {
-      params.filterSiteIds = statisticsParams.filterSiteIds;
-    }
-    if (statisticsParams.search && statisticsParams.search.trim() !== '') {
-      params.search = statisticsParams.search;
-    }
-    if (statisticsParams.sort && statisticsParams.sort.trim() !== '') {
-      params.sort = statisticsParams.sort;
-    }
     return params;
   };
 
   const fetchTasksInfinite = async ({ pageParam = 1 }) => {
     const params = buildParams(pageParam);
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
-        if (Array.isArray(value)) {
-          query.append(key, value.join(','));
-        } else {
-          query.append(key, value.toString());
-        }
-      }
-    });
-    const fullUrl = `/api/document?${query.toString()}`;
     console.log("Fetching documents with params:", params);
-    console.log("Full fetchDocument URL:", fullUrl);
     const response = await fetchDocument(params);
     console.log("Fetched documents response:", response);
     let content: any[] = [];
@@ -358,10 +341,10 @@ export default function StatisticsScreen({ navigation }) {
   // Filter modal logic can be added here, similar to TaskScreen
 
   const handleSort = (field: 'name' | 'number', order: 'asc' | 'desc') => {
-  // Map 'name' to 'documentName' for backend compatibility
-  setSortField(field === 'name' ? 'documentName' : field);
-  setSortOrder(order);
-  setShowSortModal(false);
+    // Map 'name' to 'documentName' for backend compatibility
+    setSortField(field === 'name' ? 'documentName' : field);
+    setSortOrder(order);
+    setShowSortModal(false);
   };
 
 
@@ -512,7 +495,7 @@ export default function StatisticsScreen({ navigation }) {
               {/* Status Dropdown List */}
               {showStatusDropdown && (
                 <View style={{ backgroundColor: '#fff', borderRadius: 8, marginTop: 4, marginHorizontal: 14, elevation: 2, shadowColor: '#0002', borderWidth: 1, borderColor: '#00000033' }}>
-                  {['On Time', 'Outside Period','Expired'].map((status) => (
+                  {['On Time', 'Outside Period', 'Expired'].map((status) => (
                     <TouchableOpacity
                       key={status}
                       style={{
@@ -604,7 +587,7 @@ export default function StatisticsScreen({ navigation }) {
                   setFilterStatus('');
                   setFilterDate('');
                   setFilterModal(false);
-                  
+
                 }}
               >
                 <Text style={styles.modalBtnClearText}>Clear</Text>
@@ -870,7 +853,49 @@ export default function StatisticsScreen({ navigation }) {
         )}
       </View>
 
+        {/* Dropdown Modal */}
+      <Modal
+        visible={showDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDropdown(false)}
+        >
+          <View style={styles.dropdownMenu}>
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={() => {
+                setShowDropdown(false);
+                // Add navigation to settings here
+                navigation.navigate('Profile');
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <SettingsIcon
+                  width={18}
+                  height={18}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.dropdownText}>Settings</Text>
+              </View>
+            </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={handleLogout}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
+                <Text style={styles.dropdownText}>Logout</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
