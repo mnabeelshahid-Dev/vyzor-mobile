@@ -833,6 +833,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!isLoading}
+                  leftIconProps={{ color: "#475467" }}
                   onChangeText={(text: string) => {
                     const cleaned = text.replace(/[^A-Za-z ]/g, '').replace(/\s{2,}/g, ' ');
                     handleInputChange('firstname', cleaned);
@@ -850,6 +851,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!isLoading}
+                  leftIconProps={{ color: "#475467" }}
                   onChangeText={(text: string) => {
                     const cleaned = text.replace(/[^A-Za-z ]/g, '').replace(/\s{2,}/g, ' ');
                     handleInputChange('lastname', cleaned);
@@ -869,6 +871,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!isLoading}
+                  leftIconProps={{ color: "#475467" }}
                   onChangeText={text => handleInputChange('email', text)}
                   errorMessage={emailError}
                   isStaric
@@ -953,6 +956,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                   editable={!isLoading}
                   onChangeText={text => handleInputChange('password', text)}
                   errorMessage={passwordError}
+                  leftIconProps={{ color: "#475467" }}
                   isStaric
                   secureTextEntry={!isPasswordVisible}
                   RightIcon={EyeSlash}
@@ -973,6 +977,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                   onChangeText={text => handleInputChange('confirmPassword', text)}
                   errorMessage={confirmPasswordError}
                   isStaric
+                  leftIconProps={{ color: "#475467" }}
                   secureTextEntry={!isConfirmPasswordVisible}
                   RightIcon={EyeSlash}
                   onRightIconPress={togglePasswordVisibility}

@@ -10,13 +10,14 @@ import {
 
 interface FloatingInputProps extends TextInputProps {
     label: string;
-    LeftIcon?: React.FC<{ width?: number; height?: number }>;
+    LeftIcon?: React.FC<any>;
     RightIcon?: React.FC<{ width?: number; height?: number }>;
     RightIconAlt?: React.FC<{ width?: number; height?: number }>;
     secureTextEntry?: boolean;
     onRightIconPress?: () => void;
     errorMessage?: string;
     isStaric?: boolean;
+    leftIconProps?: { color?: string };
 }
 
 const FloatingInput: React.FC<FloatingInputProps> = (props) => {
@@ -53,7 +54,7 @@ const FloatingInput: React.FC<FloatingInputProps> = (props) => {
                     {/* Fixed Label */}
 
                     <View style={styles.labelWrapper}>
-                        {LeftIcon && <LeftIcon width={20} height={20} />}
+                        {LeftIcon && <LeftIcon width={20} height={20} {...props.leftIconProps} />}
                         <Text
                             style={[
                                 styles.label, { bottom: 1 }
@@ -130,7 +131,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 0,
         paddingVertical: 8,
         fontSize: 16,
-        color: "#222",
+        color: "#021639",
         backgroundColor: "transparent",
         flex: 1,
     },
@@ -141,6 +142,7 @@ const styles = StyleSheet.create({
     label: {
         marginLeft: 4,
         fontSize: 14,
+        color: "#475467",
     },
     rightIconWrapper: {
         alignItems: "center",

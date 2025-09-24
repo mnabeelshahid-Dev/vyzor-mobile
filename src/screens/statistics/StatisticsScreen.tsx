@@ -2,10 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   TouchableOpacity,
-  Platform,
   SafeAreaView,
   StatusBar,
   FlatList,
@@ -21,21 +19,18 @@ import ArrowUpIcon from '../../assets/svgs/arrowUpWard.svg';
 import ArrowDownWard from '../../assets/svgs/arrowDownward.svg';
 import Modal from 'react-native-modal';
 import DatePicker from 'react-native-date-picker';
-import { Calendar } from 'react-native-calendars';
 import ArrowDown from '../../assets/svgs/arrowDown.svg';
 import { useAuthStore } from '../../store/authStore';
 import { styles } from './styles';
 const { width } = Dimensions.get('window');
 import SortIcon from '../../assets/svgs/sortIcon.svg';
-import LogoutIcon from '../../assets/svgs/logout.svg';
-import SettingsIcon from '../../assets/svgs/settings.svg';
 import { useLogout } from '../../hooks/useAuth';
 const getResponsive = (val: number) => Math.round(val * (width / 390));
 
 import { useQuery } from '@tanstack/react-query';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { fetchStatisticsUserDetail } from '../../api/statistics';
-import { fetchTasks } from '../../api/tasks';
+import { fetchDocument } from '../../api/statistics';
 // ActivityIndicator already imported above
 
 function formatDate(dateStrOrObj: string | Date = "", showTime = false): string {
@@ -61,11 +56,10 @@ function formatDate(dateStrOrObj: string | Date = "", showTime = false): string 
   hours = hours % 12;
   hours = hours ? hours : 12; // 0 should be 12
 
-  return `${dd}-${mm}-${yyyy}  ${hours}:${minutes} ${ampm}`;
+  return `${dd}-${mm}-${yyyy} ${hours}:${minutes} ${ampm}`;
 }
 
 export default function StatisticsScreen({ navigation }) {
-  const branchId = useAuthStore((state) => state.branchId);
   // Memoized TaskCard for FlatList performance
   const TaskCard = React.memo(({ item }: { item: any }) => (
     <View
@@ -83,10 +77,10 @@ export default function StatisticsScreen({ navigation }) {
       ]}
     >
       <View style={{ flex: 1 }}>
-        <Text style={styles.taskTitle}>{item.formName || item.label}</Text>
+        <Text style={styles.taskTitle}>{item.documentName}</Text>
         <View style={styles.taskDates}>
-          <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Starting:</Text> {formatDate(item.startDate)}</Text>
-          <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Ending:</Text> {formatDate(item.endDate)}</Text>
+          <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Starting:</Text> {formatDate(item.startDate, true)}</Text>
+          <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Ending:</Text> {formatDate(item.endDate, true)}</Text>
         </View>
       </View>
     </View>
@@ -97,7 +91,8 @@ export default function StatisticsScreen({ navigation }) {
   const keyExtractor = React.useCallback((item, idx) => item.webId ? item.webId.toString() : idx.toString(), []);
 
   const user = useAuthStore((state) => state.user);
-  console.log("👤 [STORE] Current User from Auth Store:", user);
+  const branchId = useAuthStore((state) => state.branchId);
+  console.log("👤 [STORE] Current User from Auth Store:", user, branchId);
   // Only keep one set of state for tasks logic
   const [search, setSearch] = useState('');
   const [filterModal, setFilterModal] = useState(false);
@@ -117,12 +112,11 @@ export default function StatisticsScreen({ navigation }) {
       }));
     }
   };
-  const [calendarDate, setCalendarDate] = useState(new Date().toISOString().split('T')[0]);
   const [showSortModal, setShowSortModal] = useState(false);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [sortField, setSortField] = useState<'name' | 'number'>('name');
+  // Use 'documentName' instead of 'name' for backend compatibility
+  const [sortField, setSortField] = useState<'documentName' | 'number'>('documentName');
   const [filterStatus, setFilterStatus] = useState('');
-  const [updatedDate, setUpdatedDate] = useState('');
 
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -139,53 +133,85 @@ export default function StatisticsScreen({ navigation }) {
 
   // --- Statistics API logic for stats cards, progress bars, and date range ---
   const [statisticsParams, setStatisticsParams] = useState({
-    startDate: '',
-    endDate: '',
-    status: '',
-    userId: '',
-    search: '',
-    sort: '',
-    page: 0,
-    size: 10,
+  startDate: '',
+  endDate: '',
+  status: '',
+  userIds: [],
+  filterSiteIds: branchId,
+  search: '',
+  sort: '',
+  page: 1,
+  size: 10,
   });
 
   useEffect(() => {
     const today = new Date();
-    function formatDateFull(date: Date) {
-      return date.toISOString().split('.')[0] + 'Z';
+    function formatDateWithOffset(date: Date, isStart: boolean) {
+      // Format: YYYY-MM-DDTHH:mm:ss+05:00
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const yyyy = date.getFullYear();
+      const mm = pad(date.getMonth() + 1);
+      const dd = pad(date.getDate());
+      const hh = pad(isStart ? 0 : 23);
+      const min = pad(isStart ? 0 : 59);
+      const ss = pad(isStart ? 0 : 59);
+      return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}+05:00`;
     }
 
     let updatedStartDate = '';
     let updatedEndDate = '';
 
     if (filterDate) {
-      updatedStartDate = formatDateFull(new Date(filterDate));
-      updatedEndDate = formatDateFull(new Date(filterDate));
+      updatedStartDate = formatDateWithOffset(new Date(filterDate), true);
+      updatedEndDate = formatDateWithOffset(new Date(filterDate), false);
     } else {
-      updatedEndDate = formatDateFull(today);
+      updatedEndDate = formatDateWithOffset(today, false);
       const startDateObj = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      updatedStartDate = formatDateFull(startDateObj);
+      updatedStartDate = formatDateWithOffset(startDateObj, true);
     }
 
     if (user?.id) {
       setStatisticsParams((prev) => ({
         ...prev,
-        search,
-        sort: sortOrder,
-        status: filterStatus,
+        search: search ?? '',
+        sort: '',
+        status: filterStatus && filterStatus.trim() !== '' ? filterStatus : 'ACTIVE',
         startDate: updatedStartDate,
         endDate: updatedEndDate,
-        userId: user.id,
+        userIds: user.id ? [user.id] : [],
+        filterSiteIds: branchId ? branchId : undefined,
       }));
     }
   }, [search, sortOrder, filterStatus, filterDate, user]);
-
+       console.log('====================================jfksffas');
+       console.log(statisticsParams);
+       console.log('====================================');
   const { data: statsData, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['statisticsUserDetail', statisticsParams],
-    queryFn: () => fetchStatisticsUserDetail(statisticsParams),
-    enabled: !!statisticsParams.userId,
+    queryFn: () => {
+      // Build query string for debugging
+      const query = new URLSearchParams();
+      Object.entries(statisticsParams).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          if (key === 'userIds' && Array.isArray(value)) {
+            query.append('userIds', value.join(','));
+          } else if (Array.isArray(value)) {
+            query.append(key, value.join(','));
+          } else {
+            query.append(key, value.toString());
+          }
+        }
+      });
+      const url = `/api/document/statistics/usersDetail?${query.toString()}`;
+      console.log('[DEBUG] Statistics API URL:', url);
+      console.log('[DEBUG] Statistics API Request Object:', statisticsParams);
+      return fetchStatisticsUserDetail(statisticsParams);
+    },
+    enabled: Array.isArray(statisticsParams.userIds) && statisticsParams.userIds.length > 0,
   });
-
+     console.log('====================================');
+     console.log(statsData);
+     console.log('====================================');
   const statsTyped = (statsData as { data?: { content?: any[] } })?.data?.content[0] as any || {};
   const stats = {
     onTime: statsTyped.onTime,
@@ -203,25 +229,44 @@ export default function StatisticsScreen({ navigation }) {
 
   // Build params for API
   const buildParams = (pageParam = 1) => {
-    return { 
-  startDate: filterDate,
-  endDate: filterDate,
-      siteIds: branchId ? [branchId] : [],
-      userIds: [user?.id],
-      scheduleStatus: filterStatus.toUpperCase(),
-      search,
-      sort: sortOrder,
-      sortField: sortField,
+    const params: any = {
       page: pageParam,
-      size: 20,
+      size: 10,
+      startDate: statisticsParams.startDate,
+      endDate: statisticsParams.endDate,
     };
+    if (statisticsParams.userIds && statisticsParams.userIds.length > 0) {
+      params.userIds = statisticsParams.userIds;
+    }
+    if (statisticsParams.filterSiteIds) {
+      params.filterSiteIds = statisticsParams.filterSiteIds;
+    }
+    if (statisticsParams.search && statisticsParams.search.trim() !== '') {
+      params.search = statisticsParams.search;
+    }
+    if (statisticsParams.sort && statisticsParams.sort.trim() !== '') {
+      params.sort = statisticsParams.sort;
+    }
+    return params;
   };
 
   const fetchTasksInfinite = async ({ pageParam = 1 }) => {
     const params = buildParams(pageParam);
-    console.log("Fetching tasks with params:", params);
-    
-    const response = await fetchTasks(params);
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        if (Array.isArray(value)) {
+          query.append(key, value.join(','));
+        } else {
+          query.append(key, value.toString());
+        }
+      }
+    });
+    const fullUrl = `/api/document?${query.toString()}`;
+    console.log("Fetching documents with params:", params);
+    console.log("Full fetchDocument URL:", fullUrl);
+    const response = await fetchDocument(params);
+    console.log("Fetched documents response:", response);
     let content: any[] = [];
     if (Array.isArray(response?.data)) {
       content = response.data as any[];
@@ -273,7 +318,7 @@ export default function StatisticsScreen({ navigation }) {
 
   // Sorting logic
   let sortedTasks = [...filteredTasks];
-  if (sortField === 'name') {
+  if (sortField === 'documentName') {
     sortedTasks.sort((a, b) => {
       if (!a.documentName || !b.documentName) return 0;
       if (sortOrder === 'asc') {
@@ -313,9 +358,10 @@ export default function StatisticsScreen({ navigation }) {
   // Filter modal logic can be added here, similar to TaskScreen
 
   const handleSort = (field: 'name' | 'number', order: 'asc' | 'desc') => {
-    setSortField(field);
-    setSortOrder(order);
-    setShowSortModal(false);
+  // Map 'name' to 'documentName' for backend compatibility
+  setSortField(field === 'name' ? 'documentName' : field);
+  setSortOrder(order);
+  setShowSortModal(false);
   };
 
 
@@ -339,13 +385,13 @@ export default function StatisticsScreen({ navigation }) {
           <Text style={styles.sortModalField}>Name</Text>
           <View style={styles.sortModalOrderBtns}>
             <TouchableOpacity
-              style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+              style={[styles.sortModalOrderBtn, sortField === 'documentName' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
               onPress={() => handleSort('name', 'desc')}
             >
               <ArrowDownWard width={15} height={15} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.sortModalOrderBtn, sortField === 'name' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+              style={[styles.sortModalOrderBtn, sortField === 'documentName' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
               onPress={() => handleSort('name', 'asc')}
             >
               <ArrowUpIcon width={15} height={15} />
@@ -375,6 +421,8 @@ export default function StatisticsScreen({ navigation }) {
   );
 
   console.log(filterModal, " filterStatus, filterDate");
+
+  const totalTasks = stats.onTime + stats.outside + stats.expired;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
@@ -464,7 +512,7 @@ export default function StatisticsScreen({ navigation }) {
               {/* Status Dropdown List */}
               {showStatusDropdown && (
                 <View style={{ backgroundColor: '#fff', borderRadius: 8, marginTop: 4, marginHorizontal: 14, elevation: 2, shadowColor: '#0002', borderWidth: 1, borderColor: '#00000033' }}>
-                  {['Active', 'Scheduled', 'Completed', 'Expired'].map((status) => (
+                  {['On Time', 'Outside Period','Expired'].map((status) => (
                     <TouchableOpacity
                       key={status}
                       style={{
@@ -578,6 +626,10 @@ export default function StatisticsScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+      {/* Sort Modal */}
+      {showSortModal && (
+        <SortModal />
+      )}
       <View
         style={{
           flex: 1,
@@ -591,18 +643,18 @@ export default function StatisticsScreen({ navigation }) {
         <View style={styles.statsRow}>
           {/* On Time = Completed Task Count */}
           <View style={[styles.statCard, { borderLeftColor: '#22C55E', width: statCardWidth }]}>
-            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>Completed Tasks</Text>
-            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.onTime ?? 0}</Text> of {stats.totalOnTime ?? 0}</Text>
+            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>On Time</Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.onTime ?? 0}</Text> of {Number(totalTasks) ?? 0}</Text>
           </View>
           {/* Outside = Scheduled Task Count */}
           <View style={[styles.statCard, { borderLeftColor: '#ebb748ff', width: statCardWidth }]}>
-            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>Scheduled Tasks</Text>
-            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.outside ?? 0}</Text> of {stats.totalOutside ?? 0}</Text>
+            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>Outside Period</Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.outside ?? 0}</Text> of {Number(totalTasks) ?? 0}</Text>
           </View>
           {/* Expired = Expired Task Count */}
           <View style={[styles.statCard, { borderLeftColor: '#EF4444', width: statCardWidth }]}>
-            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>Expired Tasks</Text>
-            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.expired ?? 0}</Text> of {stats.totalExpired ?? 0}</Text>
+            <Text style={[styles.statTitle, { color: '#8C8C98' }]}>Expired</Text>
+            <Text style={styles.statValue}><Text style={styles.boldNum}>{stats.expired ?? 0}</Text> of {Number(totalTasks) ?? 0}</Text>
           </View>
         </View>
 
@@ -623,7 +675,7 @@ export default function StatisticsScreen({ navigation }) {
             </Text>
           </View>
           <View style={styles.progressRow}>
-            <Text style={styles.progressLabel}>Outside</Text>
+            <Text style={styles.progressLabel}>Outside Period</Text>
             <View style={styles.progressBarBg}>
               <View
                 style={[
@@ -780,8 +832,12 @@ export default function StatisticsScreen({ navigation }) {
           </Modal>
         </View>
 
-        {/* Task List with empty state */}
-        {sortedTasks.length === 0 ? (
+        {/* Task List with loading and empty state */}
+        {isLoading || isRefetching ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 32 }}>
+            <ActivityIndicator size="large" color="#007AFF" />
+          </View>
+        ) : sortedTasks.length === 0 ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 32 }}>
             <Text style={{ color: '#888', fontSize: 18, fontWeight: '500' }}>No tasks Found</Text>
           </View>
@@ -813,7 +869,6 @@ export default function StatisticsScreen({ navigation }) {
           </View>
         )}
       </View>
-// Remove stray Modal and ensure all JSX blocks are closed properly
 
 
     </SafeAreaView>

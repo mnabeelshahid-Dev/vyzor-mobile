@@ -265,6 +265,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   textContentType="emailAddress"
                   editable={!loginMutation.isPending}
                   LeftIcon={EmailIcon}
+                  leftIconProps={{ color: "#475467" }}
                   RightIcon={isValidEmail(email.trim()) ? CheckIcon : undefined}
                   errorMessage={emailError}
                 />
@@ -283,6 +284,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   editable={!loginMutation.isPending}
                   LeftIcon={PasswordIcon}
                   RightIconAlt={EyeSlash}
+                  leftIconProps={{ color: "#475467" }}
                   onRightIconPress={togglePasswordVisibility}
                   errorMessage={passwordError}
                 />

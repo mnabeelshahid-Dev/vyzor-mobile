@@ -1039,7 +1039,7 @@ export default function TaskScreen({ navigation }) {
           }}
         >
           <Settings width={18} height={18} style={{ marginRight: 8 }} />
-          <Text style={styles.dropdownText}>Profile</Text>
+          <Text style={styles.dropdownText}>Settings</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.dropdownItem} onPress={handleLogout}>
           <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
