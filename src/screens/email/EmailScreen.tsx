@@ -23,7 +23,7 @@ import CalendarIcon from '../../assets/svgs/calendar.svg';
 import LogoutIcon from '../../assets/svgs/logout.svg';
 import SettingsIcon from '../../assets/svgs/settings.svg';
 import { useLogout } from '../../hooks/useAuth';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { apiService } from '../../services/api';
 
@@ -164,101 +164,123 @@ export default function EmailNotificationsScreen({ navigation }) {
   const containerPadding = Math.max(12, width * 0.04);
   const modalWidth = Math.min(420, width - 2 * containerPadding);
 
-const getEmailParams = () => {
-  const params = new URLSearchParams();
-  params.append('page', '0');
-  params.append('size', '20');
-  params.append('search', debouncedSearch || '');
-  params.append('sort', 'createdDate,desc');
+  const fetchEmailsInfinite = async ({ pageParam = 0 }) => {
+    const params = new URLSearchParams();
+    params.append('page', pageParam.toString());
+    params.append('size', '20');
+    params.append('search', debouncedSearch || '');
+    params.append('sort', 'createdDate,desc');
 
-  // For non-admins, always use current user ID
-  // For admins, use selected user or all users
-  if (!isAdmin) {
-    // Non-admin: always use current user ID
-    const currentUserId = currentUserData ? currentUserData.webId.toString() : '';
-    if (currentUserId) {
-      params.append('userIds', currentUserId);
+    // For non-admins, always use current user ID
+    // For admins, use selected user or all users
+    if (!isAdmin) {
+      // Non-admin: always use current user ID
+      const currentUserId = currentUserData
+        ? currentUserData.webId.toString()
+        : '';
+      if (currentUserId) {
+        params.append('userIds', currentUserId);
+      }
+    } else {
+      // Admin: use selected user ID if not 'All'
+      if (appliedFilters.toUserId && appliedFilters.toUserId !== 'All') {
+        params.append('userIds', appliedFilters.toUserId);
+      }
+      // If 'All' or no selection, don't add userIds param to get all users
     }
-  } else {
-    // Admin: use selected user ID if not 'All'
-    if (appliedFilters.toUserId && appliedFilters.toUserId !== 'All') {
-      params.append('userIds', appliedFilters.toUserId);
+
+    if (appliedFilters.type && appliedFilters.type !== 'All') {
+      const typeOption = FILTER_OPTIONS.type.find(
+        opt => opt.key === appliedFilters.type,
+      );
+      const typeValue = typeOption ? typeOption.value : appliedFilters.type;
+      params.append('type', typeValue.toUpperCase().replace(/ /g, '_'));
     }
-    // If 'All' or no selection, don't add userIds param to get all users
-  }
 
-  if (appliedFilters.type && appliedFilters.type !== 'All') {
-    const typeOption = FILTER_OPTIONS.type.find(
-      opt => opt.key === appliedFilters.type,
-    );
-    const typeValue = typeOption ? typeOption.value : appliedFilters.type;
-    params.append('type', typeValue.toUpperCase().replace(/ /g, '_'));
-  }
+    if (appliedFilters.status && appliedFilters.status !== 'All') {
+      params.append('status', appliedFilters.status.toUpperCase());
+    }
 
-  if (appliedFilters.status && appliedFilters.status !== 'All') {
-    params.append('status', appliedFilters.status.toUpperCase());
-  }
+    // Start date - beginning of day (00:00:00) in UTC
+    if (appliedFilters.startDate) {
+      const startDate = new Date(
+        appliedFilters.startDate.split('-').reverse().join('-'),
+      );
+      const formattedStartDate = startDate.toISOString().slice(0, 19) + 'Z';
+      params.append('startDate', formattedStartDate);
+    }
 
-// Start date - beginning of day (00:00:00) in UTC
-if (appliedFilters.startDate) {
-  const startDate = new Date(
-    appliedFilters.startDate.split('-').reverse().join('-'),
-  );
-  const formattedStartDate = startDate.toISOString().slice(0, 19) + 'Z';
-  params.append('startDate', formattedStartDate);
-}
+    // End date - end of day (23:59:59) in UTC
+    if (appliedFilters.endDate) {
+      const endDate = new Date(
+        appliedFilters.endDate.split('-').reverse().join('-'),
+      );
+      // Set to end of day (23:59:59)
+      endDate.setHours(23, 59, 59, 999);
+      const formattedEndDate = endDate.toISOString().slice(0, 19) + 'Z';
+      params.append('endDate', formattedEndDate);
+    }
 
-// End date - end of day (23:59:59) in UTC
-if (appliedFilters.endDate) {
-  const endDate = new Date(
-    appliedFilters.endDate.split('-').reverse().join('-'),
-  );
-  // Set to end of day (23:59:59)
-  endDate.setHours(23, 59, 59, 999);
-  const formattedEndDate = endDate.toISOString().slice(0, 19) + 'Z';
-  params.append('endDate', formattedEndDate);
-}
+    try {
+      const response = await apiService.get(
+        `/api/notification/emails?${params.toString()}`,
+      );
+      console.log('Email API Params:', params.toString());
 
-  return params.toString();
-};
+      let content = [];
+      if (Array.isArray(response.data)) {
+        content = response.data;
+      } else if (
+        response.data &&
+        Array.isArray((response.data as { content?: unknown[] }).content)
+      ) {
+        content = (response.data as { content: unknown[] }).content;
+      }
+
+      return {
+        data: content,
+        nextPage: pageParam + 1,
+        hasMore: content.length === 20,
+      };
+    } catch (err) {
+      console.error('Emails API fetch error:', err);
+      return {
+        data: [],
+        nextPage: pageParam + 1,
+        hasMore: false,
+      };
+    }
+  };
 
   const {
-    data: emailData,
+    data: infiniteEmailData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     isLoading: loadingEmails,
     isError,
     error,
     refetch,
-  } = useQuery({
-    queryKey: ['emails', appliedFilters, debouncedSearch], // Changed from filters to appliedFilters
-    queryFn: async () => {
-      const params = getEmailParams();
-      try {
-        const response = await apiService.get(
-          `/api/notification/emails?${params}`,
-        );
-        console.log('Email API Params:', params);
-        if (Array.isArray(response.data)) return response.data;
-        if (
-          response.data &&
-          Array.isArray((response.data as { content?: unknown[] }).content)
-        )
-          return (response.data as { content: unknown[] }).content;
-        return [];
-      } catch (err) {
-        console.error('Emails API fetch error:', err);
-        return [];
-      }
-    },
+    isRefetching,
+  } = useInfiniteQuery({
+    queryKey: ['emails', appliedFilters, debouncedSearch],
+    queryFn: fetchEmailsInfinite,
+    getNextPageParam: lastPage =>
+      lastPage.hasMore ? lastPage.nextPage : undefined,
+    initialPageParam: 0,
+    enabled: true,
   });
-  const emails = Array.isArray(emailData) ? emailData : [];
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 500); // 500ms delay
+  // Flatten all pages
+  const emails = infiniteEmailData?.pages.flatMap(page => page.data) ?? [];
 
-    return () => clearTimeout(timer);
-  }, [search]);
+  const handleEndReached = () => {
+    console.log('FlatList onEndReached', { hasNextPage, isFetchingNextPage });
+    if (hasNextPage && !isFetchingNextPage) {
+      console.log('Calling fetchNextPage');
+      fetchNextPage();
+    }
+  };
 
   // Replace the existing useEffect that sets initial user data with this:
   useEffect(() => {
@@ -660,8 +682,17 @@ if (appliedFilters.endDate) {
             style={styles.emailList}
             contentContainerStyle={{ paddingBottom: 24 }}
             showsVerticalScrollIndicator={false}
-            refreshing={loadingEmails}
+            refreshing={loadingEmails || isRefetching}
             onRefresh={refetch}
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              isFetchingNextPage ? (
+                <View style={{ paddingVertical: 24 }}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                </View>
+              ) : null
+            }
           />
         )}
       </View>
@@ -815,7 +846,7 @@ if (appliedFilters.endDate) {
                     {
                       flex: 1,
                       height: inputHeight * 0.95,
-                      opacity: loadingEmails ? 0.7 : 1,
+                      opacity: loadingEmails || isFetchingNextPage ? 0.7 : 1,
                     },
                   ]}
                   onPress={() => {
@@ -826,9 +857,9 @@ if (appliedFilters.endDate) {
                     setDropdown({ field: null, visible: false });
                     setFilterModal(false);
                   }}
-                  disabled={loadingEmails}
+                  disabled={loadingEmails || isFetchingNextPage}
                 >
-                  {loadingEmails ? (
+                  {loadingEmails || isFetchingNextPage ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text
