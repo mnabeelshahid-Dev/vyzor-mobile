@@ -61,7 +61,7 @@ class StorageService implements IStorageService {
    */
   private logError(operation: string, key: string, error: unknown): void {
     if (__DEV__) {
-      DebugConsole.error(
+      Debugconsole.log(
         'StorageService',
         `${operation} error for key "${key}"`,
         error

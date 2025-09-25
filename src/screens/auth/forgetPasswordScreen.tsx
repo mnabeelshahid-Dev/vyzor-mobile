@@ -108,7 +108,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
         }, 2000);
       }
     } catch (error) {
-      console.error('Password reset error:', error);
+      console.log('Password reset error:', error);
       // Error handling is done in authStore
     }
   };

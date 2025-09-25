@@ -260,7 +260,7 @@ const ProfileScreen = ({ navigation }) => {
         setCountries(response.data as any[]);
       }
     } catch (error) {
-      console.error('Error fetching countries:', error);
+      console.log('Error fetching countries:', error);
     } finally {
       setCountriesLoading(false);
     }
@@ -279,7 +279,7 @@ const ProfileScreen = ({ navigation }) => {
         setSelectedStateValue('');
       }
     } catch (error) {
-      console.error('Error fetching states:', error);
+      console.log('Error fetching states:', error);
       setStates([]);
     } finally {
       setStatesLoading(false);
@@ -297,7 +297,7 @@ const ProfileScreen = ({ navigation }) => {
         // Don't clear city here - preserve the existing value
       }
     } catch (error) {
-      console.error('Error fetching cities:', error);
+      console.log('Error fetching cities:', error);
       setCities([]);
     } finally {
       setCitiesLoading(false);
@@ -457,7 +457,7 @@ const ProfileScreen = ({ navigation }) => {
       setSuccessMessage('Profile picture removed successfully!');
       setShowSuccessModal(true);
     } catch (error) {
-      console.error('Error removing profile picture:', error);
+      console.log('Error removing profile picture:', error);
       setErrorMessage('Failed to remove profile picture. Please try again.');
       setShowErrorModal(true);
     }
@@ -555,7 +555,7 @@ const ProfileScreen = ({ navigation }) => {
       console.log('Profile picture upload response:', data);
     },
     onError: error => {
-      console.error('Error uploading profile picture:', error);
+      console.log('Error uploading profile picture:', error);
       setErrorMessage(
         error.message || 'Failed to update profile picture. Please try again.',
       );
@@ -584,7 +584,7 @@ const ProfileScreen = ({ navigation }) => {
       console.log('Update profile response:', data);
     },
     onError: error => {
-      console.error('Error updating profile:', error);
+      console.log('Error updating profile:', error);
       setErrorMessage(
         error.message || 'Failed to update profile. Please try again.',
       );
@@ -620,7 +620,7 @@ const ProfileScreen = ({ navigation }) => {
       setShowSuccessModal(true);
     },
     onError: error => {
-      console.error('Error updating password:', error);
+      console.log('Error updating password:', error);
       // Handle specific password error
       if (
         error.message.toLowerCase().includes('current password') ||
@@ -658,7 +658,7 @@ const ProfileScreen = ({ navigation }) => {
       console.log('Update contact details response:', data);
     },
     onError: error => {
-      console.error('Error updating contact details:', error);
+      console.log('Error updating contact details:', error);
       setErrorMessage(
         error.message || 'Failed to update contact details. Please try again.',
       );
@@ -685,7 +685,7 @@ const ProfileScreen = ({ navigation }) => {
       console.log('Phone update response:', data);
     },
     onError: error => {
-      console.error('Error updating Phone details:', error);
+      console.log('Error updating Phone details:', error);
     },
   });
 

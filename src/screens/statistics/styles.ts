@@ -41,7 +41,6 @@ export const styles = StyleSheet.create({
     height: 44,
     paddingHorizontal: 14,
     fontSize: 16,
-    marginBottom: 10,
     color: '#222',
   },
   inputRow: {

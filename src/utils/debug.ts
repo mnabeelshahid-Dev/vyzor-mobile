@@ -63,16 +63,16 @@ export class DebugConsole {
     // Only log errors to console if running in remote JS debugger
     // __DEV__ is true in development, but we want to restrict to debugger only
     if (typeof atob === 'function') { // atob only exists in remote JS debugging
-      console.error(`❌ [ERROR] ${context}: ${message}`, error ?? '');
+      console.log(`❌ [ERROR] ${context}: ${message}`, error ?? '');
 
       const errorObj = error as IErrorWithStack;
       if (errorObj?.stack) {
-        console.error('Stack trace:', errorObj.stack);
+        console.log('Stack trace:', errorObj.stack);
       }
 
       // Log additional error properties if available
       if (errorObj?.name && errorObj?.message) {
-        console.error(`Error details: ${errorObj.name} - ${errorObj.message}`);
+        console.log(`Error details: ${errorObj.name} - ${errorObj.message}`);
       }
     }
   }

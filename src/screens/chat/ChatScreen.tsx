@@ -262,7 +262,7 @@ export default function ChatScreen({ navigation }) {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
     onError: error => {
-      console.error('Error Adding conversations:', error);
+      console.log('Error Adding conversations:', error);
     },
   });
 
@@ -325,7 +325,7 @@ export default function ChatScreen({ navigation }) {
       }, 100);
     },
     onError: error => {
-      console.error('Error sending message:', error);
+      console.log('Error sending message:', error);
     },
   });
 
@@ -521,7 +521,7 @@ export default function ChatScreen({ navigation }) {
   const handleAddConversation = async () => {
     try {
       if (!currentUserClientId) {
-        console.error('Client ID not available');
+        console.log('Client ID not available');
         return;
       }
 
@@ -551,7 +551,7 @@ export default function ChatScreen({ navigation }) {
       setGroupName('');
       setGroupParticipants([]);
     } catch (error) {
-      console.error('Error in handleAddConversation:', error);
+      console.log('Error in handleAddConversation:', error);
     }
   };
 
@@ -594,7 +594,7 @@ export default function ChatScreen({ navigation }) {
 
       await sendMessageMutation.mutateAsync(messageData);
     } catch (error) {
-      console.error('Error in sendMessage:', error);
+      console.log('Error in sendMessage:', error);
     }
   };
 

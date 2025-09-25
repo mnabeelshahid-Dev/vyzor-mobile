@@ -103,7 +103,7 @@ class RealtimeService {
         }
       }
     } catch (error) {
-      console.error('Error fetching new messages:', error);
+      console.log('Error fetching new messages:', error);
     }
   }
 

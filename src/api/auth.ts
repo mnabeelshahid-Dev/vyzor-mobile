@@ -161,12 +161,12 @@ export const authApi = {
         },
       };
     } catch (error: any) {
-      console.error('🔗 [API] Registration error:', error);
+      console.log('🔗 [API] Registration error:', error);
       if (error.response) {
-        console.error('🔗 [API] Error response:', error.response);
-        console.error('🔗 [API] Error response data:', error.response.data);
+        console.log('🔗 [API] Error response:', error.response);
+        console.log('🔗 [API] Error response data:', error.response.data);
       }
-      console.error('🔗 [API] Error details:', {
+      console.log('🔗 [API] Error details:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data,

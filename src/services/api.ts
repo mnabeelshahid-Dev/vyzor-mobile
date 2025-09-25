@@ -109,7 +109,7 @@ class ApiService {
       };
     } catch (error) {
       if (FEATURE_FLAGS.DEBUG_API_LOGS) {
-        DebugConsole.error('ApiService', 'API Request Failed', error);
+        Debugconsole.log('ApiService', 'API Request Failed', error);
       }
 
       return {
@@ -228,7 +228,7 @@ class ApiService {
       };
     } catch (error) {
       if (FEATURE_FLAGS.DEBUG_API_LOGS) {
-        DebugConsole.error('ApiService', 'FormData Upload Failed', error);
+        Debugconsole.log('ApiService', 'FormData Upload Failed', error);
       }
 
       return {

@@ -62,6 +62,27 @@ function formatDate(dateStrOrObj: string | Date = "", showTime = false): string 
 }
 
 export default function StatisticsScreen({ navigation }) {
+  const user = useAuthStore((state) => state.user);
+  const branchId = useAuthStore((state) => state.branchId);
+  console.log("👤 [STORE] Current User from Auth Store:", user, branchId);
+  // Only keep one set of state for tasks logic
+  const [search, setSearch] = useState('');
+  const [filterModal, setFilterModal] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showFilterDatePicker, setShowFilterDatePicker] = useState(false);
+  // Use string for filterDate (ISO date)
+  const [filterDate, setFilterDate] = useState('');
+  const [showSortModal, setShowSortModal] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  // Use 'documentName' instead of 'name' for backend compatibility
+  const [sortField, setSortField] = useState<'documentName' | 'number'>('documentName');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [tempFilterStatus, setTempFilterStatus] = useState('');
+  const [tempFilterDate, setTempFilterDate] = useState('');
+
+  const [showDropdown, setShowDropdown] = useState(false);
   // Memoized TaskCard for FlatList performance
   const TaskCard = React.memo(({ item }: { item: any }) => (
     <View
@@ -92,18 +113,6 @@ export default function StatisticsScreen({ navigation }) {
   const renderTask = React.useCallback(({ item }) => <TaskCard item={item} />, []);
   const keyExtractor = React.useCallback((item, idx) => item.webId ? item.webId.toString() : idx.toString(), []);
 
-  const user = useAuthStore((state) => state.user);
-  const branchId = useAuthStore((state) => state.branchId);
-  console.log("👤 [STORE] Current User from Auth Store:", user, branchId);
-  // Only keep one set of state for tasks logic
-  const [search, setSearch] = useState('');
-  const [filterModal, setFilterModal] = useState(false);
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [showFilterDatePicker, setShowFilterDatePicker] = useState(false);
-  // Use string for filterDate (ISO date)
-  const [filterDate, setFilterDate] = useState('');
   // Helper to sync filter modal date with main date pickers
   const applyFilterDateToRange = (date: string) => {
     if (date && !isNaN(new Date(date).getTime())) {
@@ -114,13 +123,6 @@ export default function StatisticsScreen({ navigation }) {
       }));
     }
   };
-  const [showSortModal, setShowSortModal] = useState(false);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  // Use 'documentName' instead of 'name' for backend compatibility
-  const [sortField, setSortField] = useState<'documentName' | 'number'>('documentName');
-  const [filterStatus, setFilterStatus] = useState('');
-
-  const [showDropdown, setShowDropdown] = useState(false);
 
   const logoutMutation = useLogout({
     onSuccess: () => {
@@ -132,6 +134,10 @@ export default function StatisticsScreen({ navigation }) {
     await logoutMutation.mutateAsync();
     setShowDropdown(false);
   };
+
+  console.log('====================================??????????????');
+  console.log(filterStatus);
+  console.log('====================================');
 
   // --- Statistics API logic for stats cards, progress bars, and date range ---
   const [statisticsParams, setStatisticsParams] = useState({
@@ -177,7 +183,7 @@ export default function StatisticsScreen({ navigation }) {
         ...prev,
         search: search ?? '',
         sort: sortOrder ?? '',
-        status: filterStatus && filterStatus.trim() !== '' ? filterStatus : 'ACTIVE',
+        status: filterStatus && filterStatus.trim() !== '' ? filterStatus : 'ALL',
         startDate: updatedStartDate,
         endDate: updatedEndDate,
         userIds: [user.id], // only userIds
@@ -185,9 +191,6 @@ export default function StatisticsScreen({ navigation }) {
       }));
     }
   }, [search, sortOrder, filterStatus, filterDate, user]);
-  console.log('====================================jfksffas');
-  console.log(statisticsParams);
-  console.log('====================================');
   const { data: statsData, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['statisticsUserDetail', statisticsParams],
     queryFn: () => {
@@ -216,12 +219,12 @@ export default function StatisticsScreen({ navigation }) {
   console.log('====================================');
   const statsTyped = (statsData as { data?: { content?: any[] } })?.data?.content[0] as any || {};
   const stats = {
-    onTime: statsTyped.onTime,
-    outside: statsTyped.outsidePeriod,
-    expired: statsTyped.expire,
-    totalOnTime: statsTyped.previousOnTime,
-    totalOutside: statsTyped.previousOutsidePeriod,
-    totalExpired: statsTyped.previousExpire,
+  onTime: Number(statsTyped.onTime) || 0,
+  outside: Number(statsTyped.outsidePeriod) || 0,
+  expired: Number(statsTyped.expire) || 0,
+  totalOnTime: Number(statsTyped.previousOnTime) || 0,
+  totalOutside: Number(statsTyped.previousOutsidePeriod) || 0,
+  totalExpired: Number(statsTyped.previousExpire) || 0,
   };
   const progress = {
     onTime: parseFloat(statsTyped.onTimePercentage),
@@ -239,7 +242,7 @@ export default function StatisticsScreen({ navigation }) {
       filterSiteIds: branchId,
       startDate: updatedStartDate ? updatedStartDate : statisticsParams.startDate ? statisticsParams.startDate : '',
       endDate: updatedEndDate ? updatedEndDate : statisticsParams.endDate ? statisticsParams.endDate : '',
-      status: filterStatus && filterStatus.trim() !== '' ? filterStatus : 'ACTIVE',
+      scheduleStatus: filterStatus ? filterStatus.toUpperCase() : 'ALL',
       userIds: user?.id ? [user.id] : [],
     };
     return params;
@@ -287,8 +290,8 @@ export default function StatisticsScreen({ navigation }) {
   let filteredTasks = allTasks;
   if (filterStatus) {
     filteredTasks = filteredTasks.filter((task) => {
-      // Use scheduleType for filtering if present, fallback to siteStatus/status
-      const s = (task.scheduleType || task.siteStatus || task.status || '').toString().toLowerCase();
+      // Use scheduleStatus for filtering if present, fallback to scheduleType/siteStatus/status
+      const s = (task.scheduleStatus || task.scheduleType || task.siteStatus || task.status || '').toString().toLowerCase();
       return s === filterStatus.toLowerCase();
     });
   }
@@ -301,6 +304,15 @@ export default function StatisticsScreen({ navigation }) {
 
   // Sorting logic
   let sortedTasks = [...filteredTasks];
+
+  console.log('====================================');
+  console.log('Filtered Tasks:', filteredTasks);
+  console.log('====================================');
+  console.log('All Tasks:', allTasks);
+  console.log('====================================');
+  console.log('filter status', filterStatus, tempFilterStatus);
+  console.log('Sorted Tasks:', sortedTasks);
+
   if (sortField === 'documentName') {
     sortedTasks.sort((a, b) => {
       if (!a.documentName || !b.documentName) return 0;
@@ -407,6 +419,20 @@ export default function StatisticsScreen({ navigation }) {
 
   const totalTasks = stats.onTime + stats.outside + stats.expired;
 
+  // When opening filter modal, initialize temp values from current filter
+  const openFilterModal = () => {
+    setTempFilterStatus(filterStatus);
+    setTempFilterDate(filterDate);
+    setFilterModal(true);
+  };
+
+  // When closing filter modal (without applying), reset temp values
+  const closeFilterModal = () => {
+    setTempFilterStatus(filterStatus);
+    setTempFilterDate(filterDate);
+    setFilterModal(false);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#007AFF" />
@@ -443,7 +469,7 @@ export default function StatisticsScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.filterBtnFloat}
-          onPress={() => setFilterModal(true)}
+          onPress={openFilterModal}
         >
           <FilterIcon width={getResponsive(25)} height={getResponsive(25)} />
         </TouchableOpacity>
@@ -469,24 +495,25 @@ export default function StatisticsScreen({ navigation }) {
         propagateSwipe={false}
         deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
         deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
-        onBackdropPress={() => setFilterModal(false)}
+        onBackdropPress={closeFilterModal}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filter Options</Text>
-              <TouchableOpacity style={{ backgroundColor: '#0088E71A', borderRadius: 50, justifyContent: 'center', alignItems: 'center', padding: 2 }} onPress={() => setFilterModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity style={{ backgroundColor: '#0088E71A', borderRadius: 50, justifyContent: 'center', alignItems: 'center', padding: 2 }} onPress={closeFilterModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={styles.closeBtn}>✕</Text>
               </TouchableOpacity>
             </View>
+            <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%', marginVertical: 8 }} />
             <View style={{ marginTop: 16 }}>
               {/* Status Dropdown */}
               <TouchableOpacity
                 onPress={() => setShowStatusDropdown((prev) => !prev)}
-                style={[styles.input, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0 }]}
+                style={[styles.input, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0, borderWidth: 1, borderColor: '#00000033', borderRadius: 8 }]}
               >
                 <Text style={{ flex: 1, fontSize: 15, color: '#363942', marginLeft: 14 }}>
-                  {filterStatus ? filterStatus : 'Status'}
+                  {filterModal ? (tempFilterStatus ? tempFilterStatus : 'Status') : (filterStatus ? filterStatus : 'Status')}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 14 }}>
                   <ArrowDown width={18} height={18} style={{ marginLeft: 6 }} />
@@ -494,19 +521,19 @@ export default function StatisticsScreen({ navigation }) {
               </TouchableOpacity>
               {/* Status Dropdown List */}
               {showStatusDropdown && (
-                <View style={{ backgroundColor: '#fff', borderRadius: 8, marginTop: 4, marginHorizontal: 14, elevation: 2, shadowColor: '#0002', borderWidth: 1, borderColor: '#00000033' }}>
+                <View style={{ backgroundColor: '#fff', borderRadius: 8, marginVertical: 4, marginHorizontal: 3, elevation: 2, shadowColor: '#0002', borderWidth: 1, borderColor: '#00000033', top: -10, zIndex: 10 }}>
                   {['On Time', 'Outside Period', 'Expired'].map((status) => (
                     <TouchableOpacity
                       key={status}
                       style={{
                         padding: 12,
-                        backgroundColor: filterStatus === status ? '#E6F1FB' : '#fff',
+                        backgroundColor: tempFilterStatus === status ? '#E6F1FB' : '#fff',
                         borderRadius: 6,
                         borderBottomWidth: 0.35,
                         borderBottomColor: '#00000033'
                       }}
                       onPress={() => {
-                        setFilterStatus(status);
+                        setTempFilterStatus(status);
                         setShowStatusDropdown(false);
                       }}
                     >
@@ -516,11 +543,12 @@ export default function StatisticsScreen({ navigation }) {
                 </View>
               )}
               {/* Date Picker */}
-              <TouchableOpacity style={styles.inputRow} onPress={() => setShowFilterDatePicker(true)}>
+              <TouchableOpacity style={[styles.inputRow, { borderWidth: 1, borderColor: '#00000033', borderRadius: 8, marginTop: 16 }]} onPress={() => setShowFilterDatePicker(true)}>
                 <TextInput
                   placeholder="Selected Date"
                   style={[styles.input, { flex: 1, marginRight: 8 }]}
-                  value={filterDate}
+                  value={tempFilterDate ? formatDate(tempFilterDate) : ''}
+                  onChangeText={setTempFilterDate}
                   editable={false}
                 />
                 <View style={styles.inputIcon}>
@@ -558,10 +586,10 @@ export default function StatisticsScreen({ navigation }) {
                       </Text>
                     </View>
                     <DatePicker
-                      date={filterDate ? new Date(filterDate) : new Date()}
+                      date={tempFilterDate ? new Date(tempFilterDate) : new Date()}
                       mode="date"
                       maximumDate={new Date()}
-                      onDateChange={date => setFilterDate(date.toISOString().split('T')[0])}
+                      onDateChange={date => setTempFilterDate(date.toISOString().split('T')[0])}
                       androidVariant="nativeAndroid"
                       style={{ alignSelf: 'center', marginVertical: 16 }}
                     />
@@ -571,7 +599,7 @@ export default function StatisticsScreen({ navigation }) {
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => {
                         setShowFilterDatePicker(false);
-                        applyFilterDateToRange(filterDate);
+                        applyFilterDateToRange(tempFilterDate);
                       }}>
                         <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>OK</Text>
                       </TouchableOpacity>
@@ -586,21 +614,21 @@ export default function StatisticsScreen({ navigation }) {
                 onPress={() => {
                   setFilterStatus('');
                   setFilterDate('');
-                  setFilterModal(false);
-
+                  closeFilterModal();
                 }}
               >
                 <Text style={styles.modalBtnClearText}>Clear</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalBtnApply} onPress={() => {
-                // Apply both status and date filters
+                setFilterStatus(tempFilterStatus);
+                setFilterDate(tempFilterDate);
                 setStatisticsParams(prev => ({
                   ...prev,
-                  status: filterStatus,
-                  startDate: filterDate ? filterDate : prev.startDate,
-                  endDate: filterDate ? filterDate : prev.endDate,
+                  status: tempFilterStatus,
+                  startDate: tempFilterDate ? tempFilterDate : prev.startDate,
+                  endDate: tempFilterDate ? tempFilterDate : prev.endDate,
                 }));
-                setFilterModal(false);
+                closeFilterModal();
                 refetch();
               }}>
                 <Text style={styles.modalBtnApplyText}>Apply Filters</Text>
@@ -822,7 +850,7 @@ export default function StatisticsScreen({ navigation }) {
           </View>
         ) : sortedTasks.length === 0 ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 32 }}>
-            <Text style={{ color: '#888', fontSize: 18, fontWeight: '500' }}>No tasks Found</Text>
+            <Text style={{ color: '#888', fontSize: 18, fontWeight: '500' }}>No Tasks Available</Text>
           </View>
         ) : (
           <View style={{ flex: 1 }}>
@@ -853,7 +881,7 @@ export default function StatisticsScreen({ navigation }) {
         )}
       </View>
 
-        {/* Dropdown Modal */}
+      {/* Dropdown Modal */}
       <Modal
         visible={showDropdown}
         transparent={true}

@@ -94,7 +94,7 @@ export default function EmailNotificationsScreen({ navigation }) {
         );
         return response.data || null;
       } catch (err) {
-        console.error('Current User API fetch error:', err);
+        console.log('Current User API fetch error:', err);
         return null;
       }
     },
@@ -108,7 +108,7 @@ export default function EmailNotificationsScreen({ navigation }) {
         const response = await apiService.get('/api/security/filter/USERS');
         return Array.isArray(response.data) ? response.data : [];
       } catch (err) {
-        console.error('Users API fetch error:', err);
+        console.log('Users API fetch error:', err);
         return [];
       }
     },
@@ -243,7 +243,7 @@ export default function EmailNotificationsScreen({ navigation }) {
         hasMore: content.length === 20,
       };
     } catch (err) {
-      console.error('Emails API fetch error:', err);
+      console.log('Emails API fetch error:', err);
       return {
         data: [],
         nextPage: pageParam + 1,
