@@ -319,7 +319,7 @@ export const createStyles = (theme: {
   flexDirection: 'row',
   justifyContent: 'center',
   alignItems: 'center',
-  marginTop: 24,
+  marginTop: 10,
     },
     signUpText: {
       fontSize: 14,

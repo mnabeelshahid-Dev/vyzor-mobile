@@ -227,14 +227,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       >
         <StatusBar backgroundColor="#0088E7" barStyle="light-content" />
         <ScrollView
-          contentContainerStyle={styles.scrollContainer}
+          contentContainerStyle={[styles.scrollContainer, { flexGrow: 1, minHeight: '100%' }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           bounces={false}
           scrollEnabled={true}
         >
           {/* Blue Gradient Background */}
-          <View style={styles.gradientBackground}>
+          <View style={[styles.gradientBackground, { minHeight: '100%' }]}> 
             {/* Logo Section - Updated to match UI */}
             <View style={styles.logoSection}>
               <View style={styles.logoContainer}>
@@ -245,7 +245,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               </View>
             </View>
             {/* Login Card */}
-            <View style={styles.loginCard}>
+            <View style={[styles.loginCard, { marginBottom: 32 }]}> {/* Add marginBottom for spacing */}
               <Text style={styles.cardTitle}>Sign In</Text>
               <Text style={styles.cardSubtitle}>Sign in to your account</Text>
               <View style={styles.form}>
@@ -355,7 +355,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 </View>
 
                 {/* Sign Up Link */}
-                <View style={styles.signUpContainer}>
+                <View style={[styles.signUpContainer]}>
                   <Text style={styles.signUpText}>Don't have an account? </Text>
                   <TouchableOpacity
                     onPress={handleNavigateToRegister}
