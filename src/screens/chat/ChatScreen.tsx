@@ -114,6 +114,9 @@ export default function ChatScreen({ navigation }) {
   const [selectedUsers, setSelectedUsers] = useState<AvailableUser[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
 
+  const [showParticipantsDropdown, setShowParticipantsDropdown] = useState(false);
+
+
   const logoutMutation = useLogout({
     onSuccess: () => {
       navigation.navigate('Auth', { screen: 'Login' });
@@ -618,80 +621,83 @@ export default function ChatScreen({ navigation }) {
             placeholderTextColor="#AAB3BB"
           />
           {/* <Text style={styles.inputLabel}>Participants</Text> */}
-          <View style={styles.participantsInputContainer}>
-            {/* Selected users chips */}
-            {selectedUsers.length > 0 && (
-              <View style={styles.chipsContainer}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.chipsScrollContent}
+<View style={styles.participantsInputContainer}>
+  <View style={styles.customDropdownTrigger}>
+    <View style={styles.dropdownContent}>
+      <View style={styles.dropdownLeft}>
+        {selectedUsers.length > 0 ? (
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.inlineChipsScroll}
+            contentContainerStyle={styles.inlineChipsContent}
+            nestedScrollEnabled={true}
+          >
+            {selectedUsers.map(user => (
+              <View key={user.value} style={styles.inlineInputChip}>
+                <Text style={styles.inlineInputChipText}>{user.text}</Text>
+                <TouchableOpacity
+                  onPress={() => removeSelectedUser(user.value)}
+                  style={styles.inlineInputChipRemove}
+                  hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                 >
-                  {selectedUsers.map(user => (
-                    <View key={user.value} style={styles.inputChip}>
-                      <Text style={styles.inputChipText}>{user.text}</Text>
-                      <TouchableOpacity
-                        onPress={() => removeSelectedUser(user.value)}
-                        style={styles.inputChipRemove}
-                        hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-                      >
-                        <Text style={styles.inputChipRemoveText}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </ScrollView>
+                  <Text style={styles.inlineInputChipRemoveText}>✕</Text>
+                </TouchableOpacity>
               </View>
-            )}
+            ))}
+          </ScrollView>
+        ) : (
+          <Text style={styles.placeholderText}>Select participants</Text>
+        )}
+      </View>
+      <TouchableOpacity
+        style={styles.dropdownArrowButton}
+        onPress={() => setShowParticipantsDropdown(!showParticipantsDropdown)}
+      >
+        <Text style={styles.dropdownArrow}>
+          {showParticipantsDropdown ? '▲' : '▼'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  </View>
 
-            {/* Full width dropdown picker */}
-            <View style={styles.fullWidthDropdownContainer}>
-              <Picker
-                selectedValue=""
-                style={styles.fullWidthDropdownPicker}
-                onValueChange={itemValue => {
-                  if (itemValue) {
-                    const selectedUser = availableUsers.find(
-                      user => user.value === itemValue,
-                    );
-                    if (
-                      selectedUser &&
-                      !groupParticipants.includes(itemValue)
-                    ) {
-                      setGroupParticipants(prev => [...prev, itemValue]);
-                      setSelectedUsers(prev => [...prev, selectedUser]);
-                    }
+  {/* Custom dropdown list */}
+  {showParticipantsDropdown && (
+    <View style={styles.customDropdownList}>
+      <ScrollView style={styles.dropdownScrollView} nestedScrollEnabled>
+        {isLoadingUsers ? (
+          <View style={styles.dropdownItem}>
+            <ActivityIndicator size="small" color="#1292E6" />
+            <Text style={styles.dropdownItemText}>Loading users...</Text>
+          </View>
+        ) : (
+          availableUsers
+            .filter(user => !groupParticipants.includes(user.value))
+            .map((user, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.dropdownItem}
+                onPress={() => {
+                  if (!groupParticipants.includes(user.value)) {
+                    setGroupParticipants(prev => [...prev, user.value]);
+                    setSelectedUsers(prev => [...prev, user]);
+                    setShowParticipantsDropdown(false);
                   }
                 }}
-                mode="dropdown"
               >
-                <Picker.Item
-                  label={
-                    selectedUsers.length === 0
-                      ? 'Participants'
-                      : 'Add more participants...'
-                  }
-                  value=""
-                />
-                {isLoadingUsers ? (
-                  <Picker.Item
-                    label="Loading users..."
-                    value=""
-                    enabled={false}
-                  />
-                ) : (
-                  availableUsers
-                    .filter(user => !groupParticipants.includes(user.value))
-                    .map((user, idx) => (
-                      <Picker.Item
-                        key={idx}
-                        label={user.text}
-                        value={user.value}
-                      />
-                    ))
-                )}
-              </Picker>
-            </View>
+                <Text style={styles.dropdownItemText}>{user.text}</Text>
+              </TouchableOpacity>
+            ))
+        )}
+        {availableUsers.filter(user => !groupParticipants.includes(user.value)).length === 0 && !isLoadingUsers && (
+          <View style={styles.dropdownItem}>
+            <Text style={styles.dropdownItemTextEmpty}>No more users available</Text>
           </View>
+        )}
+      </ScrollView>
+    </View>
+  )}
+</View>
 
           <View style={styles.modalBtnRow}>
             <TouchableOpacity
@@ -1071,10 +1077,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
+  // dropdownItem: {
+  //   paddingVertical: 12,
+  //   paddingHorizontal: 16,
+  // },
   dropdownText: {
     fontSize: 16,
     color: '#222',
@@ -1423,19 +1429,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  participantsInputContainer: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    backgroundColor: '#F7F9FC',
-    marginVertical: 8,
-    paddingVertical: 4,
-  },
-  chipsContainer: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    minHeight: 40,
-  },
+participantsInputContainer: {
+  marginVertical: 8,
+},
+chipsContainer: {
+  paddingHorizontal: 0,
+  paddingVertical: 8,
+  marginTop: 8,
+},
   chipsScrollContent: {
     alignItems: 'center',
     paddingVertical: 2,
@@ -1472,4 +1473,163 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 55,
   },
+  customDropdownTrigger: {
+  backgroundColor: '#F7F9FC',
+  borderRadius: 9,
+  borderWidth: 1,
+  borderColor: '#E0E0E0',
+  paddingHorizontal: 14,
+  paddingVertical: 12,
+  minHeight: 44,
+},
+
+dropdownContent: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+},
+
+// dropdownLeft: {
+//   flex: 1,
+// },
+
+selectedUsersPreview: {
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+
+selectedUsersText: {
+  color: '#222E44',
+  fontSize: 16,
+  fontWeight: '500',
+},
+
+placeholderText: {
+  color: '#AAB3BB',
+  fontSize: 16,
+},
+
+dropdownArrow: {
+  color: '#1292E6',
+  fontSize: 12,
+  fontWeight: 'bold',
+},
+
+customDropdownList: {
+  position: 'absolute',
+  top: 44, // Height of the trigger
+  left: 0,
+  right: 0,
+  backgroundColor: '#fff',
+  borderRadius: 9,
+  borderWidth: 1,
+  borderColor: '#E0E0E0',
+  maxHeight: 200,
+  elevation: 5,
+  shadowColor: '#000',
+  shadowOpacity: 0.15,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 4 },
+  zIndex: 1000,
+},
+
+dropdownScrollView: {
+  maxHeight: 200,
+},
+
+dropdownItem: {
+  paddingHorizontal: 14,
+  paddingVertical: 12,
+  borderBottomWidth: 1,
+  borderBottomColor: '#F1F1F6',
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+
+dropdownItemText: {
+  color: '#222E44',
+  fontSize: 16,
+  marginLeft: 8,
+},
+
+dropdownItemTextEmpty: {
+  color: '#AAB3BB',
+  fontSize: 16,
+  fontStyle: 'italic',
+},
+customDropdownTrigger: {
+  backgroundColor: '#F7F9FC',
+  borderRadius: 9,
+  borderWidth: 1,
+  borderColor: '#E0E0E0',
+  paddingHorizontal: 14,
+  paddingVertical: 12,
+  minHeight: 44,
+},
+
+inlineChipsScroll: {
+  flexGrow: 1,
+  maxHeight: 32,
+},
+
+inlineChipsContent: {
+  alignItems: 'center',
+  minWidth: '100%',
+},
+
+dropdownLeft: {
+  flex: 1,
+  marginRight: 12,
+  overflow: 'hidden',
+},
+
+dropdownArrowButton: {
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+inlineChipsScroll: {
+  maxHeight: 32,
+  flexGrow: 0,
+},
+
+inlineChipsContent: {
+  alignItems: 'center',
+  paddingRight: 8,
+},
+
+inlineInputChip: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#1292E6',
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+  borderRadius: 16,
+  marginRight: 6,
+  height: 24,
+},
+
+inlineInputChipText: {
+  color: '#fff',
+  fontSize: 12,
+  fontWeight: '500',
+},
+
+inlineInputChipRemove: {
+  marginLeft: 4,
+  padding: 1,
+},
+
+inlineInputChipRemoveText: {
+  color: '#fff',
+  fontSize: 10,
+  fontWeight: 'bold',
+},
+
+// Update the existing dropdownLeft style:
+// dropdownLeft: {
+//   flex: 1,
+//   marginRight: 8,
+// },
 });

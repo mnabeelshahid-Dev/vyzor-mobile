@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import PhoneInput from 'react-native-phone-number-input';
 import BinIcon from '../../assets/svgs/bin.svg';
+import CheckIcon from '../../assets/svgs/checkIcon.svg';
 
 import Modal from 'react-native-modal';
 
@@ -221,121 +222,145 @@ const ContactDetailsTab: React.FC<Props> = ({
 
   return (
     <View style={styles.tabContent}>
-{/* Render default phone number first */}
-{phoneNumbers
-  .filter((phone, index) => index === 0)
-  .map((phone, index) => (
-    <View style={styles.phoneNumberContainer} key={phone.id}>
-      <View style={styles.phoneHeaderRow}>
-        <Text style={styles.defaultPhoneLabel}>Phone Number(default)</Text>
-      </View>
-
-      <View style={styles.phoneInputWithDeleteContainer}>
-        <View style={styles.phoneInputFlexContainer}>
-          <PhoneInput
-            ref={phone.ref}
-            defaultValue={phone.phoneNumber}
-            defaultCode={phone.country as any}
-            layout="first"
-            onChangeText={text => onChangePhone(phone.id, text)}
-            onChangeFormattedText={text => onChangePhone(phone.id, text)}
-            textInputStyle={{
-              fontFamily: 'Poppins',
-              fontSize: 14,
-              color: '#1F2937',
-              paddingVertical: 0,
-              paddingHorizontal: 0,
-            }}
-            codeTextStyle={{
-              fontFamily: 'Poppins',
-              fontSize: 14,
-              color: '#1F2937',
-            }}
-            onChangeCountry={country => {
-              onChangePhoneCountry(phone.id, (country as any).cca2);
-            }}
-            withShadow={false}
-            withDarkTheme={false}
-            autoFocus={false}
-            disabled={isMutationLoading}
-          />
-        </View>
-      </View>
-
-      {phoneErrors[0] ? (
-        <Text style={styles.errorText}>{phoneErrors[0]}</Text>
-      ) : null}
-    </View>
-  ))}
-
-{/* Add New Number button */}
-<TouchableOpacity
-  style={styles.addNewNumberIconButton}
-  onPress={onAddNewPhone}
->
-  <Text style={styles.addNewNumberLabel}>Add New Number</Text>
-  <Text style={styles.addNewNumberIcon}>+</Text>
-</TouchableOpacity>
-
-{/* Render additional phone numbers */}
-{phoneNumbers
-  .filter((phone, index) => index > 0)
-  .map((phone, originalIndex) => {
-    const actualIndex = phoneNumbers.findIndex(p => p.id === phone.id);
-    return (
-      <View style={styles.phoneNumberContainer} key={phone.id}>
-        <View style={styles.phoneHeaderRow}>
-          {/* <Text style={styles.inputLabelAddNewNumber}>
-            Additional Phone numbers
-          </Text> */}
-        </View>
-
-        <View style={styles.phoneInputWithDeleteContainer}>
-          <View style={styles.phoneInputFlexContainer}>
-            <PhoneInput
-              ref={phone.ref}
-              defaultValue={phone.phoneNumber}
-              defaultCode={phone.country as any}
-              layout="first"
-              onChangeText={text => onChangePhone(phone.id, text)}
-              onChangeFormattedText={text => onChangePhone(phone.id, text)}
-              textInputStyle={{
-                fontFamily: 'Poppins',
-                fontSize: 14,
-                color: '#1F2937',
-                paddingVertical: 0,
-                paddingHorizontal: 0,
-              }}
-              codeTextStyle={{
-                fontFamily: 'Poppins',
-                fontSize: 14,
-                color: '#1F2937',
-              }}
-              onChangeCountry={country => {
-                onChangePhoneCountry(phone.id, (country as any).cca2);
-              }}
-              withShadow={false}
-              withDarkTheme={false}
-              autoFocus={false}
-              disabled={isMutationLoading}
-            />
-          </View>
-          <TouchableOpacity
-            style={styles.phoneDeleteIconButton}
-            onPress={() => onRemovePhone(phone.id)}
-          >
-            <View>
-              <BinIcon width={16} height={16} />
+      {/* Render default phone number first */}
+      {phoneNumbers
+        .filter((phone, index) => index === 0)
+        .map((phone, index) => (
+          <View style={styles.phoneNumberContainer} key={phone.id}>
+            <View style={styles.phoneHeaderRow}>
+              <Text style={styles.defaultPhoneLabel}>
+                Phone Number(default)
+              </Text>
             </View>
-          </TouchableOpacity>
-        </View>
 
-        {phoneErrors[actualIndex] ? (
-          <Text style={styles.errorText}>{phoneErrors[actualIndex]}</Text>
-        ) : null}
-      </View>
-    );
-  })}
+            <View style={styles.phoneInputWithDeleteContainer}>
+              <View style={styles.phoneInputFlexContainer}>
+                <PhoneInput
+                  ref={phone.ref}
+                  defaultValue={phone.phoneNumber}
+                  defaultCode={phone.country as any}
+                  layout="first"
+                  onChangeText={text => onChangePhone(phone.id, text)}
+                  onChangeFormattedText={text => onChangePhone(phone.id, text)}
+                  textInputStyle={{
+                    fontFamily: 'Poppins',
+                    fontSize: 14,
+                    color: '#1F2937',
+                    paddingVertical: 0,
+                    paddingHorizontal: 0,
+                  }}
+                  codeTextStyle={{
+                    fontFamily: 'Poppins',
+                    fontSize: 14,
+                    color: '#1F2937',
+                  }}
+                  onChangeCountry={country => {
+                    onChangePhoneCountry(phone.id, (country as any).cca2);
+                  }}
+                  withShadow={false}
+                  withDarkTheme={false}
+                  autoFocus={false}
+                  disabled={isMutationLoading}
+                />
+              </View>
+              {/* Show green check if valid and no error - similar to registration */}
+              {phone.phoneNumber &&
+              phone.ref?.current &&
+              phone.ref.current.isValidNumber &&
+              phone.ref.current.isValidNumber(phone.phoneNumber) &&
+              !phoneErrors[0] ? (
+                <CheckIcon
+                  width={20}
+                  height={20}
+                  color="#22C55E"
+                  style={{ marginLeft: 8 }}
+                />
+              ) : null}
+            </View>
+
+            {phoneErrors[0] ? (
+              <Text style={styles.errorText}>{phoneErrors[0]}</Text>
+            ) : null}
+          </View>
+        ))}
+
+      {/* Add New Number button */}
+      <TouchableOpacity
+        style={styles.addNewNumberIconButton}
+        onPress={onAddNewPhone}
+      >
+        <Text style={styles.addNewNumberLabel}>Add New Number</Text>
+        <Text style={styles.addNewNumberIcon}>+</Text>
+      </TouchableOpacity>
+
+      {/* Render additional phone numbers */}
+      {phoneNumbers
+        .filter((phone, index) => index > 0)
+        .map((phone, originalIndex) => {
+          const actualIndex = phoneNumbers.findIndex(p => p.id === phone.id);
+          return (
+            <View style={styles.phoneNumberContainer} key={phone.id}>
+              <View style={styles.phoneInputWithDeleteContainer}>
+                <View style={styles.phoneInputFlexContainer}>
+                  <PhoneInput
+                    ref={phone.ref}
+                    defaultValue={phone.phoneNumber}
+                    defaultCode={phone.country as any}
+                    layout="first"
+                    onChangeText={text => onChangePhone(phone.id, text)}
+                    onChangeFormattedText={text =>
+                      onChangePhone(phone.id, text)
+                    }
+                    textInputStyle={{
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      color: '#1F2937',
+                      paddingVertical: 0,
+                      paddingHorizontal: 0,
+                    }}
+                    codeTextStyle={{
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      color: '#1F2937',
+                    }}
+                    onChangeCountry={country => {
+                      onChangePhoneCountry(phone.id, (country as any).cca2);
+                    }}
+                    withShadow={false}
+                    withDarkTheme={false}
+                    autoFocus={false}
+                    disabled={isMutationLoading}
+                  />
+                </View>
+                {/* Show green check if valid and no error - similar to registration */}
+                {phone.phoneNumber &&
+                phone.ref?.current &&
+                phone.ref.current.isValidNumber &&
+                phone.ref.current.isValidNumber(phone.phoneNumber) &&
+                !phoneErrors[actualIndex] ? (
+                  <CheckIcon
+                    width={20}
+                    height={20}
+                    color="#22C55E"
+                    style={{ marginLeft: 8 }}
+                  />
+                ) : null}
+                <TouchableOpacity
+                  style={styles.phoneDeleteIconButton}
+                  onPress={() => onRemovePhone(phone.id)}
+                >
+                  <View>
+                    <BinIcon width={16} height={16} />
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {phoneErrors[actualIndex] ? (
+                <Text style={styles.errorText}>{phoneErrors[actualIndex]}</Text>
+              ) : null}
+            </View>
+          );
+        })}
 
       <View style={styles.phoneNumberContainer}>
         <Text style={styles.inputLabel}>Street</Text>
