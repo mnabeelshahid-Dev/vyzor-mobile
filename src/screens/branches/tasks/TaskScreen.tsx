@@ -58,7 +58,7 @@ export default function TaskScreen({ navigation }) {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDate, setFilterDate] = useState('');
   // API filter date range
-  // Default startDate: 2 days before today, endDate: 1 day in future
+  // Default startDate and endDate: wide range to fetch all tasks
   function formatDateWithOffset(date: Date, hour: number, min: number, sec: number, ms: number) {
     const pad = (n: number) => String(n).padStart(2, '0');
     date.setHours(hour, min, sec, ms);
@@ -67,11 +67,9 @@ export default function TaskScreen({ navigation }) {
     const dd = pad(date.getDate());
     return `${yyyy}-${mm}-${dd}T${pad(hour)}:${pad(min)}:${pad(sec)}+05:00`;
   }
-  const today = new Date();
-  const defaultStart = new Date(today);
-  defaultStart.setDate(today.getDate() - 1);
-  const defaultEnd = new Date(today);
-  defaultEnd.setDate(today.getDate() + 1);
+  // Wide range: 1970-01-01 to 2099-12-31
+  const defaultStart = new Date(1970, 0, 1, 0, 0, 0, 0);
+  const defaultEnd = new Date(2099, 11, 31, 23, 59, 59, 0);
   const [startDate, setStartDate] = useState(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
   const [endDate, setEndDate] = useState(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
   // Modal temporary state
@@ -434,9 +432,28 @@ export default function TaskScreen({ navigation }) {
           </View>
         </View>
         {/* Get Started Button */}
-        <TouchableOpacity disabled={item?.status !== 'ACTIVE'} onPress={() => navigation.navigate('Section', { formDefinitionId: item?.formDefinitionId, status: item?.status })} style={{ backgroundColor: item?.status === 'ACTIVE' ? '#1292E6' : '#A0C4FF', borderRadius: 8, alignItems: 'center', paddingVertical: 8, marginTop: 4 }}>
-          <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Get Started</Text>
-        </TouchableOpacity>
+        {(() => {
+          // Enable if now is between startDate and endDate
+          const now = new Date();
+          const start = new Date(item.startDate);
+          const end = new Date(item.endDate);
+          const isEnabled = now >= start && now <= end;
+          return (
+            <TouchableOpacity
+              disabled={!isEnabled}
+              onPress={() => navigation.navigate('Section', { formDefinitionId: item?.formDefinitionId, status: item?.status })}
+              style={{
+                backgroundColor: isEnabled ? '#1292E6' : '#bac0cdff',
+                borderRadius: 8,
+                alignItems: 'center',
+                paddingVertical: 8,
+                marginTop: 4
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Get Started</Text>
+            </TouchableOpacity>
+          );
+        })()}
       </View>
     );
   });
@@ -613,7 +630,7 @@ export default function TaskScreen({ navigation }) {
                       <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => {
-                      setModalFilterDate(new Date(calendarDate).toLocaleDateString());
+                      setModalFilterDate(calendarDate); // Use ISO string (YYYY-MM-DD)
                       setShowDatePicker(false);
                     }}>
                       <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>OK</Text>
@@ -634,7 +651,7 @@ export default function TaskScreen({ navigation }) {
                 setFilterDate('');
                 setSearch('');
                 setUpdatedDate('');
-                // Set start/end date to default range
+                // Set start/end date to wide range
                 setStartDate(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
                 setEndDate(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
                 closeModal();
@@ -647,27 +664,20 @@ export default function TaskScreen({ navigation }) {
               // Apply filter changes and trigger refetch
               setFilterStatus(modalFilterStatus);
               if (modalFilterDate) {
-                const selected = new Date(modalFilterDate);
-                if (!isNaN(selected.getTime())) {
-                  setFilterDate(modalFilterDate);
-                  setUpdatedDate(modalFilterDate);
-                  setStartDate(formatDateWithOffset(new Date(selected), 0, 0, 0, 0));
-                  setEndDate(formatDateWithOffset(new Date(selected), 23, 59, 59, 0));
-                } else {
-                  setFilterDate('');
-                  setUpdatedDate('');
-                  setStartDate(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
-                  setEndDate(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
-                }
+                // modalFilterDate is YYYY-MM-DD
+                const [year, month, day] = modalFilterDate.split('-').map(Number);
+                const start = new Date(year, month - 1, day, 0, 0, 0);
+                const end = new Date(year, month - 1, day, 23, 59, 59);
+                setFilterDate(modalFilterDate);
+                setUpdatedDate(modalFilterDate);
+                setStartDate(formatDateWithOffset(start, 0, 0, 0, 0));
+                setEndDate(formatDateWithOffset(end, 23, 59, 59, 0));
               } else {
                 setFilterDate('');
                 setUpdatedDate('');
                 setStartDate(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
                 setEndDate(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
               }
-              // Reset modal fields after applying
-              // setModalFilterStatus('');
-              // setModalFilterDate('');
               closeModal();
               refetch();
             }}>
