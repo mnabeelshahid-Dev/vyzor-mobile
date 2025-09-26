@@ -72,6 +72,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [phoneNumbers, setPhoneNumbers] = useState(['']);
   const [phoneCountries, setPhoneCountries] = useState(['US']);
   const [phoneErrors, setPhoneErrors] = useState(['']);
+
+  // Add this after your existing state declarations
+const [phoneIds, setPhoneIds] = useState([0]); // Track unique IDs for each phone field
+const nextPhoneId = useRef(1); // Counter for generating unique IDs
+
+
   // Initialize refs array once
   // const phoneRefs = useRef([] as React.RefObject<PhoneInput>[]);
   // if (phoneRefs.current.length !== phoneNumbers.length) {
@@ -88,22 +94,27 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   // Initialize refs array once
 const phoneRefs = useRef([] as React.RefObject<PhoneInput>[]);
 
-// Ensure refs array matches phoneNumbers length
+// Replace the existing useEffect with this:
 React.useEffect(() => {
-  // Create new refs array with correct length
-  const newRefs = phoneNumbers.map((_, index) => 
-    phoneRefs.current[index] || React.createRef<PhoneInput>()
-  );
-  phoneRefs.current = newRefs;
+  // Completely rebuild refs array to match current phoneNumbers length
+  phoneRefs.current = phoneNumbers.map(() => React.createRef<PhoneInput>());
 }, [phoneNumbers.length]);
 
   // Add new phone field
+  // const addPhoneField = () => {
+  //   setPhoneNumbers(nums => [...nums, '']);
+  //   setPhoneCountries(countries => [...countries, 'US']);
+  //   setPhoneErrors(errs => [...errs, '']);
+  //   // phoneRefs will sync automatically above
+  // };
+
   const addPhoneField = () => {
-    setPhoneNumbers(nums => [...nums, '']);
-    setPhoneCountries(countries => [...countries, 'US']);
-    setPhoneErrors(errs => [...errs, '']);
-    // phoneRefs will sync automatically above
-  };
+  const newId = nextPhoneId.current++;
+  setPhoneNumbers(nums => [...nums, '']);
+  setPhoneCountries(countries => [...countries, 'US']);
+  setPhoneErrors(errs => [...errs, '']);
+  setPhoneIds(ids => [...ids, newId]);
+};
 
   // const removePhoneField = (idx: number) => {
   //   setPhoneNumbers(nums => nums.filter((_, i) => i !== idx));
@@ -115,11 +126,12 @@ React.useEffect(() => {
   //   }
   // };
 
-    const removePhoneField = (idx: number) => {
-      setPhoneNumbers(nums => nums.filter((_, i) => i !== idx));
-      setPhoneCountries(countries => countries.filter((_, i) => i !== idx));
-      setPhoneErrors(errs => errs.filter((_, i) => i !== idx));
-    };
+const removePhoneField = (idx: number) => {
+  setPhoneNumbers(nums => nums.filter((_, i) => i !== idx));
+  setPhoneCountries(countries => countries.filter((_, i) => i !== idx));
+  setPhoneErrors(errs => errs.filter((_, i) => i !== idx));
+  setPhoneIds(ids => ids.filter((_, i) => i !== idx));
+};
 
   // Handle phone number change
   const handleMultiPhoneChange = (idx: number, text: string) => {
@@ -474,11 +486,11 @@ React.useEffect(() => {
     // Phone number is optional; error handled in handleMultiPhoneChange only if user enters 2+ digits and it's invalid
     setPhoneError('');
     if (!formData.password.trim()) {
-      setPasswordError('Password is required*');
+      setPasswordError('Password is required');
       valid = false;
     }
     if (!formData.confirmPassword.trim()) {
-      setConfirmPasswordError('Confirm password is required*');
+      setConfirmPasswordError('Confirm password is required');
       valid = false;
     }
     if (!agreeToTerms) {
@@ -1017,8 +1029,8 @@ React.useEffect(() => {
                       <Text style={{ fontFamily: 'Poppins', fontSize: 15, color: '#475467' }}>Phone Number</Text>
                     </View>
                   </View>
-                  {/* {phoneNumbers.map((num, idx) => (
-                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: phoneErrors[idx] ? '#FF6B6B' : (currentlyFocusedField === `phone${idx}` ? '#0088E7' : '#D0D5DD'), minHeight: 40, paddingHorizontal: 8, marginTop: idx === 0 ? 0 : 12, marginBottom: phoneErrors[idx] ? 0 : 20 }}>
+                    {phoneNumbers.map((num, idx) => (
+                      <View key={phoneIds[idx]} style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: phoneErrors[idx] ? '#FF6B6B' : (currentlyFocusedField === `phone${idx}` ? '#0088E7' : '#D0D5DD'), minHeight: 40, paddingHorizontal: 8, marginTop: idx === 0 ? 0 : 12, marginBottom: phoneErrors[idx] ? 0 : 20 }}>
                       <PhoneInput
                         ref={phoneRefs.current[idx]}
                         defaultValue={num}
@@ -1046,40 +1058,8 @@ React.useEffect(() => {
                         </TouchableOpacity>
                       )}
                     </View>
-                  ))} */}
-
-                  {phoneNumbers.map((num, idx) => (
-                    <View key={`phone-${idx}-${phoneNumbers.length}`} style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: phoneErrors[idx] ? '#FF6B6B' : (currentlyFocusedField === `phone${idx}` ? '#0088E7' : '#D0D5DD'), minHeight: 40, paddingHorizontal: 8, marginTop: idx === 0 ? 0 : 12, marginBottom: phoneErrors[idx] ? 0 : 20 }}>
-                      <PhoneInput
-                        ref={phoneRefs.current[idx]}
-                        value={num}
-                        defaultCode={phoneCountries[idx] as any}
-                        layout="second"
-                        onChangeFormattedText={text => handleMultiPhoneChange(idx, text)}
-                        onChangeCountry={country => handleMultiCountryChange(idx, country)}
-                        containerStyle={{ backgroundColor: 'transparent', minHeight: 40, flex: 1, alignItems: 'center' }}
-                        textContainerStyle={{ backgroundColor: 'transparent', paddingVertical: 0, paddingHorizontal: 0, alignItems: 'center' }}
-                        textInputStyle={{ fontFamily: 'Poppins', fontSize: 16, color: '#1F2937', paddingVertical: 0 }}
-                        codeTextStyle={{ fontFamily: 'Poppins', fontSize: 17, color: '#1F2937', marginRight: 4, right: 20 }}
-                        flagButtonStyle={{ marginRight: 4 }}
-                        disabled={isLoading}
-                        withDarkTheme={false}
-                        withShadow={false}
-                        autoFocus={false}
-                        placeholder="Phone Number"
-                      />
-                      {/* Show green check if valid and no error */}
-                      {num && phoneRefs.current[idx]?.current && phoneRefs.current[idx].current.isValidNumber(num) && !phoneErrors[idx] ? (
-                        <CheckIcon width={20} height={20} color="#22C55E" style={{ marginLeft: 8 }} />
-                      ) : null}
-                      {/* Remove button (X icon) if more than one field */}
-                      {phoneNumbers.length > 1 && (
-                        <TouchableOpacity onPress={() => removePhoneField(idx)} style={{ marginLeft: 8, padding: 4 }}>
-                          <Text style={{ fontSize: 18, color: '#FF6B6B', fontWeight: 'bold' }}>✕</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
                   ))}
+
                   {/* Show error for each field */}
                   {phoneErrors.map((err, idx) => err ? (
                     <Text key={`err${idx}`} style={[styles.errorText, { color: '#FF6B6B' }]}>{err}</Text>
