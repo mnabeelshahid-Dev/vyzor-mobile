@@ -150,21 +150,21 @@ export default function StatisticsScreen({ navigation }) {
 
   let updatedStartDate = '';
   let updatedEndDate = '';
+  // Move formatDateWithOffset to top-level scope
+  function formatDateWithOffset(date: Date, isStart: boolean) {
+    // Format: YYYY-MM-DDTHH:mm:ss+05:00
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const yyyy = date.getFullYear();
+    const mm = pad(date.getMonth() + 1);
+    const dd = pad(date.getDate());
+    const hh = pad(isStart ? 0 : 23);
+    const min = pad(isStart ? 0 : 59);
+    const ss = pad(isStart ? 0 : 59);
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}+05:00`;
+  }
+
   useEffect(() => {
     const today = new Date();
-    function formatDateWithOffset(date: Date, isStart: boolean) {
-      // Format: YYYY-MM-DDTHH:mm:ss+05:00
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      const yyyy = date.getFullYear();
-      const mm = pad(date.getMonth() + 1);
-      const dd = pad(date.getDate());
-      const hh = pad(isStart ? 0 : 23);
-      const min = pad(isStart ? 0 : 59);
-      const ss = pad(isStart ? 0 : 59);
-      return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}+05:00`;
-    }
-
-
     if (filterDate) {
       updatedStartDate = formatDateWithOffset(new Date(filterDate), true);
       updatedEndDate = formatDateWithOffset(new Date(filterDate), false);
@@ -173,7 +173,9 @@ export default function StatisticsScreen({ navigation }) {
       const startDateObj = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
       updatedStartDate = formatDateWithOffset(startDateObj, true);
     }
-
+          console.log('====================================');
+          console.log(updatedStartDate, updatedEndDate);
+          console.log('====================================');
     if (user?.id) {
       setStatisticsParams((prev) => ({
         ...prev,
@@ -231,14 +233,19 @@ export default function StatisticsScreen({ navigation }) {
 
   // Build params for API
   const buildParams = (pageParam = 1) => {
+    // Always use formatDateWithOffset for API params
+    let startDateRaw = statisticsParams.startDate;
+    let endDateRaw = statisticsParams.endDate;
+    let startDate = startDateRaw ? formatDateWithOffset(new Date(startDateRaw), true) : '';
+    let endDate = endDateRaw ? formatDateWithOffset(new Date(endDateRaw), false) : '';
     const params: any = {
       page: pageParam,
       size: 10,
       sort: sortOrder ?? '',
       search: search ?? '',
       filterSiteIds: branchId,
-      startDate: updatedStartDate ? updatedStartDate : statisticsParams.startDate ? statisticsParams.startDate : '',
-      endDate: updatedEndDate ? updatedEndDate : statisticsParams.endDate ? statisticsParams.endDate : '',
+      startDate,
+      endDate,
       scheduleStatus: filterStatus ? filterStatus.toUpperCase() : 'ALL',
       userIds: user?.id ? [user.id] : [],
     };
@@ -442,45 +449,37 @@ const getEndDateMin = () => {
 };
 
   const handleStartDateChange = (date) => {
-    const newStartDate = date.toISOString().split('T')[0];
-    setStatisticsParams(prev => ({
-      ...prev,
-      startDate: newStartDate
-    }));
-    // If end date is missing or before/equal to new start date, set end date to next valid day
-    if (!statisticsParams.endDate || new Date(statisticsParams.endDate) <= new Date(newStartDate)) {
-      const nextDay = new Date(newStartDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-      // Only set end date if nextDay is not in the future
-      const today = new Date();
-      if (nextDay <= today) {
-        setStatisticsParams(prev => ({
-          ...prev,
-          endDate: nextDay.toISOString().split('T')[0]
-        }));
-      } else {
-        setStatisticsParams(prev => ({
-          ...prev,
-          endDate: today.toISOString().split('T')[0]
-        }));
+    const newStartDate = formatDateWithOffset(date, true);
+    setStatisticsParams(prev => {
+      let newEndDate = prev.endDate;
+      if (!prev.endDate || new Date(prev.endDate) <= new Date(date)) {
+        const nextDay = new Date(date);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const today = new Date();
+        newEndDate = nextDay <= today ? formatDateWithOffset(nextDay, false) : formatDateWithOffset(today, false);
       }
-    }
+      return {
+        ...prev,
+        startDate: newStartDate,
+        endDate: newEndDate
+      };
+    });
   };
   const handleEndDateChange = (date) => {
-    const newEndDate = date.toISOString().split('T')[0];
-    setStatisticsParams(prev => ({
-      ...prev,
-      endDate: newEndDate
-    }));
-    // If start date is missing or after/equal to new end date, set start date to previous valid day
-    if (!statisticsParams.startDate || new Date(statisticsParams.startDate) >= new Date(newEndDate)) {
-      const prevDay = new Date(newEndDate);
-      prevDay.setDate(prevDay.getDate() - 1);
-      setStatisticsParams(prev => ({
+    const newEndDate = formatDateWithOffset(date, false);
+    setStatisticsParams(prev => {
+      let newStartDate = prev.startDate;
+      if (!prev.startDate || new Date(prev.startDate) >= new Date(date)) {
+        const prevDay = new Date(date);
+        prevDay.setDate(prevDay.getDate() - 1);
+        newStartDate = formatDateWithOffset(prevDay, true);
+      }
+      return {
         ...prev,
-        startDate: prevDay.toISOString().split('T')[0]
-      }));
-    }
+        endDate: newEndDate,
+        startDate: newStartDate
+      };
+    });
   };
 
   return (
@@ -701,7 +700,19 @@ const getEndDateMin = () => {
                 onPress={() => {
                   setFilterStatus('');
                   setFilterDate('');
+                  // Reset statisticsParams to default date range using formatDateWithOffset
+                  const today = new Date();
+                  const updatedEndDate = formatDateWithOffset(today, false);
+                  const startDateObj = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+                  const updatedStartDate = formatDateWithOffset(startDateObj, true);
+                  setStatisticsParams(prev => ({
+                    ...prev,
+                    status: '',
+                    startDate: updatedStartDate,
+                    endDate: updatedEndDate,
+                  }));
                   closeFilterModal();
+                  refetch();
                 }}
               >
                 <Text style={styles.modalBtnClearText}>Reset</Text>
