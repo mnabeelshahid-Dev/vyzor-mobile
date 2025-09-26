@@ -464,29 +464,30 @@ const ProfileScreen = ({ navigation }) => {
     setShowImageOptions(false);
   };
 
-  // Phone validation function similar to RegisterScreen
+  // Enhanced phone validation function similar to RegisterScreen
   const validatePhoneNumber = (phoneNumber: string, index: number): boolean => {
     const phoneDigits = phoneNumber.replace(/\D/g, '');
+    const phoneRef = phoneNumbers[index]?.ref?.current;
 
     if (!phoneNumber.trim()) {
       const newErrors = [...phoneErrors];
-      newErrors[index] = 'Phone number is required';
+      newErrors[index] = '';
       setPhoneErrors(newErrors);
-      return false;
+      return true; // Phone is optional, so empty is valid
     }
 
-    if (phoneDigits.length < 10) {
-      const newErrors = [...phoneErrors];
-      newErrors[index] = 'Phone number must be at least 10 digits';
-      setPhoneErrors(newErrors);
-      return false;
-    }
-
-    if (phoneDigits.length > 15) {
-      const newErrors = [...phoneErrors];
-      newErrors[index] = 'Phone number must be less than 15 digits';
-      setPhoneErrors(newErrors);
-      return false;
+    // Only validate if user entered 5+ digits (similar to registration)
+    if (phoneDigits.length >= 5) {
+      if (
+        phoneRef &&
+        phoneRef.isValidNumber &&
+        !phoneRef.isValidNumber(phoneNumber)
+      ) {
+        const newErrors = [...phoneErrors];
+        newErrors[index] = 'Invalid phone number';
+        setPhoneErrors(newErrors);
+        return false;
+      }
     }
 
     // Clear error if valid
@@ -775,17 +776,18 @@ const ProfileScreen = ({ navigation }) => {
               ...phone,
               phoneNumber: newPhoneNumber,
               country:
-                detectCountryFromPhoneNumber(newPhoneNumber) || phone.country, // Keep current country if detection fails
+                detectCountryFromPhoneNumber(newPhoneNumber) || phone.country,
             }
           : phone,
       ),
     );
 
-    // Validate the phone number
+    // Enhanced validation (only validate if 5+ digits entered)
     if (index !== -1) {
       validatePhoneNumber(newPhoneNumber, index);
     }
   };
+
   const handleLogout = async () => {
     await logoutMutation.mutateAsync();
     setShowDropdown(false);
@@ -1047,11 +1049,7 @@ const ProfileScreen = ({ navigation }) => {
                       style={styles.avatar}
                     />
                   ) : (
-                    <UserProfile
-                      width={84}
-                      height={84}
-                      style={styles.avatar}
-                    />
+                    <UserProfile width={84} height={84} style={styles.avatar} />
                   )}
                   {/* Edit Icon */}
                   <View style={styles.editIconContainer}>
@@ -1917,46 +1915,46 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
   },
   phoneInputWithDeleteContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-phoneInputFlexContainer: {
-  flex: 1,
-},
-phoneDeleteIconButton: {
-  marginLeft: 12,
-  width: 32,
-  height: 32,
-  // backgroundColor: '#FF3B30',
-  borderRadius: 16,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-phoneDeleteIconText: {
-  fontSize: 14,
-  color: '#fff',
-},
-addNewNumberIconButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  marginBottom: 20,
-},
-addNewNumberIcon: {
-  width: 24,
-  height: 24,
-  backgroundColor: '#007AFF',
-  color: '#fff',
-  borderRadius: 12,
-  textAlign: 'center',
-  // lineHeight: 24,
-  fontSize: 16,
-  // fontWeight: 'bold',
-  marginLeft: 8,
-},
-addNewNumberLabel: {
-  color: '#007AFF',
-  fontSize: 14,
-  fontWeight: '600',
-},
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  phoneInputFlexContainer: {
+    flex: 1,
+  },
+  phoneDeleteIconButton: {
+    marginLeft: 12,
+    width: 32,
+    height: 32,
+    // backgroundColor: '#FF3B30',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneDeleteIconText: {
+    fontSize: 14,
+    color: '#fff',
+  },
+  addNewNumberIconButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  addNewNumberIcon: {
+    width: 24,
+    height: 24,
+    backgroundColor: '#007AFF',
+    color: '#fff',
+    borderRadius: 12,
+    textAlign: 'center',
+    // lineHeight: 24,
+    fontSize: 16,
+    // fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  addNewNumberLabel: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });
 export default ProfileScreen;

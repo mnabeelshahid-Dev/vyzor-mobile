@@ -318,6 +318,16 @@ export default function EmailNotificationsScreen({ navigation }) {
     }
   }, [currentUserData, isAdmin]);
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500); // 500ms delay
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [search]);
+
   // Helper function to get cleared filters with current user
   // Replace the existing getClearedFiltersWithCurrentUser function with this:
   const getClearedFiltersWithCurrentUser = () => {
