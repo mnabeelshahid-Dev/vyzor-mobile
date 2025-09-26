@@ -208,10 +208,16 @@ export default function TaskScreen({ navigation }) {
 
 
   // Flatten all pages, no deduplication (show all items)
-  const allTasks = infiniteData?.pages.flatMap((page) => page.data) ?? [];
+  const allTasks = infiniteData?.pages.flatMap((page) => Array.isArray(page.data) ? page.data : []) ?? [];
 
   // Filtering logic
   let filteredTasks = allTasks;
+  // Search by formName (case-insensitive)
+  if (search && search.trim()) {
+    filteredTasks = filteredTasks.filter(
+      t => t.formName && t.formName.toLowerCase().includes(search.trim().toLowerCase())
+    );
+  }
   if (filterStatus) {
     filteredTasks = filteredTasks.filter((task) => {
       // Use scheduleType for filtering if present, fallback to siteStatus/status
@@ -219,11 +225,16 @@ export default function TaskScreen({ navigation }) {
       return s === filterStatus.toLowerCase();
     });
   }
-  if (filterDate) {
+  if (filterDate && startDate && endDate) {
     filteredTasks = filteredTasks.filter((task) => {
-      // Compare only date part
-      const taskDate = task.startDate ? new Date(task.startDate).toLocaleDateString() : '';
-      return taskDate === filterDate;
+      // Compare task start/end with filter range
+      const taskStart = new Date(task.startDate);
+      const taskEnd = new Date(task.endDate);
+      const filterStart = new Date(startDate);
+      const filterEnd = new Date(endDate);
+      return (
+        taskStart >= filterStart && taskEnd <= filterEnd
+      );
     });
   }
 
@@ -263,9 +274,11 @@ export default function TaskScreen({ navigation }) {
 
   const handleEndReached = () => {
     console.log('FlatList onEndReached', { hasNextPage, isFetchingNextPage });
-    if (hasNextPage && !isFetchingNextPage) {
+    if (hasNextPage && !isFetchingNextPage && !showLoader) {
       console.log('Calling fetchNextPage');
       fetchNextPage();
+    } else {
+      console.log('[handleEndReached] Not fetching: hasNextPage:', hasNextPage, 'isFetchingNextPage:', isFetchingNextPage, 'showLoader:', showLoader);
     }
   };
 
@@ -338,16 +351,22 @@ export default function TaskScreen({ navigation }) {
     function formatTaskDateRange(startDate: any, endDate: any) {
       if (!startDate && !endDate) return 'No date';
       const format = (date: any) => {
-        if (!date) return '';
-        const d = new Date(date);
-        if (isNaN(d.getTime())) return '';
-        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
-          ' ' +
-          d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      if (!date) return '';
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return '';
+      return (
+        d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
+        ' ' +
+        d.toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+        })
+      );
       };
       if (startDate && endDate) {
-        if (startDate === endDate) return format(startDate);
-        return `${format(startDate)} - ${format(endDate)}`;
+      if (startDate === endDate) return format(startDate);
+      return `${format(startDate)} - ${format(endDate)}`;
       }
       return format(startDate || endDate);
     }
@@ -415,7 +434,7 @@ export default function TaskScreen({ navigation }) {
           </View>
         </View>
         {/* Get Started Button */}
-        <TouchableOpacity onPress={() => navigation.navigate('Section', { formDefinitionId: item?.formDefinitionId, status: item?.status })} style={{ backgroundColor: '#1292E6', borderRadius: 8, alignItems: 'center', paddingVertical: 8, marginTop: 4 }}>
+        <TouchableOpacity disabled={item?.status !== 'ACTIVE'} onPress={() => navigation.navigate('Section', { formDefinitionId: item?.formDefinitionId, status: item?.status })} style={{ backgroundColor: item?.status === 'ACTIVE' ? '#1292E6' : '#A0C4FF', borderRadius: 8, alignItems: 'center', paddingVertical: 8, marginTop: 4 }}>
           <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Get Started</Text>
         </TouchableOpacity>
       </View>
@@ -613,11 +632,13 @@ export default function TaskScreen({ navigation }) {
                 setModalFilterDate('');
                 setFilterStatus('');
                 setFilterDate('');
-                closeModal();
+                setSearch('');
                 setUpdatedDate('');
-                setStartDate('');
-                setEndDate('');
-                refetch();
+                // Set start/end date to default range
+                setStartDate(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
+                setEndDate(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
+                closeModal();
+                setTimeout(() => refetch(), 0);
               }}
             >
               <Text style={styles.modalBtnApplyText}>Reset</Text>

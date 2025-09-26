@@ -20,7 +20,7 @@ import CalendarIcon from '../../assets/svgs/calendar.svg';
 import ArrowUpIcon from '../../assets/svgs/arrowUpWard.svg';
 import ArrowDownWard from '../../assets/svgs/arrowDownward.svg';
 import Modal from 'react-native-modal';
-import DatePicker from 'react-native-date-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import ArrowDown from '../../assets/svgs/arrowDown.svg';
 import { useAuthStore } from '../../store/authStore';
 import { styles } from './styles';
@@ -135,10 +135,6 @@ export default function StatisticsScreen({ navigation }) {
     setShowDropdown(false);
   };
 
-  console.log('====================================??????????????');
-  console.log(filterStatus);
-  console.log('====================================');
-
   // --- Statistics API logic for stats cards, progress bars, and date range ---
   const [statisticsParams, setStatisticsParams] = useState({
     startDate: '',
@@ -214,9 +210,10 @@ export default function StatisticsScreen({ navigation }) {
     },
     enabled: Array.isArray(statisticsParams.userIds) && statisticsParams.userIds.length > 0,
   });
-  console.log('====================================');
-  console.log(statsData);
-  console.log('====================================');
+
+  console.log("----------->>>>>>>>>>",statsData);
+  
+
   const statsTyped = (statsData as { data?: { content?: any[] } })?.data?.content[0] as any || {};
   const stats = {
   onTime: Number(statsTyped.onTime) || 0,
@@ -304,30 +301,21 @@ export default function StatisticsScreen({ navigation }) {
 
   // Sorting logic
   let sortedTasks = [...filteredTasks];
-
-  console.log('====================================');
-  console.log('Filtered Tasks:', filteredTasks);
-  console.log('====================================');
-  console.log('All Tasks:', allTasks);
-  console.log('====================================');
-  console.log('filter status', filterStatus, tempFilterStatus);
-  console.log('Sorted Tasks:', sortedTasks);
-
   if (sortField === 'documentName') {
     sortedTasks.sort((a, b) => {
       if (!a.documentName || !b.documentName) return 0;
       if (sortOrder === 'asc') {
-        return a.documentName.localeCompare(b.documentName);
+        return a.documentName.toLowerCase().localeCompare(b.documentName.toLowerCase());
       } else {
-        return b.documentName.localeCompare(a.documentName);
+        return b.documentName.toLowerCase().localeCompare(a.documentName.toLowerCase());
       }
     });
   } else if (sortField === 'number') {
     sortedTasks.sort((a, b) => {
       if (sortOrder === 'asc') {
-        return (a.webId ?? 0) - (b.webId ?? 0);
+        return (a.status || '').toLowerCase().localeCompare((b.status || '').toLowerCase());
       } else {
-        return (b.webId ?? 0) - (a.webId ?? 0);
+        return (b.status || '').toLowerCase().localeCompare((a.status || '').toLowerCase());
       }
     });
   }
@@ -395,7 +383,7 @@ export default function StatisticsScreen({ navigation }) {
         </View>
         <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%', marginTop: 10 }} />
         <View style={[styles.sortModalBody, { marginTop: 10 }]}>
-          <Text style={styles.sortModalField}>Number</Text>
+          <Text style={styles.sortModalField}>Status</Text>
           <View style={styles.sortModalOrderBtns}>
             <TouchableOpacity
               style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
@@ -431,6 +419,68 @@ export default function StatisticsScreen({ navigation }) {
     setTempFilterStatus(filterStatus);
     setTempFilterDate(filterDate);
     setFilterModal(false);
+  };
+
+  // --- Date Range Picker Logic ---
+const startDateObj = statisticsParams.startDate ? new Date(statisticsParams.startDate) : new Date();
+const endDateObj = statisticsParams.endDate ? new Date(statisticsParams.endDate) : new Date();
+const getStartDateMax = () => {
+  if (statisticsParams.endDate) {
+    const d = new Date(statisticsParams.endDate);
+    d.setDate(d.getDate() - 1);
+    return d < new Date() ? d : new Date();
+  }
+  return new Date();
+};
+const getEndDateMin = () => {
+  if (statisticsParams.startDate) {
+    const d = new Date(statisticsParams.startDate);
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+  return undefined;
+};
+
+  const handleStartDateChange = (date) => {
+    const newStartDate = date.toISOString().split('T')[0];
+    setStatisticsParams(prev => ({
+      ...prev,
+      startDate: newStartDate
+    }));
+    // If end date is missing or before/equal to new start date, set end date to next valid day
+    if (!statisticsParams.endDate || new Date(statisticsParams.endDate) <= new Date(newStartDate)) {
+      const nextDay = new Date(newStartDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      // Only set end date if nextDay is not in the future
+      const today = new Date();
+      if (nextDay <= today) {
+        setStatisticsParams(prev => ({
+          ...prev,
+          endDate: nextDay.toISOString().split('T')[0]
+        }));
+      } else {
+        setStatisticsParams(prev => ({
+          ...prev,
+          endDate: today.toISOString().split('T')[0]
+        }));
+      }
+    }
+  };
+  const handleEndDateChange = (date) => {
+    const newEndDate = date.toISOString().split('T')[0];
+    setStatisticsParams(prev => ({
+      ...prev,
+      endDate: newEndDate
+    }));
+    // If start date is missing or after/equal to new end date, set start date to previous valid day
+    if (!statisticsParams.startDate || new Date(statisticsParams.startDate) >= new Date(newEndDate)) {
+      const prevDay = new Date(newEndDate);
+      prevDay.setDate(prevDay.getDate() - 1);
+      setStatisticsParams(prev => ({
+        ...prev,
+        startDate: prevDay.toISOString().split('T')[0]
+      }));
+    }
   };
 
   return (
@@ -495,6 +545,23 @@ export default function StatisticsScreen({ navigation }) {
         propagateSwipe={false}
         deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
         deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
+        customBackdrop={null}
+        panResponderThreshold={4}
+        swipeThreshold={100}
+        onModalShow={() => {}}
+        onModalWillShow={() => {}}
+        onModalHide={() => {}}
+        onModalWillHide={() => {}}
+        onModalDismiss={() => {}}
+        onBackButtonPress={() => setFilterModal(false)}
+        onSwipeComplete={() => {}}
+        swipeDirection={null}
+        scrollHorizontal={false}
+        statusBarTranslucent={false}
+        supportedOrientations={['portrait', 'landscape']}
+        scrollTo={() => {}}
+        scrollOffset={0}
+        scrollOffsetMax={0}
         onBackdropPress={closeFilterModal}
       >
         <View style={styles.modalOverlay}>
@@ -576,6 +643,23 @@ export default function StatisticsScreen({ navigation }) {
                 propagateSwipe={false}
                 deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
                 deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
+                customBackdrop={null}
+                panResponderThreshold={4}
+                swipeThreshold={100}
+                onModalShow={() => {}}
+                onModalWillShow={() => {}}
+                onModalHide={() => {}}
+                onModalWillHide={() => {}}
+                onModalDismiss={() => {}}
+                onBackButtonPress={() => setShowFilterDatePicker(false)}
+                onSwipeComplete={() => {}}
+                swipeDirection={null}
+                scrollHorizontal={false}
+                statusBarTranslucent={false}
+                supportedOrientations={['portrait', 'landscape']}
+                scrollTo={() => {}}
+                scrollOffset={0}
+                scrollOffsetMax={0}
               >
                 <View style={{ justifyContent: 'center', alignItems: 'center', flex: 1 }}>
                   <View style={{ backgroundColor: '#fff', borderRadius: 16, width: '90%', paddingBottom: 16 }}>
@@ -585,12 +669,15 @@ export default function StatisticsScreen({ navigation }) {
                         Select Date
                       </Text>
                     </View>
-                    <DatePicker
-                      date={tempFilterDate ? new Date(tempFilterDate) : new Date()}
+                    <DateTimePicker
+                      value={tempFilterDate ? new Date(tempFilterDate) : new Date()}
                       mode="date"
+                      display="default"
                       maximumDate={new Date()}
-                      onDateChange={date => setTempFilterDate(date.toISOString().split('T')[0])}
-                      androidVariant="nativeAndroid"
+                      onChange={(event, date) => {
+                        setShowFilterDatePicker(false);
+                        if (date) applyFilterDateToRange(date.toISOString().split('T')[0]);
+                      }}
                       style={{ alignSelf: 'center', marginVertical: 16 }}
                     />
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 24, width: '100%' }}>
@@ -617,7 +704,7 @@ export default function StatisticsScreen({ navigation }) {
                   closeFilterModal();
                 }}
               >
-                <Text style={styles.modalBtnClearText}>Clear</Text>
+                <Text style={styles.modalBtnClearText}>Reset</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalBtnApply} onPress={() => {
                 setFilterStatus(tempFilterStatus);
@@ -728,57 +815,19 @@ export default function StatisticsScreen({ navigation }) {
               {statisticsParams.startDate ? formatDate(statisticsParams.startDate, false) : ''}
             </Text>
           </TouchableOpacity>
-          <Modal
-            isVisible={showStartDatePicker}
-            hasBackdrop={true}
-            backdropColor="#000"
-            backdropOpacity={0.18}
-            animationIn="fadeIn"
-            animationOut="fadeOut"
-            animationInTiming={300}
-            animationOutTiming={300}
-            backdropTransitionInTiming={300}
-            backdropTransitionOutTiming={300}
-            avoidKeyboard={true}
-            coverScreen={true}
-            style={{ margin: 0 }}
-            useNativeDriver={true}
-            hideModalContentWhileAnimating={false}
-            propagateSwipe={false}
-            deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
-            deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
-          >
-            <View style={{ justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-              <View style={{ backgroundColor: '#fff', borderRadius: 16, width: '90%', paddingBottom: 16, alignItems: 'center' }}>
-                <View style={{ backgroundColor: '#0088E7', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 18, alignItems: 'center', width: '100%' }}>
-                  <Text style={{ color: '#ffff', fontSize: 16, fontWeight: '500' }}>
-                    Select Start Date
-                  </Text>
-                </View>
-                <DatePicker
-                  date={statisticsParams.startDate ? new Date(statisticsParams.startDate) : new Date()}
-                  mode="date"
-                  maximumDate={new Date()}
-                  onDateChange={date => {
-                    setStatisticsParams(prev => ({
-                      ...prev,
-                      startDate: date.toISOString().split('T')[0]
-                    }));
-                  }}
-                  androidVariant="nativeAndroid"
-                  style={{ alignSelf: 'center', marginVertical: 16 }}
-                />
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 24, width: '100%' }}>
-                  <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
-                    <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
-                    <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>OK</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
+          {showStartDatePicker && (
+            <DateTimePicker
+              value={statisticsParams.startDate ? new Date(statisticsParams.startDate) : new Date()}
+              mode="date"
+              display="default"
+              maximumDate={getStartDateMax()}
+              onChange={(event, date) => {
+                setShowStartDatePicker(false);
+                if (date) handleStartDateChange(date);
+              }}
+              style={{ alignSelf: 'center', marginVertical: 16 }}
+            />
+          )}
           <Text style={styles.dateRangeText}> -- </Text>
           {/* End Date Picker */}
           <TouchableOpacity
@@ -790,57 +839,20 @@ export default function StatisticsScreen({ navigation }) {
               {statisticsParams.endDate ? formatDate(statisticsParams.endDate, false) : ''}
             </Text>
           </TouchableOpacity>
-          <Modal
-            isVisible={showEndDatePicker}
-            hasBackdrop={true}
-            backdropColor="#000"
-            backdropOpacity={0.18}
-            animationIn="fadeIn"
-            animationOut="fadeOut"
-            animationInTiming={300}
-            animationOutTiming={300}
-            backdropTransitionInTiming={300}
-            backdropTransitionOutTiming={300}
-            avoidKeyboard={true}
-            coverScreen={true}
-            style={{ margin: 0 }}
-            useNativeDriver={true}
-            hideModalContentWhileAnimating={false}
-            propagateSwipe={false}
-            deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
-            deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
-          >
-            <View style={{ justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-              <View style={{ backgroundColor: '#fff', borderRadius: 16, width: '90%', paddingBottom: 16, alignItems: 'center' }}>
-                <View style={{ backgroundColor: '#0088E7', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 18, alignItems: 'center', width: '100%' }}>
-                  <Text style={{ color: '#ffff', fontSize: 16, fontWeight: '500' }}>
-                    Select End Date
-                  </Text>
-                </View>
-                <DatePicker
-                  date={statisticsParams.endDate ? new Date(statisticsParams.endDate) : new Date()}
-                  mode="date"
-                  maximumDate={new Date()}
-                  onDateChange={date => {
-                    setStatisticsParams(prev => ({
-                      ...prev,
-                      endDate: date.toISOString().split('T')[0]
-                    }));
-                  }}
-                  androidVariant="nativeAndroid"
-                  style={{ alignSelf: 'center', marginVertical: 16 }}
-                />
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 24, width: '100%' }}>
-                  <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
-                    <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
-                    <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>OK</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
+          {showEndDatePicker && (
+            <DateTimePicker
+              value={statisticsParams.endDate ? new Date(statisticsParams.endDate) : new Date()}
+              mode="date"
+              display="default"
+              maximumDate={new Date()}
+              minimumDate={getEndDateMin()}
+              onChange={(event, date) => {
+                setShowEndDatePicker(false);
+                if (date) handleEndDateChange(date);
+              }}
+              style={{ alignSelf: 'center', marginVertical: 16 }}
+            />
+          )}
         </View>
 
         {/* Task List with loading and empty state */}
@@ -883,10 +895,32 @@ export default function StatisticsScreen({ navigation }) {
 
       {/* Dropdown Modal */}
       <Modal
-        visible={showDropdown}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowDropdown(false)}
+        isVisible={showDropdown}
+        onBackdropPress={() => setShowDropdown(false)}
+        backdropOpacity={0.3}
+        backdropColor="#000"
+        hasBackdrop={true}
+        coverScreen={true}
+        avoidKeyboard={true}
+        style={{ margin: 0, justifyContent: 'flex-end' }}
+        animationIn="fadeIn"
+        animationOut="fadeOut"
+        animationInTiming={300}
+        animationOutTiming={300}
+        useNativeDriver={true}
+        hideModalContentWhileAnimating={true}
+        backdropTransitionInTiming={300}
+        backdropTransitionOutTiming={300}
+        deviceHeight={Dimensions.get('window').height}
+        deviceWidth={Dimensions.get('window').width}
+        customBackdrop={undefined}
+        onModalShow={() => {}}
+        onModalHide={() => {}}
+        onBackButtonPress={() => setShowDropdown(false)}
+        propagateSwipe={false}
+        supportedOrientations={['portrait', 'landscape']}
+        testID={"dropdown-modal"}
+        {...{} as import('react-native-modal').ModalProps}
       >
         <TouchableOpacity
           style={styles.dropdownOverlay}

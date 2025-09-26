@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -68,9 +69,8 @@ interface IFormData {
 const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   // Multi-phone state
   // Set default country code for phone input
-  const [phoneCountry, setPhoneCountry] = useState<any>('US');
   const [phoneNumbers, setPhoneNumbers] = useState(['']);
-  const [phoneCountries, setPhoneCountries] = useState([phoneCountry]);
+  const [phoneCountries, setPhoneCountries] = useState(['US']);
   const [phoneErrors, setPhoneErrors] = useState(['']);
   // Initialize refs array once
   const phoneRefs = useRef([] as React.RefObject<PhoneInput>[]);
@@ -97,7 +97,10 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     setPhoneNumbers(nums => nums.filter((_, i) => i !== idx));
     setPhoneCountries(countries => countries.filter((_, i) => i !== idx));
     setPhoneErrors(errs => errs.filter((_, i) => i !== idx));
-    // phoneRefs will sync automatically above
+    // Remove the ref at the same index
+    if (phoneRefs.current.length > idx) {
+      phoneRefs.current.splice(idx, 1);
+    }
   };
 
   // Handle phone number change
@@ -140,6 +143,10 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [dateOfBirthFocused, setDateOfBirthFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
+
+  function toggleConfirmPasswordVisibility(): void {
+  setIsConfirmPasswordVisible((prev) => !prev);
+}
 
   // Date picker state
   // Set default date to 16 years ago
@@ -959,7 +966,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                   leftIconProps={{ color: "#475467" }}
                   isStaric
                   secureTextEntry={!isPasswordVisible}
-                  RightIcon={EyeSlash}
+                  RightIconAlt={EyeSlash}
                   onRightIconPress={togglePasswordVisibility}
                 />
 
@@ -979,8 +986,8 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                   isStaric
                   leftIconProps={{ color: "#475467" }}
                   secureTextEntry={!isConfirmPasswordVisible}
-                  RightIcon={EyeSlash}
-                  onRightIconPress={togglePasswordVisibility}
+                  RightIconAlt={EyeSlash}
+                  onRightIconPress={toggleConfirmPasswordVisibility}
                 />
 
 
@@ -991,10 +998,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                       <PhoneIcon style={{ marginRight: 4 }} height={18} width={18} color={'#475467'} />
                       <Text style={{ fontFamily: 'Poppins', fontSize: 15, color: '#475467' }}>Phone Number</Text>
                     </View>
-                    <TouchableOpacity onPress={addPhoneField} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={{ color: '#0088E7', fontSize: 15, fontWeight: '600', marginRight: 4 }}>Add New</Text>
-                      <PlusImage width={18} height={18} />
-                    </TouchableOpacity>
                   </View>
                   {phoneNumbers.map((num, idx) => (
                     <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: phoneErrors[idx] ? '#FF6B6B' : (currentlyFocusedField === `phone${idx}` ? '#0088E7' : '#D0D5DD'), minHeight: 40, paddingHorizontal: 8, marginTop: idx === 0 ? 0 : 12, marginBottom: phoneErrors[idx] ? 0 : 20 }}>
@@ -1033,7 +1036,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                     <Text key={`err${idx}`} style={[styles.errorText, { color: '#FF6B6B' }]}>{err}</Text>
                   ) : null)}
                 </View>
-
+                {phoneNumbers[phoneNumbers.length - 1] !== '' && (
+                  <TouchableOpacity onPress={addPhoneField} style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end' }}>
+                    <Text style={{ color: '#0088E7', fontSize: 15, fontWeight: '600', marginRight: 4 }}>Add New</Text>
+                    <PlusImage width={18} height={18} />
+                  </TouchableOpacity>
+                )}
                 {/* Sign Up Button */}
                 <TouchableOpacity
                   style={[

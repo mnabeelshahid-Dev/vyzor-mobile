@@ -231,7 +231,7 @@ export const createStyles = (theme: {
       borderRadius: 12,
       paddingVertical: 8,
       alignItems: 'center',
-      marginBottom: 32,
+      marginBottom: 18,
       shadowColor: '#0088E7',
       shadowOffset: {
         width: 0,
@@ -274,8 +274,8 @@ export const createStyles = (theme: {
     socialButtons: {
       flexDirection: 'row',
       justifyContent: 'center',
-      gap: 20,
-      marginBottom: 40,
+      gap: 18,
+      marginBottom: 20,
     },
     socialButton: {
       width: 100,
@@ -316,10 +316,10 @@ export const createStyles = (theme: {
       fontFamily: 'Poppins',
     },
     signUpContainer: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginTop: 'auto',
+  flexDirection: 'row',
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginTop: 24,
     },
     signUpText: {
       fontSize: 14,

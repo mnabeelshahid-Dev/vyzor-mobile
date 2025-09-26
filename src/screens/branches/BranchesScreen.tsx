@@ -217,7 +217,7 @@ const BranchesScreen = ({ navigation }) => {
             data={branches}
             keyExtractor={(_, idx) => idx.toString()}
             renderItem={renderBranch}
-            contentContainerStyle={{ paddingVertical: 24 }}
+            contentContainerStyle={{ paddingVertical: 24, paddingBottom: 100 }}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -257,7 +257,7 @@ const BranchesScreen = ({ navigation }) => {
           </View>
           <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%', marginTop: 10 }} />
           <View style={[styles.sortModalBody, { marginTop: 10 }]}>
-            <Text style={styles.sortModalField}>Code</Text>
+            <Text style={styles.sortModalField}>Number</Text>
             <View style={styles.sortModalOrderBtns}>
               <TouchableOpacity
                 style={[styles.sortModalOrderBtn, sortField === 'code' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
