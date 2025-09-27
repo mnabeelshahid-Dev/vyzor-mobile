@@ -53,7 +53,7 @@ export default function TaskScreen({ navigation }) {
   const [showSortModal, setShowSortModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [sortField, setSortField] = useState<'name' | 'number'>('name');
+  const [sortField, setSortField] = useState<'name' | 'status'>('name');
   // Main filter state
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDate, setFilterDate] = useState('');
@@ -155,6 +155,8 @@ export default function TaskScreen({ navigation }) {
       apiStartDate = formatDateFull(today);
       apiEndDate = formatDateFull(today);
     }
+    // API now accepts 'name' or 'status' for sortField
+    const apiSortField = sortField;
     return {
       startDate: apiStartDate,
       endDate: apiEndDate,
@@ -163,7 +165,7 @@ export default function TaskScreen({ navigation }) {
       scheduleStatus: filterStatus.toUpperCase(),
       search,
       sort: sortOrder,
-      sortField: sortField,
+      sortField: apiSortField,
       page: pageParam,
       size: 20,
     };
@@ -172,6 +174,8 @@ export default function TaskScreen({ navigation }) {
   const fetchTasksInfinite = async ({ pageParam = 1 }) => {
     const params = buildParams(pageParam);
     const response = await fetchTasks(params);
+    console.log("-----------------",response);
+    
     // Support both array and paginated object
     let content = [];
     if (Array.isArray(response?.data)) {
@@ -241,30 +245,22 @@ export default function TaskScreen({ navigation }) {
   // Custom order for scheduleType: ACTIVE, SCHEDULED, COMPLETED, EXPIRED
   const scheduleTypeOrder = ['ACTIVE', 'SCHEDULED', 'COMPLETED', 'EXPIRED'];
   sortedTasks.sort((a, b) => {
-    const aType = (a.scheduleType || '').toUpperCase();
-    const bType = (b.scheduleType || '').toUpperCase();
-    const aIdx = scheduleTypeOrder.indexOf(aType);
-    const bIdx = scheduleTypeOrder.indexOf(bType);
-    // If both are valid scheduleTypes, sort by custom order
-    if (aIdx !== -1 && bIdx !== -1) {
-      return aIdx - bIdx;
-    }
-    // If only one is valid, put valid first
-    if (aIdx !== -1) return -1;
-    if (bIdx !== -1) return 1;
-    // Otherwise, fallback to name or number sort
-    if (sortField === 'name') {
+    if (sortField === 'status') {
+      // Sort by scheduleType/status
+      const aType = (a.scheduleType || a.siteStatus || a.status || '').toUpperCase();
+      const bType = (b.scheduleType || b.siteStatus || b.status || '').toUpperCase();
+      const aIdx = scheduleTypeOrder.indexOf(aType);
+      const bIdx = scheduleTypeOrder.indexOf(bType);
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return 0;
+    } else if (sortField === 'name') {
       if (!a.formName || !b.formName) return 0;
       if (sortOrder === 'asc') {
         return a.formName.localeCompare(b.formName);
       } else {
         return b.formName.localeCompare(a.formName);
-      }
-    } else if (sortField === 'number') {
-      if (sortOrder === 'asc') {
-        return (a.documentId ?? 0) - (b.documentId ?? 0);
-      } else {
-        return (b.documentId ?? 0) - (a.documentId ?? 0);
       }
     }
     return 0;
@@ -313,7 +309,7 @@ export default function TaskScreen({ navigation }) {
   };
 
 
-  const handleSort = (field: 'name' | 'number', order: 'asc' | 'desc') => {
+  const handleSort = (field: 'name' | 'status', order: 'asc' | 'desc') => {
     setSortField(field);
     setSortOrder(order);
     setShowSortModal(false);
@@ -1081,7 +1077,6 @@ export default function TaskScreen({ navigation }) {
   )
 
   const SortModal = () => (
-    // Redesigned Dropdown Sort Modal
     showSortModal ? (
       <View style={[styles.dropdownCard, { position: 'absolute', top: 170, right: 24, zIndex: 100 }]}> {/* Adjust top/right for placement */}
         <View style={styles.sortModalHeader}>
@@ -1115,17 +1110,17 @@ export default function TaskScreen({ navigation }) {
         </View>
         <View style={{ height: 1, backgroundColor: '#0000001A', width: '100%', marginTop: 10 }} />
         <View style={[styles.sortModalBody, { marginTop: 10 }]}>
-          <Text style={styles.sortModalField}>Number</Text>
+          <Text style={styles.sortModalField}>Status</Text>
           <View style={styles.sortModalOrderBtns}>
             <TouchableOpacity
-              style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
-              onPress={() => handleSort('number', 'desc')}
+              style={[styles.sortModalOrderBtn, sortField === 'status' && sortOrder === 'desc' ? styles.activeSortBtn : null]}
+              onPress={() => handleSort('status', 'desc')}
             >
               <ArrowDownWard width={15} height={15} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.sortModalOrderBtn, sortField === 'number' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
-              onPress={() => handleSort('number', 'asc')}
+              style={[styles.sortModalOrderBtn, sortField === 'status' && sortOrder === 'asc' ? styles.activeSortBtn : null]}
+              onPress={() => handleSort('status', 'asc')}
             >
               <ArrowUpIcon width={15} height={15} />
             </TouchableOpacity>
