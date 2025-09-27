@@ -14,14 +14,12 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useThemedStyles } from '../../hooks/useThemedStyles';
-import {
-  forgotPasswordValidationSchema,
-  ValidationHelpers,
-} from '../../utils/validation';
+import { isValidEmail } from '../../utils';
 import { useAuthStore } from '../../store/authStore';
 import LogoIconSvg from '../../assets/svgs/logoIcon.svg';
 import EmailIcon from '../../assets/svgs/emailIcon.svg';
 import CheckIcon from '../../assets/svgs/checkIcon.svg';
+import FloatingInput from '../../components/TextInput/TextInput';
 
 /**
  * Root navigation stack parameter list
@@ -46,9 +44,8 @@ interface ForgotPasswordScreenProps {
 const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   navigation,
 }) => {
-  const [email, setEmail] = useState<string>('');
-  const [emailFocused, setEmailFocused] = useState<boolean>(false);
-  const [emailError, setEmailError] = useState<string>('');
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   const { forgotPassword, isLoading } = useAuthStore();
   const styles = useThemedStyles(createStyles);
@@ -64,27 +61,67 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   /**
    * Validates email field
    */
-  const validateEmail = async (emailValue: string): Promise<boolean> => {
-    try {
-      await forgotPasswordValidationSchema.validateAt('email', {
-        email: emailValue,
-      });
-      setEmailError('');
-      return true;
-    } catch (error: any) {
-      setEmailError(error.message);
+  // Email validation logic (copied from loginScreen)
+  const validateEmailOnBlur = () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setEmailError('Email is required');
       return false;
     }
+    if (trimmedEmail.length > 254) {
+      setEmailError('Email address is too long');
+      return false;
+    }
+    if (!isValidEmail(trimmedEmail)) {
+      setEmailError('Please enter a valid email address');
+      return false;
+    }
+    if (trimmedEmail.includes('..')) {
+      setEmailError('Email cannot contain consecutive dots');
+      return false;
+    }
+    if (trimmedEmail.startsWith('.') || trimmedEmail.endsWith('.')) {
+      setEmailError('Email cannot start or end with a dot');
+      return false;
+    }
+    setEmailError('');
+    return true;
   };
 
   /**
    * Handles email input change
    */
-  const handleEmailChange = async (text: string) => {
+  const handleEmailChange = (text: string) => {
     setEmail(text);
-    if (text.trim() && emailError) {
-      await validateEmail(text);
+
+    const trimmedEmail = text.trim();
+
+    if (!trimmedEmail) {
+      setEmailError('Email is required');
+      return;
     }
+
+    if (trimmedEmail.length > 254) {
+      setEmailError('Email address is too long');
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+
+    if (trimmedEmail.includes('..')) {
+      setEmailError('Email cannot contain consecutive dots');
+      return;
+    }
+
+    if (trimmedEmail.startsWith('.') || trimmedEmail.endsWith('.')) {
+      setEmailError('Email cannot start or end with a dot');
+      return;
+    }
+
+    setEmailError('');
   };
 
   /**
@@ -92,24 +129,19 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
    */
   const handleResetPassword = async (): Promise<void> => {
     // Validate form
-    const isEmailValid = await validateEmail(email);
-
+    const isEmailValid = validateEmailOnBlur();
     if (!isEmailValid) {
       return;
     }
-
     try {
       const success = await forgotPassword(email);
-
       if (success) {
-        // Navigate back to login after successful reset request
         setTimeout(() => {
           navigation.navigate('Login');
         }, 2000);
       }
     } catch (error) {
       console.log('Password reset error:', error);
-      // Error handling is done in authStore
     }
   };
 
@@ -120,9 +152,6 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
     navigation.navigate('Login');
   };
 
-  // Focus handlers
-  const handleEmailFocus = () => setEmailFocused(true);
-  const handleEmailBlur = () => setEmailFocused(false);
 
   return (
     <KeyboardAvoidingView
@@ -159,68 +188,21 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
             </Text>
 
             <View style={styles.form}>
-              {/* Email Input */}
-              <View style={styles.floatingInputContainer}>
-                <View style={styles.floatingInputWrapper}>
-                  <View
-                    style={[
-                      styles.floatingLabelContainer,
-                      (emailFocused || email) &&
-                        styles.floatingLabelContainerActive,
-                    ]}
-                  >
-                    <EmailIcon
-                      style={styles.floatingIcon}
-                      color={
-                        emailFocused || email
-                          ? emailFocused
-                            ? '#0088E7'
-                            : '#475467'
-                          : '#475467'
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.floatingLabel,
-                        (emailFocused || email) && styles.floatingLabelActive,
-                        emailFocused && styles.floatingLabelFocused,
-                      ]}
-                    >
-                      Email
-                    </Text>
-                  </View>
-                  <TextInput
-                    style={[
-                      styles.floatingInput,
-                      emailFocused && styles.floatingInputFocused,
-                      emailError && styles.floatingInputError,
-                    ]}
-                    value={email}
-                    onChangeText={handleEmailChange}
-                    onFocus={handleEmailFocus}
-                    onBlur={handleEmailBlur}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!isLoading}
-                  />
-                  <View
-                    style={[
-                      styles.underline,
-                      emailFocused && styles.underlineFocused,
-                      emailError && styles.underlineError,
-                    ]}
-                  />
-                </View>
-                {/* Validation Icon */}
-                {email.trim() && !emailError && (
-                  <View style={styles.validationIcon}>
-                    <CheckIcon width={20} height={20} />
-                  </View>
-                )}
-              </View>
 
-              {/* Email Error Message */}
+              {/* Email Input using FloatingInput */}
+              <FloatingInput
+                label="Email"
+                value={email}
+                onChangeText={handleEmailChange}
+                onBlur={validateEmailOnBlur}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+                LeftIcon={EmailIcon}
+                leftIconProps={{ color: "#475467" }}
+                RightIcon={isValidEmail(email.trim()) ? CheckIcon : undefined}
+              />
               {emailError ? (
                 <Text style={styles.errorText}>{emailError}</Text>
               ) : null}
@@ -237,7 +219,7 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                 {isLoading ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.resetButtonText}>Send Reset Link</Text>
+                  <Text style={styles.resetButtonText}>Send</Text>
                 )}
               </TouchableOpacity>
 

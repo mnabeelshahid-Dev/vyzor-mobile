@@ -246,7 +246,6 @@ export default function StatisticsScreen({ navigation }) {
     enabled: Array.isArray(statisticsParams.userIds) && statisticsParams.userIds.length > 0,
   });
 
-  console.log("----------->>>>>>>>>>",statsData);
   
 
   const statsTyped = (statsData as { data?: { content?: any[] } })?.data?.content[0] as any || {};
