@@ -345,17 +345,19 @@ export default function ChatScreen({ navigation }) {
   }, [messagesData]);
 
   // Filtered chats
-  const filteredChats = chats.filter(
-    c =>
-      c.title.toLowerCase().includes(search.toLowerCase()) ||
-      c.participants.some(
-        p =>
-          p.email.toLowerCase().includes(search.toLowerCase()) ||
-          `${p.firstName} ${p.lastName}`
-            .toLowerCase()
-            .includes(search.toLowerCase()),
-      ),
-  );
+  const filteredChats = chats
+    .filter(
+      c =>
+        c.title.toLowerCase().includes(search.toLowerCase()) ||
+        c.participants.some(
+          p =>
+            p.email.toLowerCase().includes(search.toLowerCase()) ||
+            `${p.firstName} ${p.lastName}`
+              .toLowerCase()
+              .includes(search.toLowerCase()),
+        ),
+    )
+    .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
 
   // Real-time messaging effect
   useEffect(() => {
