@@ -62,6 +62,7 @@ function formatDate(dateStrOrObj: string | Date = "", showTime = false): string 
 }
 
 export default function StatisticsScreen({ navigation }) {
+  // ...existing code...
   const user = useAuthStore((state) => state.user);
   const branchId = useAuthStore((state) => state.branchId);
   console.log("👤 [STORE] Current User from Auth Store:", user, branchId);
@@ -83,6 +84,25 @@ export default function StatisticsScreen({ navigation }) {
   const [tempFilterDate, setTempFilterDate] = useState('');
 
   const [showDropdown, setShowDropdown] = useState(false);
+
+  // Ensure statisticsParams is updated as soon as user.id or branchId become available
+  useEffect(() => {
+    if (user?.id && branchId) {
+      setStatisticsParams(prev => {
+        // Only update if userIds or filterSiteIds are missing or incorrect
+        const needsUpdate =
+          !Array.isArray(prev.userIds) || prev.userIds[0] !== user.id || prev.filterSiteIds !== branchId;
+        if (needsUpdate) {
+          return {
+            ...prev,
+            userIds: [user.id],
+            filterSiteIds: branchId,
+          };
+        }
+        return prev;
+      });
+    }
+  }, [user?.id, branchId]);
   // Memoized TaskCard for FlatList performance
   const TaskCard = React.memo(({ item }: { item: any }) => (
     <View
@@ -113,14 +133,10 @@ export default function StatisticsScreen({ navigation }) {
   const renderTask = React.useCallback(({ item }) => <TaskCard item={item} />, []);
   const keyExtractor = React.useCallback((item, idx) => item.webId ? item.webId.toString() : idx.toString(), []);
 
-  // Helper to sync filter modal date with main date pickers
+  // Helper to update tempFilterDate in modal
   const applyFilterDateToRange = (date: string) => {
     if (date && !isNaN(new Date(date).getTime())) {
-      setStatisticsParams(prev => ({
-        ...prev,
-        startDate: date,
-        endDate: date,
-      }));
+      setTempFilterDate(date);
     }
   };
 
@@ -136,16 +152,32 @@ export default function StatisticsScreen({ navigation }) {
   };
 
   // --- Statistics API logic for stats cards, progress bars, and date range ---
-  const [statisticsParams, setStatisticsParams] = useState({
-    startDate: '',
-    endDate: '',
-    status: '',
-    userIds: [],
-    filterSiteIds: branchId,
-    search: '',
-    sort: '',
-    page: 0,
-    size: 10,
+  // Set default date range to last 7 days
+  function getDefaultDateRange() {
+    const today = new Date();
+    const endDate = new Date(today);
+    const startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return {
+      startDate: formatDateWithOffset(startDate, true),
+      endDate: formatDateWithOffset(endDate, false)
+    };
+  }
+  const defaultRange = getDefaultDateRange();
+  const [statisticsParams, setStatisticsParams] = useState(() => {
+    const today = new Date();
+    const endDate = new Date(today);
+    const startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return {
+      startDate: formatDateWithOffset(startDate, true),
+      endDate: formatDateWithOffset(endDate, false),
+      status: '',
+      userIds: user?.id ? [user.id] : [],
+      filterSiteIds: branchId,
+      search: '',
+      sort: '',
+      page: 0,
+      size: 10,
+    };
   });
 
   let updatedStartDate = '';
@@ -157,10 +189,11 @@ export default function StatisticsScreen({ navigation }) {
     const yyyy = date.getFullYear();
     const mm = pad(date.getMonth() + 1);
     const dd = pad(date.getDate());
-    const hh = pad(isStart ? 0 : 23);
-    const min = pad(isStart ? 0 : 59);
-    const ss = pad(isStart ? 0 : 59);
-    return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}+05:00`;
+    if (isStart) {
+      return `${yyyy}-${mm}-${dd}T00:00:00+05:00`;
+    } else {
+      return `${yyyy}-${mm}-${dd}T23:59:59+05:00`;
+    }
   }
 
   useEffect(() => {
@@ -213,7 +246,6 @@ export default function StatisticsScreen({ navigation }) {
     enabled: Array.isArray(statisticsParams.userIds) && statisticsParams.userIds.length > 0,
   });
 
-  console.log("----------->>>>>>>>>>",statsData);
   
 
   const statsTyped = (statsData as { data?: { content?: any[] } })?.data?.content[0] as any || {};
@@ -280,7 +312,7 @@ export default function StatisticsScreen({ navigation }) {
     refetch,
     isRefetching,
   } = useInfiniteQuery({
-    queryKey: ['tasks', branchId, search, sortOrder, sortField, filterStatus, filterDate],
+    queryKey: ['tasks', statisticsParams],
     queryFn: fetchTasksInfinite,
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextPage : undefined),
     initialPageParam: 1,
@@ -299,12 +331,7 @@ export default function StatisticsScreen({ navigation }) {
       return s === filterStatus.toLowerCase();
     });
   }
-  if (filterDate) {
-    filteredTasks = filteredTasks.filter((task) => {
-      const taskDate = task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : '';
-      return taskDate === filterDate;
-    });
-  }
+  // Removed UI-side filter by exact startDate; now all tasks in the API date range are shown.
 
   // Sorting logic
   let sortedTasks = [...filteredTasks];
@@ -434,7 +461,7 @@ const endDateObj = statisticsParams.endDate ? new Date(statisticsParams.endDate)
 const getStartDateMax = () => {
   if (statisticsParams.endDate) {
     const d = new Date(statisticsParams.endDate);
-    d.setDate(d.getDate() - 1);
+    // Allow same day selection for start and end date
     return d < new Date() ? d : new Date();
   }
   return new Date();
@@ -442,7 +469,7 @@ const getStartDateMax = () => {
 const getEndDateMin = () => {
   if (statisticsParams.startDate) {
     const d = new Date(statisticsParams.startDate);
-    d.setDate(d.getDate() + 1);
+    // Allow same day selection for start and end date
     return d;
   }
   return undefined;
@@ -614,7 +641,6 @@ const getEndDateMin = () => {
                   placeholder="Selected Date"
                   style={[styles.input, { flex: 1, marginRight: 8 }]}
                   value={tempFilterDate ? formatDate(tempFilterDate) : ''}
-                  onChangeText={setTempFilterDate}
                   editable={false}
                 />
                 <View style={styles.inputIcon}>
@@ -683,10 +709,7 @@ const getEndDateMin = () => {
                       <TouchableOpacity onPress={() => setShowFilterDatePicker(false)}>
                         <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>Cancel</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => {
-                        setShowFilterDatePicker(false);
-                        applyFilterDateToRange(tempFilterDate);
-                      }}>
+                      <TouchableOpacity onPress={() => setShowFilterDatePicker(false)}>
                         <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>OK</Text>
                       </TouchableOpacity>
                     </View>
@@ -726,6 +749,9 @@ const getEndDateMin = () => {
                   startDate: tempFilterDate ? tempFilterDate : prev.startDate,
                   endDate: tempFilterDate ? tempFilterDate : prev.endDate,
                 }));
+                // Reset temp values after applying
+                setTempFilterStatus('');
+                setTempFilterDate('');
                 closeFilterModal();
                 refetch();
               }}>

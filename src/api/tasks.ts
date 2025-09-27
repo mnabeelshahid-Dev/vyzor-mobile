@@ -35,7 +35,7 @@ export interface TaskParams {
   scheduleStatus?: string;
   search?: string;
   sort?: 'asc' | 'desc';
-  sortField?: 'name' | 'number';
+  sortField?: 'name' | 'status';
   page?: number;
   size?: number;
 }
@@ -54,7 +54,10 @@ export async function fetchTasks(params: TaskParams) {
   if (params.scheduleStatus) query.push(`scheduleStatus=${params.scheduleStatus}`);
   if (params.search) query.push(`search=${encodeURIComponent(params.search)}`);
   if (params.sort) query.push(`sort=${params.sort}`);
-  if (params.sortField) query.push(`sortField=${params.sortField}`);
+  // Allow 'name' and 'status' as sortField
+  if (params.sortField && (params.sortField === 'name' || params.sortField === 'status')) {
+    query.push(`sortField=${params.sortField}`);
+  }
   if (params.page !== undefined) query.push(`page=${params.page}`);
   if (params.size !== undefined) query.push(`size=${params.size}`);
   const qs = query.length ? `?${query.join('&')}` : '';
