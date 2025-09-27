@@ -257,9 +257,10 @@ export const getCountryByCode = (code: string): Country | undefined => {
 export const detectCountryFromPhoneNumber = (
   phoneNumber: string,
 ): string | null => {
+  if (!phoneNumber || !phoneNumber.trim()) return null;
+  
   const cleanNumber = phoneNumber.replace(/\D/g, '');
-  const numberToCheck = phoneNumber.startsWith('+') ? cleanNumber : cleanNumber;
-
+  
   // Sort countries by dial code length (longest first) for better matching
   const sortedCountries = [...COUNTRIES].sort(
     (a, b) =>
@@ -267,29 +268,54 @@ export const detectCountryFromPhoneNumber = (
   );
 
   for (const country of sortedCountries) {
-    const dialCodeDigits = country.dialCode.replace('+', '');
-
-    if (numberToCheck.startsWith(dialCodeDigits)) {
+    const dialCodeDigits = country.dialCode.replace('+', ''); // e.g., '92' or '1'
+    
+    if (cleanNumber.startsWith(dialCodeDigits)) {
       // Special handling for dial code +1 (US, Canada, etc.)
       if (dialCodeDigits === '1') {
-        if (numberToCheck.length >= 11 && numberToCheck.length <= 11) {
-          // For North American numbers, default to US but could be CA
+        // North American numbers should be 11 digits total (1 + 10 digits)
+        if (cleanNumber.length === 11) {
           return 'US';
         }
       } else {
-        // For other countries, check if the number length makes sense
-        const expectedMinLength = dialCodeDigits.length + 4; // Minimum digits after country code
-        const expectedMaxLength = dialCodeDigits.length + 15; // Maximum total length
-
-        if (
-          numberToCheck.length >= expectedMinLength &&
-          numberToCheck.length <= expectedMaxLength
-        ) {
+        // For other countries, basic length validation
+        const remainingDigits = cleanNumber.substring(dialCodeDigits.length);
+        if (remainingDigits.length >= 4 && remainingDigits.length <= 12) {
           return country.code;
         }
       }
     }
   }
 
-  return null; // Return null if no match found instead of defaulting to US
+  return null;
+};
+
+// New helper function to clean phone number by removing country code
+export const cleanPhoneNumber = (
+  phoneNumber: string,
+): string => {
+  if (!phoneNumber || !phoneNumber.trim()) return '';
+  
+  const cleanedNumber = phoneNumber.replace(/\s+/g, '').trim();
+  
+  // If phone number starts with +, extract country code and remove it
+  if (cleanedNumber.startsWith('+')) {
+    // Sort countries by dial code length (longest first) for better matching
+    const sortedCountries = [...COUNTRIES].sort(
+      (a, b) =>
+        b.dialCode.replace('+', '').length - a.dialCode.replace('+', '').length,
+    );
+
+    for (const country of sortedCountries) {
+      const dialCode = country.dialCode; // e.g., '+92' or '+1'
+      
+      if (cleanedNumber.startsWith(dialCode)) {
+        // Remove the full dial code (including +) from the beginning
+        return cleanedNumber.substring(dialCode.length);
+      }
+    }
+  }
+  
+  // If no country code detected or doesn't start with +, return as is
+  return cleanedNumber.startsWith('+') ? cleanedNumber.substring(1) : cleanedNumber;
 };
