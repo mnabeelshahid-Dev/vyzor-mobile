@@ -19,6 +19,7 @@ import PhoneInput from 'react-native-phone-number-input';
 import {
   COUNTRIES,
   detectCountryFromPhoneNumber,
+  cleanPhoneNumber, // Add this import
 } from '../../constants/countries';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -346,78 +347,74 @@ const ProfileScreen = ({ navigation }) => {
     }
   }, [profileData, cities, selectedStateValue, city]);
 
-  // Update form states when profileData changes
-  React.useEffect(() => {
-    if (profileData) {
-      const data = {
-        firstName: profileData.firstName || '',
-        lastName: profileData.lastName || '',
-        email: profileData.email || '',
-        language: profileData.language || '',
-        timezone: profileData.timeZone || '',
-        street: profileData.addressModel?.street || '',
-        country: profileData.addressModel?.country || '',
-        state: profileData.addressModel?.state || '',
-        city: profileData.addressModel?.city || '',
-        postalCode: profileData.addressModel?.postalCode || '',
-        phoneNumbers:
-          profileData.userPhoneModels?.length > 0
-            ? profileData.userPhoneModels.map((phoneObj, index) => {
-                const phoneNumber = phoneObj.phoneModel?.phoneNumber || '';
-                // Clean phone number - remove country code if it exists
-                const cleanedPhone = phoneNumber.startsWith('+')
-                  ? phoneNumber.substring(phoneNumber.indexOf(' ') + 1) ||
-                    phoneNumber.substring(3)
-                  : phoneNumber;
+React.useEffect(() => {
+  if (profileData) {
+    const data = {
+      firstName: profileData.firstName || '',
+      lastName: profileData.lastName || '',
+      email: profileData.email || '',
+      language: profileData.language || '',
+      timezone: profileData.timeZone || '',
+      street: profileData.addressModel?.street || '',
+      country: profileData.addressModel?.country || '',
+      state: profileData.addressModel?.state || '',
+      city: profileData.addressModel?.city || '',
+      postalCode: profileData.addressModel?.postalCode || '',
+      phoneNumbers:
+        profileData.userPhoneModels?.length > 0
+          ? profileData.userPhoneModels.map((phoneObj, index) => {
+              const phoneNumber = phoneObj.phoneModel?.phoneNumber || '';
+              
+              // Use the new cleanPhoneNumber function to remove country code
+              const cleanedPhone = cleanPhoneNumber(phoneNumber);
 
-                // Use the comprehensive country detection
-                const detectedCountry =
-                  detectCountryFromPhoneNumber(phoneNumber);
+              // Detect country from the original phone number (with country code)
+              const detectedCountry = detectCountryFromPhoneNumber(phoneNumber);
 
-                return {
-                  id: Date.now() + index,
-                  phoneNumber: cleanedPhone,
-                  country: detectedCountry || 'US', // Only fallback to US if no country detected
-                  isDefault: index === 0,
-                  ref: React.createRef<PhoneInput>(),
-                };
-              })
-            : [
-                {
-                  id: Date.now(),
-                  phoneNumber: '',
-                  country: 'US',
-                  isDefault: true,
-                  ref: React.createRef<PhoneInput>(),
-                },
-              ],
-      };
+              return {
+                id: Date.now() + index,
+                phoneNumber: cleanedPhone,
+                country: detectedCountry || 'US', // Only fallback to US if no country detected
+                isDefault: index === 0,
+                ref: React.createRef<PhoneInput>(),
+              };
+            })
+          : [
+              {
+                id: Date.now(),
+                phoneNumber: '',
+                country: 'US',
+                isDefault: true,
+                ref: React.createRef<PhoneInput>(),
+              },
+            ],
+    };
 
-      // ... rest of the useEffect remains the same
-      setFirstName(data.firstName);
-      setLastName(data.lastName);
-      setEmail(data.email);
+    // ... rest of the useEffect remains the same
+    setFirstName(data.firstName);
+    setLastName(data.lastName);
+    setEmail(data.email);
 
-      // Map received values to display text and store both
-      setLanguage(getLanguageText(data.language));
-      setLanguageValue(data.language);
-      setTimezone(getTimezoneText(data.timezone));
-      setTimezoneValue(data.timezone);
+    // Map received values to display text and store both
+    setLanguage(getLanguageText(data.language));
+    setLanguageValue(data.language);
+    setTimezone(getTimezoneText(data.timezone));
+    setTimezoneValue(data.timezone);
 
-      setStreet(data.street);
-      setCountry(data.country);
-      setState(data.state);
+    setStreet(data.street);
+    setCountry(data.country);
+    setState(data.state);
+    setCity(data.city);
+    console.log('City info', data.city);
+    setPostalCode(data.postalCode);
+    setPhoneNumbers(data.phoneNumbers);
+    setInitialData(data);
+
+    if (data.city && !city) {
       setCity(data.city);
-      console.log('City info', data.city);
-      setPostalCode(data.postalCode);
-      setPhoneNumbers(data.phoneNumbers);
-      setInitialData(data);
-
-      if (data.city && !city) {
-        setCity(data.city);
-      }
     }
-  }, [profileData]);
+  }
+}, [profileData]);
 
   const openImagePicker = () => {
     const options = {
@@ -766,27 +763,26 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  const updatePhoneNumber = (id, newPhoneNumber) => {
-    const index = phoneNumbers.findIndex(phone => phone.id === id);
+const updatePhoneNumber = (id, newPhoneNumber) => {
+  const index = phoneNumbers.findIndex(phone => phone.id === id);
 
-    setPhoneNumbers(
-      phoneNumbers.map(phone =>
-        phone.id === id
-          ? {
-              ...phone,
-              phoneNumber: newPhoneNumber,
-              country:
-                detectCountryFromPhoneNumber(newPhoneNumber) || phone.country,
-            }
-          : phone,
-      ),
-    );
+  setPhoneNumbers(
+    phoneNumbers.map(phone =>
+      phone.id === id
+        ? {
+            ...phone,
+            phoneNumber: newPhoneNumber,
+            // Don't auto-detect country here since PhoneInput handles it
+          }
+        : phone,
+    ),
+  );
 
-    // Enhanced validation (only validate if 5+ digits entered)
-    if (index !== -1) {
-      validatePhoneNumber(newPhoneNumber, index);
-    }
-  };
+  // Enhanced validation (only validate if 5+ digits entered)
+  if (index !== -1) {
+    validatePhoneNumber(newPhoneNumber, index);
+  }
+};
 
   const handleLogout = async () => {
     await logoutMutation.mutateAsync();
@@ -875,42 +871,77 @@ const ProfileScreen = ({ navigation }) => {
     console.log('Updated Payload', updatePayload);
   };
 
+  // const handlePhoneDetailsUpdate = async () => {
+  //   // Create dynamic payload from phoneNumbers state
+  //   const updatePayload = phoneNumbers
+  //     .filter(phone => phone.phoneNumber.trim() !== '') // Only include phones with numbers
+  //     .map(phone => ({
+  //       phoneNumber: phone.phoneNumber,
+  //       type: 'CALL',
+  //       webId: phone.webId,
+  //       defaultPhone: phone.isDefault,
+  //     }));
+
+  //   const updateStaticPayload = [
+  //     {
+  //       phoneNumber: '+923089907111',
+  //       type: 'CALL',
+  //       webId: profileData?.webId,
+  //       defaultPhone: false,
+  //     },
+  //     {
+  //       phoneNumber: '+376643111',
+  //       type: 'CALL',
+  //       webId: profileData?.webId,
+  //       defaultPhone: true,
+  //     },
+  //     {
+  //       phoneNumber: '+923089905111',
+  //       type: 'CALL',
+  //       webId: profileData?.webId,
+  //       defaultPhone: false,
+  //     },
+  //   ];
+  //   console.log(updateStaticPayload);
+
+  //   await updatePhoneDetailsMutation.mutateAsync(updatePayload);
+  //   console.log('phone payload', updatePayload);
+  // };
+
+
   const handlePhoneDetailsUpdate = async () => {
-    // Create dynamic payload from phoneNumbers state
-    const updatePayload = phoneNumbers
-      .filter(phone => phone.phoneNumber.trim() !== '') // Only include phones with numbers
-      .map(phone => ({
-        phoneNumber: phone.phoneNumber,
+  // Create dynamic payload from phoneNumbers state
+  const updatePayload = phoneNumbers
+    .filter(phone => phone.phoneNumber.trim() !== '') // Only include phones with numbers
+    .map(phone => {
+      // Get the formatted number from PhoneInput ref
+      const phoneRef = phone.ref?.current;
+      let completePhoneNumber = phone.phoneNumber;
+      
+      // If we have a ref and can get the formatted number, use that
+      if (phoneRef && phoneRef.getNumberAfterPossiblyEliminatingZero) {
+        const formattedNumber = phoneRef.getNumberAfterPossiblyEliminatingZero();
+        completePhoneNumber = formattedNumber.formattedNumber || phone.phoneNumber;
+      } else {
+        // Fallback: if phoneNumber doesn't start with +, add the country code
+        if (!phone.phoneNumber.startsWith('+')) {
+          const country = COUNTRIES.find(c => c.code === phone.country);
+          const dialCode = country?.dialCode || '+1';
+          completePhoneNumber = `${dialCode}${phone.phoneNumber}`;
+        }
+      }
+      
+      return {
+        phoneNumber: completePhoneNumber,
         type: 'CALL',
         webId: phone.webId,
         defaultPhone: phone.isDefault,
-      }));
+      };
+    });
 
-    const updateStaticPayload = [
-      {
-        phoneNumber: '+923089907111',
-        type: 'CALL',
-        webId: profileData?.webId,
-        defaultPhone: false,
-      },
-      {
-        phoneNumber: '+376643111',
-        type: 'CALL',
-        webId: profileData?.webId,
-        defaultPhone: true,
-      },
-      {
-        phoneNumber: '+923089905111',
-        type: 'CALL',
-        webId: profileData?.webId,
-        defaultPhone: false,
-      },
-    ];
-    console.log(updateStaticPayload);
-
-    await updatePhoneDetailsMutation.mutateAsync(updatePayload);
-    console.log('phone payload', updatePayload);
-  };
+  await updatePhoneDetailsMutation.mutateAsync(updatePayload);
+  console.log('phone payload', updatePayload);
+};
 
   const handleUpdatePress = async () => {
     if (activeTab === 'General Info') {
