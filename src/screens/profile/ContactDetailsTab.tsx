@@ -239,7 +239,7 @@ const ContactDetailsTab: React.FC<Props> = ({
                   ref={phone.ref}
                   defaultValue={phone.phoneNumber}
                   defaultCode={phone.country as any}
-                  layout="first"
+                  layout="second"
                   onChangeText={text => onChangePhone(phone.id, text)}
                   onChangeFormattedText={text => onChangePhone(phone.id, text)}
                   textInputStyle={{
@@ -306,7 +306,7 @@ const ContactDetailsTab: React.FC<Props> = ({
                     ref={phone.ref}
                     defaultValue={phone.phoneNumber}
                     defaultCode={phone.country as any}
-                    layout="first"
+                    layout="second"
                     onChangeText={text => onChangePhone(phone.id, text)}
                     onChangeFormattedText={text =>
                       onChangePhone(phone.id, text)
