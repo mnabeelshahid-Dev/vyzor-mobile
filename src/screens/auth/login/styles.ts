@@ -40,7 +40,7 @@ export const createStyles = (theme: {
     logoSection: {
       justifyContent: 'center',
       alignItems: 'center',
-      paddingVertical: 60,
+      paddingVertical: 50,
     },
     logoContainer: {
       alignItems: 'center',
@@ -316,13 +316,14 @@ export const createStyles = (theme: {
       fontFamily: 'Poppins',
     },
     signUpContainer: {
-  flexDirection: 'row',
-  justifyContent: 'center',
-  alignItems: 'center',
-  marginTop: 10,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      // backgroundColor: 'red',
+      // marginTop: 10,
     },
     signUpText: {
-      fontSize: 14,
+      fontSize: 13,
       color: '#868696',
       fontFamily: 'Poppins',
     },

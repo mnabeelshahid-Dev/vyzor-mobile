@@ -99,29 +99,12 @@ export const useAuthStore = create<AuthState>()(
             console.log('🏪 [STORE] Login completed successfully');
             return true;
           } else {
-            console.log('🏪 [STORE] Login failed:', response.message);
-            const errorMessage = response.message || 'Login failed';
-            set({ isLoading: false, error: errorMessage });
-
-            // Show error toast
-            const { showApiErrorToast } = await import('../components/toast');
-            showApiErrorToast(
-              { status: 401, message: errorMessage },
-              'Please check your credentials and try again'
-            );
-
-            return false;
+            // Instead of returning false, throw the full response object
+            throw response;
           }
         } catch (error: any) {
-          console.log('🏪 [STORE] Login exception:', error.message);
-          const errorMessage = error.message || 'Login failed';
-          set({ isLoading: false, error: errorMessage });
-
-          // Show error toast
-          const { showApiErrorToast } = await import('../components/toast');
-          showApiErrorToast(error, 'Unable to connect to server');
-
-          return false;
+          // Instead of returning false, throw the error object
+          throw error;
         }
       },
 

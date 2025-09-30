@@ -3,6 +3,7 @@ import { Modal, View, Text, TouchableOpacity } from 'react-native';
 import WarningIcon from '../assets/svgs/warningFilled.svg';
 
 const ErrorModal = ({ visible, onClose, message }) => {
+  console.log('ErrorModal mounted', visible, message);
   return (
     <Modal
       visible={visible}
