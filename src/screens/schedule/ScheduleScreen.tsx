@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Modal, Pressable, ActivityIndicator } from 'react-native';
+// ActivityIndicator moved into the main import block below
 import { apiService } from '../../services/api';
 import { Calendar } from 'react-native-calendars';
+import * as RN from 'react-native';
 import {
   View,
   Text,
@@ -11,6 +12,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
 import LeftArrowIcon from '../../assets/svgs/backArrowIcon.svg';
@@ -18,6 +20,13 @@ import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import LogoutIcon from '../../assets/svgs/logout.svg';
 import SettingsIcon from '../../assets/svgs/settings.svg';
 import { useLogout } from '../../hooks/useAuth';
+import UserIcon from '../../assets/svgs/user.svg';
+import MenuIcon from '../../assets/svgs/menuIcon.svg';
+import NotesIcon from '../../assets/svgs/notesIcon.svg';
+
+// Fallbacks for environments where Modal/Pressable types are not exposed
+const RNModal: any = (RN as any).Modal;
+const RNPressable: any = (RN as any).Pressable;
 
 interface TaskSchedulingModel {
   compositeId: string;
@@ -59,12 +68,15 @@ interface TaskSchedulingModel {
 }
 
 // Color constants
-const BLUE = '#007AFF';
+const BLUE = '#007AFF'; //This is good working copy
 const DARK_BLUE = '#184B74';
 const GREEN = '#1bc768';
 const RED = '#f44336';
 const GRAY = '#7A8194';
 const BG_GRAY = '#F6F6F6';
+
+// Visual height for each 30-minute slot row (should match styles.hourRow.minHeight)
+const SLOT_HEIGHT = 60;
 
 const HOUR_LIST = Array.from({ length: 48 }, (_, i) => {
   const totalMinutes = i * 30;
@@ -75,78 +87,6 @@ const HOUR_LIST = Array.from({ length: 48 }, (_, i) => {
   const minutesStr = minutes === 0 ? '00' : '30';
   return `${displayHour.toString().padStart(2, '0')}.${minutesStr} ${period}`;
 });
-const mockTasks = [
-  {
-    id: '1',
-    hour: '12.00 PM',
-    number: '#432678',
-    title: 'Manage guest check-in process',
-    user: 'Adnan Ali',
-    borderColor: GREEN,
-    bg: '#E5F6EC',
-    type: 'main',
-  },
-  {
-    id: '2',
-    hour: '12.00 PM',
-    number: '#432678',
-    title: 'Manage guest check-in process',
-    user: 'Adnan Ali',
-    borderColor: RED,
-    bg: '#FCE8E6',
-    type: 'main',
-  },
-  {
-    id: '3',
-    hour: '01.00 PM',
-    number: '#432678',
-    title: 'Test task',
-    user: 'Adnan Ali',
-    borderColor: GREEN,
-    bg: '#E5F6EC',
-    type: 'main',
-  },
-  {
-    id: '4',
-    hour: '01.00 PM',
-    number: '#432678',
-    title: 'Test task',
-    user: 'Adnan Ali',
-    borderColor: RED,
-    bg: '#FCE8E6',
-    type: 'main',
-  },
-  {
-    id: '5',
-    hour: '02.30 PM',
-    number: '#432678',
-    title: 'Test task',
-    user: 'Adnan Ali',
-    borderColor: GREEN,
-    bg: '#E5F6EC',
-    type: 'mini',
-  },
-  {
-    id: '6',
-    hour: '03.00 PM',
-    number: '#432678',
-    title: 'Test task',
-    user: 'Adnan Ali',
-    borderColor: GREEN,
-    bg: '#E5F6EC',
-    type: 'main',
-  },
-  {
-    id: '7',
-    hour: '03.00 PM',
-    number: '#432678',
-    title: 'Test task',
-    user: 'Adnan Ali',
-    borderColor: RED,
-    bg: '#FCE8E6',
-    type: 'main',
-  },
-];
 
 function formatTasksForUI(tasks: TaskSchedulingModel[]) {
   // Filter out tasks with empty or whitespace-only userNames
@@ -174,41 +114,100 @@ function formatTasksForUI(tasks: TaskSchedulingModel[]) {
         .padStart(2, '0')}.${minutesStr} ${period}`;
     };
 
+    // Helpers to align times to 30-minute boundaries
+    const roundDownTo30 = (date: Date) => {
+      const d = new Date(date);
+      d.setSeconds(0, 0);
+      const minutes = d.getMinutes();
+      d.setMinutes(minutes < 30 ? 0 : 30);
+      return d;
+    };
+
+    const roundUpTo30 = (date: Date) => {
+      const d = new Date(date);
+      d.setSeconds(0, 0);
+      const minutes = d.getMinutes();
+      if (minutes === 0) {
+        // already aligned
+      } else if (minutes <= 30) {
+        d.setMinutes(30);
+      } else {
+        d.setHours(d.getHours() + 1, 0, 0, 0);
+      }
+      return d;
+    };
+
+    // Build the list of 30-minute slots the task occupies [start, end)
+    const alignedStart = roundDownTo30(startTime);
+    const alignedEnd = roundUpTo30(endTime);
+    const slots: string[] = [];
+    for (
+      let cursor = new Date(alignedStart);
+      cursor < alignedEnd;
+      cursor = new Date(cursor.getTime() + 30 * 60 * 1000)
+    ) {
+      slots.push(formatTime(cursor));
+    }
+
     // Calculate task duration and determine type
     const durationMs = endTime.getTime() - startTime.getTime();
     const durationMinutes = durationMs / (1000 * 60);
     const taskType = durationMinutes <= 30 ? 'mini' : 'main';
 
-    // Determine border color and background based on scheduleType
-    let borderColor = BLUE; // Default for ON_TIME
-    let bg = '#E3F2FD'; // Light blue background
 
-    if (task.scheduleType === 'EXPIRED') {
-      borderColor = RED;
-      bg = '#FCE8E6';
-    } else if (task.scheduleType === 'SCHEDULED') {
-      borderColor = GREEN;
-      bg = '#E5F6EC';
-    } else if (task.scheduleType === 'ON_TIME') {
-      borderColor = BLUE;
-      bg = '#E3F2FD';
-    }
 
-    return {
-      id: task.webId.toString(),
-      hour: formatTime(startTime),
-      number: `#${task.documentId}`,
-      title: task.formName || task.documentName || 'No Title',
-      user: task.userName, // No fallback needed since we filtered out empty ones
-      borderColor,
-      bg,
-      type: taskType,
-      startDate: task.startDate,
-      endDate: task.endDate,
-      scheduleType: task.scheduleType,
-      rawStartTime: startTime,
-      duration: durationMinutes,
-    };
+
+const now = new Date();
+const isActive = task.scheduleType === 'SCHEDULED' && 
+                 now >= startTime && 
+                 now < endTime;
+
+const ACTIVE_BLUE = '#0088E7';
+const SCHEDULED_ORANGE = '#E09200';
+const COMPLETED_GREEN = '#11A330';
+const EXPIRED_RED = '#E4190A';
+
+let borderColor = BLUE; // Default
+let bg = '#E3F2FD'; // Light blue background
+let effectiveScheduleType = task.scheduleType;
+
+// Determine border color and background based on scheduleType and current time
+if (isActive) {
+  borderColor = ACTIVE_BLUE;
+  bg = '#E6F1FB';
+  effectiveScheduleType = 'ACTIVE';
+} else if (task.scheduleType === 'EXPIRED') {
+  borderColor = EXPIRED_RED;
+  bg = '#FDEBEB';
+} else if (task.scheduleType === 'COMPLETED') {
+  borderColor = COMPLETED_GREEN;
+  bg = '#ECEFF3';
+} else if (task.scheduleType === 'SCHEDULED') {
+  borderColor = SCHEDULED_ORANGE;
+  bg = '#FEF4E6';  // Light orange background for scheduled
+} else if (task.scheduleType === 'ON_TIME') {
+  borderColor = BLUE;
+  bg = '#E3F2FD';
+}
+return {
+  id: task.webId.toString(),
+  hour: formatTime(startTime),
+  number: `#${task.documentId}`,
+  title: task.formName || task.documentName || 'No Title',
+  user: task.userName,
+  borderColor,
+  bg,
+  type: taskType,
+  startDate: task.startDate,
+  endDate: task.endDate,
+  scheduleType: effectiveScheduleType, // Use the modified schedule type
+  notesCount: task.notesCount ?? 0,
+  rawStartTime: startTime,
+  duration: durationMinutes,
+  slots,
+  slotCount: slots.length,
+  formDefinitionId: task.formDefinitionId,
+};
   });
 }
 
@@ -217,7 +216,12 @@ function getTasksByHour(tasks: any[], hour: string) {
     'tasks by hour: ',
     tasks.filter(t => t.hour === hour),
   );
-  return tasks.filter(t => t.hour === hour);
+  // Render only once at the starting slot to avoid duplicates across covered slots
+  return tasks.filter(t =>
+    Array.isArray(t.slots) && t.slots.length > 0
+      ? t.slots[0] === hour
+      : t.hour === hour,
+  );
 }
 
 // Replace the formatDateForAPI function with this:
@@ -281,6 +285,8 @@ export default function CalendarAgendaScreen({ navigation }) {
   const [calendarVisible, setCalendarVisible] = useState(false);
 
   const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
 
   const logoutMutation = useLogout({
     onSuccess: () => {
@@ -316,18 +322,19 @@ export default function CalendarAgendaScreen({ navigation }) {
 
       const response = await apiService.get(url);
       console.log('Schedule tasks response:', response.data);
-      console.log('Tasks count:', response.data?.length || 0);
+      const tasksArray = response.data as unknown as any[];
+      console.log('Tasks count:', (Array.isArray(tasksArray) ? tasksArray.length : 0));
 
       return response.data as TaskSchedulingModel[];
     },
   });
 
-  // Add this after the formattedTasks line for debugging:
-  console.log('Formatted tasks:', formattedTasks);
-  console.log('Selected date for display:', selectedDate.toDateString());
-
   // Format tasks for UI
   const formattedTasks = tasksData ? formatTasksForUI(tasksData) : [];
+
+  // Debug logs after formattedTasks is defined
+  console.log('Formatted tasks:', formattedTasks);
+  console.log('Selected date for display:', selectedDate.toDateString());
 
   const handleDateSelect = (newDate: Date) => {
     setSelectedDate(newDate);
@@ -355,6 +362,43 @@ export default function CalendarAgendaScreen({ navigation }) {
       day: '2-digit',
     });
   };
+const normalizeStatus = (status: string = '') => {
+  const s = (status || '').trim().toLowerCase();
+  if (s === 'schedule' || s === 'scheduled') return 'Scheduled';
+  if (s === 'active') return 'Active';
+  if (s === 'expired') return 'Expired';
+  if (s === 'completed') return 'Completed';
+  return status || '';
+};
+  const STATUS_COLORS: Record<string, string> = {
+    Active: '#0088E7',
+    Scheduled: '#E09200',
+    Completed: '#11A330',
+    Expired: '#E4190A',
+  };
+  const STATUS_BG_COLORS: Record<string, string> = {
+    Active: '#E6F1FB',
+    Scheduled: '#E6FAEF',
+    Completed: '#ECEFF3',
+    Expired: '#FDEBEB',
+  };
+  const formatTaskDateRange = (startDate: any, endDate: any) => {
+    const format = (date: any) => {
+      if (!date) return '';
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return '';
+      return (
+        d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
+        ' ' +
+        d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true })
+      );
+    };
+    if (startDate && endDate) {
+      if (startDate === endDate) return format(startDate);
+      return `${format(startDate)} - ${format(endDate)}`;
+    }
+    return format(startDate || endDate);
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BLUE }}>
@@ -367,7 +411,7 @@ export default function CalendarAgendaScreen({ navigation }) {
             onPress={() => navigation.goBack()}
           />
         </TouchableOpacity>
-        <Pressable
+        <RNPressable
           style={styles.headerTitle}
           onPress={() => setCalendarVisible(true)}
         >
@@ -380,7 +424,7 @@ export default function CalendarAgendaScreen({ navigation }) {
           <Text style={{ fontSize: 18, fontWeight: '600', color: '#fff' }}>
             {formattedDate()}
           </Text>
-        </Pressable>
+        </RNPressable>
         <TouchableOpacity>
           <ThreeDotIcon
             width={20}
@@ -390,13 +434,13 @@ export default function CalendarAgendaScreen({ navigation }) {
         </TouchableOpacity>
       </View>
       {/* Floating Calendar Modal */}
-      <Modal
+      <RNModal
         visible={calendarVisible}
         transparent
         animationType="fade"
         onRequestClose={() => setCalendarVisible(false)}
       >
-        <Pressable
+        <RNPressable
           style={styles.modalBackdrop}
           onPress={() => setCalendarVisible(false)}
         >
@@ -434,8 +478,8 @@ export default function CalendarAgendaScreen({ navigation }) {
               style={{ borderRadius: 18 }}
             />
           </View>
-        </Pressable>
-      </Modal>
+        </RNPressable>
+      </RNModal>
 
       {/* Day Selector */}
       <View style={styles.daysOuter}>
@@ -529,111 +573,223 @@ export default function CalendarAgendaScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           ) : (
-            HOUR_LIST.map(hour => (
-              <View key={hour} style={styles.hourBlock}>
-                {/* Horizontal grid line */}
-                <View style={styles.gridLine} />
-                <View style={styles.hourRow}>
-                  {/* Time label */}
-                  <View style={styles.hourLabelWrap}>
-                    <Text style={styles.hourLabel}>{hour}</Text>
+            <View style={{ minHeight: HOUR_LIST.length * SLOT_HEIGHT, position: 'relative' }}>
+              {HOUR_LIST.map(hour => (
+                <View key={hour} style={styles.hourBlock}>
+                  {/* Horizontal grid line */}
+                  <View style={styles.gridLine} />
+                  <View style={styles.hourRow}>
+                    {/* Time label */}
+                    <View style={styles.hourLabelWrap}>
+                      <Text style={styles.hourLabel}>{hour}</Text>
+                    </View>
+                    {/* Empty space for grid; tasks are rendered in overlay */}
+                    <View style={styles.tasksRow} />
                   </View>
-                  {/* Tasks */}
-                  <ScrollView
-                    horizontal
-                    style={styles.tasksRow}
-                    contentContainerStyle={styles.tasksScrollContent}
-                    showsHorizontalScrollIndicator={false}
-                  >
-                    {getTasksByHour(formattedTasks, hour).map(item => (
-                      <View
-                        key={item.id}
-                        style={[
-                          styles.taskCard,
-                          {
-                            borderColor: item.borderColor,
-                            backgroundColor: item.bg,
-                            minWidth: item.type === 'mini' ? 120 : 150,
-                            maxWidth: item.type === 'mini' ? 150 : 250,
-                            shadowColor: '#184B74',
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.12,
-                            shadowRadius: 6,
-                            elevation: 3,
-                          },
-                        ]}
-                      >
-                        <View style={styles.taskMetaRow}>
-                          <Text style={styles.taskNumber}>{item.number}</Text>
-                          <View style={styles.taskUserPill}>
-                            <Text style={styles.taskUserText}>
-                              {item.type === 'mini'
-                                ? item.user.split(' ')[0]
-                                : item.user}
-                            </Text>
-                          </View>
-                        </View>
-                        <Text
-                          style={[
-                            styles.taskTitle,
-                            { fontSize: item.type === 'mini' ? 11 : 12 },
-                          ]}
-                          numberOfLines={item.type === 'mini' ? 2 : 3}
-                        >
-                          {item.title}
-                        </Text>
-                        {item.scheduleType && (
-                          <Text
-                            style={[
-                              styles.taskScheduleType,
-                              {
-                                color:
-                                  item.scheduleType === 'EXPIRED'
-                                    ? RED
-                                    : item.scheduleType === 'SCHEDULED'
-                                    ? GREEN
-                                    : BLUE,
-                                fontSize: item.type === 'mini' ? 9 : 10,
-                                fontWeight: '500',
-                                marginTop: 2,
-                              },
-                            ]}
-                          >
-                            {item.scheduleType}
-                          </Text>
-                        )}
-                        {/* {item.duration && (
-    <Text
-      style={{
-        color: GRAY,
-        fontSize: item.type === 'mini' ? 8 : 9,
-        marginTop: 1,
-      }}
-    >
-      {item.duration}min
-    </Text>
-  )} */}
-                      </View>
-                    ))}
-                    {getTasksByHour(formattedTasks, hour).length === 0 && (
-                      <Text
-                        style={{
-                          color: GRAY,
-                          fontSize: 12,
-                          fontStyle: 'italic',
-                        }}
-                      ></Text>
-                    )}
-                  </ScrollView>
                 </View>
+              ))}
+
+              {/* Absolute-positioned task overlay spanning multiple slots */}
+              <View style={styles.overlayContainer}>
+                {(() => {
+                  const groups: Record<number, any[]> = {};
+                  formattedTasks
+                    .filter(t => Array.isArray(t.slots) && t.slots.length > 0)
+                    .forEach(item => {
+                      const startIndex = HOUR_LIST.indexOf(item.slots[0]);
+                      if (startIndex >= 0) {
+                        if (!groups[startIndex]) groups[startIndex] = [];
+                        groups[startIndex].push(item);
+                      }
+                    });
+
+                  return Object.entries(groups).map(([indexStr, items]) => {
+                    const index = Number(indexStr);
+                    const top = index * SLOT_HEIGHT + 4;
+                    const height = Math.max(
+                      54,
+                      ...items.map(it => (it.slotCount || 1) * SLOT_HEIGHT - 8),
+                    );
+                    return (
+                      <View key={`band-${index}`} style={[styles.overlayBand, { top, height }]}>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.overlayBandScrollContent}
+                        >
+{items.map(item => (
+  <RNPressable
+    key={item.id}
+    style={[
+      styles.taskCard,
+      {
+        position: 'relative',
+        height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
+        borderColor: item.borderColor,
+        backgroundColor: item.bg,
+        marginRight: 14,
+        width: item.type === 'mini' ? 140 : 220,  // Fixed width instead of min/max
+      },
+    ]}
+                              onPress={() => {
+                                setSelectedTask(item);
+                                setShowTaskModal(true);
+                              }}
+                            >
+                              <View style={styles.taskMetaRow}>
+                                <Text style={styles.taskNumber}>{item.number}</Text>
+                                <View style={styles.taskUserPill}>
+                                  <Text style={styles.taskUserText}>
+                                    {item.type === 'mini'
+                                      ? item.user.split(' ')[0]
+                                      : item.user}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text
+                                style={[
+                                  styles.taskTitle,
+                                  { fontSize: item.type === 'mini' ? 11 : 12 },
+                                ]}
+                                numberOfLines={item.type === 'mini' ? 2 : 3}
+                              >
+                                {item.title}
+                              </Text>
+                            </RNPressable>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    );
+                  });
+                })()}
               </View>
-            ))
+              
+            </View>
           )}
         </ScrollView>
       </View>
 
+      {/* Task Details Modal */}
+      <RNModal
+        visible={showTaskModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTaskModal(false)}
+      >
+        <RNPressable style={styles.modalBackdrop} onPress={() => setShowTaskModal(false)}>
+          <View style={styles.taskModalBox}>
+            {selectedTask ? (
+              <>
+                {(() => {
+                  const normalizedStatus = normalizeStatus(selectedTask.scheduleType);
+                  const statusColor = STATUS_COLORS[normalizedStatus] || '#0088E7';
+                  const statusBg = STATUS_BG_COLORS[normalizedStatus] || '#E6F1FB';
+                  const dateRange = formatTaskDateRange(selectedTask.startDate, selectedTask.endDate);
+                  // Enable Get Started only when Active and within time range
+                  const now = new Date();
+                  const start = new Date(selectedTask.startDate);
+                  const end = new Date(selectedTask.endDate);
+                  const isCurrentlyActive = normalizedStatus === 'Active' && now >= start && now <= end;
+                  const canStart = isCurrentlyActive;
+                  const progressPct = Math.min(100, Math.round(((selectedTask.slotCount || 1) * 30) / ((selectedTask.duration || 30)) * 100));
+
+                  return (
+                    <>
+                      {/* Top row: Number and Status */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                        <Text style={{ color: statusColor, fontWeight: '500', fontSize: 15 }}>{selectedTask.number}</Text>
+                        <View style={{ flex: 1 }} />
+                        <View style={{ backgroundColor: statusColor, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 4 }}>
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '500' }}>{normalizedStatus || 'Active'}</Text>
+                        </View>
+                      </View>
+
+                      {/* Title */}
+                      <Text style={{ color: '#222E44', fontWeight: '700', fontSize: 17 }}>{selectedTask.title}</Text>
+
+                      {/* Date range under title */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                        <CalendarIcon width={15} height={15} />
+                        <Text style={{ color: '#676869ff', fontSize: 11, marginLeft: 8 }}>{dateRange}</Text>
+                      </View>
+
+                      {/* Progress bar */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+                        <View style={{ flex: 1, height: 6, backgroundColor: statusBg, borderRadius: 6, overflow: 'hidden', marginRight: 8 }}>
+                          <View style={{ height: 6, width: `${progressPct}%`, backgroundColor: statusColor, borderRadius: 6 }} />
+                        </View>
+                        <Text style={{ color: '#222E44', fontWeight: '400', fontSize: 12 }}>{`${progressPct}%`}</Text>
+                      </View>
+
+                      {/* Summary section */}
+                      <View style={{ backgroundColor: '#F7F9FC', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', marginTop: 14 }}>
+                        <View style={{ flexDirection: 'row', padding: 12 }}>
+                          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                            <UserIcon width={14} height={14} />
+                            <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Reassign</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', opacity: 0.6 }}>
+                            <SettingsIcon width={14} height={14} />
+                            <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Devices</Text>
+                            <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                              <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>0</Text>
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+                        <View style={{ flexDirection: 'row', padding: 12, paddingTop: 0 }}>
+                          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                            <MenuIcon width={14} height={14} />
+                            <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Sections</Text>
+                            <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                              <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>0</Text>
+                            </View>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', opacity: 0.6 }}>
+                            <NotesIcon width={14} height={14} />
+                            <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Notes</Text>
+                            <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                              <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{selectedTask.notesCount ?? 0}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {/* Get Started button */}
+                      <TouchableOpacity
+                        disabled={!canStart}
+                        onPress={() => {
+                          if (canStart && selectedTask) {
+                            setShowTaskModal(false);
+                      navigation.navigate('Task', {
+                        screen: 'Section',
+                        params: {
+                          formDefinitionId: selectedTask.formDefinitionId || selectedTask.id,
+                          status: selectedTask.scheduleType,
+                        },
+                      });
+                          }
+                        }}
+                        style={{ 
+                          backgroundColor: canStart ? '#1292E6' : '#bac0cdff', 
+                          paddingVertical: 12, 
+                          borderRadius: 10, 
+                          alignItems: 'center', 
+                          marginTop: 14 
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: '700' }}>Get Started</Text>
+                      </TouchableOpacity>
+                    </>
+                  );
+                })()}
+              </>
+            ) : null}
+          </View>
+        </RNPressable>
+      </RNModal>
+
       {/* Dropdown Modal */}
-      <Modal
+      <RNModal
         visible={showDropdown}
         transparent={true}
         animationType="fade"
@@ -674,7 +830,7 @@ export default function CalendarAgendaScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-      </Modal>
+      </RNModal>
     </SafeAreaView>
   );
 }
@@ -768,7 +924,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    top: 0,
+    // top: -4,
     height: 1,
     backgroundColor: '#E1E8F0',
     zIndex: 0,
@@ -777,38 +933,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginTop: 0,
-    minHeight: 88,
+    minHeight: 60,
   },
+  // hourLabelWrap: {
+  //   width: 80,
+  //   alignItems: 'flex-end',
+  //   paddingTop: 0,
+  //   borderRightWidth: 0.5,
+  //   borderRightColor: '#bec2c7ff',
+  // },
   hourLabelWrap: {
-    width: 80,
-    alignItems: 'flex-end',
-    paddingTop: 18,
-    borderRightWidth: 0.5,
-    borderRightColor: '#bec2c7ff',
-  },
+  width: 80,
+  alignItems: 'flex-end',
+  paddingTop: 0,
+  marginTop: -1,  // Add negative margin to move text up to touch the line
+  borderRightWidth: 0.5,
+  borderRightColor: '#bec2c7ff',
+  // borderRightColor: '#bec2c7ff',
+},
   hourLabel: {
     color: GRAY,
     fontSize: 12,
     fontWeight: '600',
     marginRight: 9,
   },
-  // tasksRow: {
-  //   flex: 1,
-  //   flexDirection: 'row',
-  //   alignItems: 'flex-start',
-  //   marginLeft: 4,
-  //   marginTop: 8,
-  // },
   taskCard: {
     borderWidth: 1,
     borderRadius: 8,
     marginRight: 14,
     marginBottom: 4,
-    padding: 12,
+    padding: 8,
     minHeight: 54,
     backgroundColor: '#fff',
     justifyContent: 'flex-start',
   },
+taskOverlayCard: {
+  position: 'absolute',
+  left: 88,
+  right: 90,
+  marginRight: 0,
+},
   taskMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -839,6 +1003,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
     marginTop: 2,
+  },
+  taskScheduleType: {
+    color: GRAY,
   },
   bottomNav: {
     height: 60,
@@ -874,6 +1041,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  taskModalBox: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+    minWidth: 320,
+    maxWidth: 420,
+  },
   tasksScrollContent: {
     paddingRight: 16,
     alignItems: 'flex-start',
@@ -884,6 +1063,24 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     marginTop: 8,
   },
+  overlayContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+overlayBand: {
+  position: 'absolute',
+  left: 88,  // Start after the time labels
+  right: 0,  // Changed from 90 to 0 to extend full width
+  paddingRight: 16,  // Add padding instead of margin
+},
+overlayBandScrollContent: {
+  paddingRight: 16,
+  alignItems: 'flex-start',
+  flexDirection: 'row',  // Add this to ensure horizontal layout
+},
   dropdownOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.18)',
