@@ -451,13 +451,14 @@ export default function ChatScreen({ navigation }) {
           <Text style={styles.chatEmail}>{getParticipantText()}</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.chatTime}>
-            {new Date(item.createdDate).toLocaleDateString()} at{' '}
-            {new Date(item.createdDate).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
+        <Text style={styles.chatTime}>
+          {new Date(item.createdDate).toLocaleDateString()} at{' '}
+          {new Date(item.createdDate).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          })}
+        </Text>
           {selectedChat?.webId === item.webId && isRealTimeActive && (
             <View style={styles.realtimeIndicator}>
               <View style={styles.realtimeDot} />
@@ -513,9 +514,10 @@ export default function ChatScreen({ navigation }) {
               { color: isMe ? '#E6F1FB' : '#7A8194' },
             ]}
           >
-            {new Date(message.sentDate).toLocaleTimeString([], {
+            {new Date(message.sentDate).toLocaleTimeString('en-US', {
               hour: '2-digit',
               minute: '2-digit',
+              hour12: true,
             })}
           </Text>
         </View>
