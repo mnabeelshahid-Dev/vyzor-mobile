@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Calendar } from 'react-native-calendars';
 import { useRoute } from '@react-navigation/native';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -39,6 +40,21 @@ import { useAuthStore } from '../../../store/authStore';
 
 
 export default function TaskScreen({ navigation }) {
+  // Auto-clear filters and refetch when screen regains focus
+  useFocusEffect(
+    React.useCallback(() => {
+      setFilterStatus('');
+      setFilterDate('');
+      setSearch('');
+      // Reset start/end date to wide range
+      const defaultStart = new Date(1970, 0, 1, 0, 0, 0, 0);
+      const defaultEnd = new Date(2099, 11, 31, 23, 59, 59, 0);
+      setStartDate(formatDateWithOffset(defaultStart, 0, 0, 0, 0));
+      setEndDate(formatDateWithOffset(defaultEnd, 23, 59, 59, 0));
+      // Refetch API
+      setTimeout(() => refetch(), 0);
+    }, [])
+  );
   const user = useAuthStore((state) => state.user);
   
   // State
