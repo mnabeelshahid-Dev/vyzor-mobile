@@ -52,8 +52,9 @@ export default function TaskScreen({ navigation }) {
   const [search, setSearch] = useState('');
   const [showSortModal, setShowSortModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  // Default sorting: status ascending (ACTIVE, SCHEDULED, EXPIRED, COMPLETED)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [sortField, setSortField] = useState<'name' | 'status'>('name');
+  const [sortField, setSortField] = useState<'name' | 'status'>('status');
   // Main filter state
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDate, setFilterDate] = useState('');
@@ -242,18 +243,38 @@ export default function TaskScreen({ navigation }) {
 
   // Sorting logic
   let sortedTasks = [...filteredTasks];
-  // Custom order for scheduleType: ACTIVE, SCHEDULED, COMPLETED, EXPIRED
-  const scheduleTypeOrder = ['ACTIVE', 'SCHEDULED', 'COMPLETED', 'EXPIRED'];
+  // Custom order for display status: ACTIVE, SCHEDULED, EXPIRED, COMPLETED
+  const displayStatusOrder = ['ACTIVE', 'SCHEDULED', 'EXPIRED', 'COMPLETED'];
+  function getDisplayStatus(task) {
+    const rawStatus = (task.scheduleType || task.siteStatus || task.status || '').toUpperCase();
+    const now = new Date();
+    const start = new Date(task.startDate);
+    const end = new Date(task.endDate);
+    const isEnabled = now >= start && now <= end;
+    if (rawStatus === 'SCHEDULED') {
+      return isEnabled ? 'ACTIVE' : 'SCHEDULED';
+    }
+    if (rawStatus === 'OUTSIDE_PERIOD' || rawStatus === 'ON_TIME') {
+      return 'COMPLETED';
+    }
+    if (rawStatus === 'EXPIRED') return 'EXPIRED';
+    if (rawStatus === 'COMPLETED') return 'COMPLETED';
+    // Fallback to rawStatus
+    return rawStatus;
+  }
+  // Attach display status to each task for rendering
+  sortedTasks = sortedTasks.map(task => ({ ...task, displayStatus: getDisplayStatus(task) }));
   sortedTasks.sort((a, b) => {
     if (sortField === 'status') {
-      // Sort by scheduleType/status
-      const aType = (a.scheduleType || a.siteStatus || a.status || '').toUpperCase();
-      const bType = (b.scheduleType || b.siteStatus || b.status || '').toUpperCase();
-      const aIdx = scheduleTypeOrder.indexOf(aType);
-      const bIdx = scheduleTypeOrder.indexOf(bType);
-      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-      if (aIdx !== -1) return -1;
-      if (bIdx !== -1) return 1;
+      const aType = a.displayStatus;
+      const bType = b.displayStatus;
+      const aIdx = displayStatusOrder.indexOf(aType);
+      const bIdx = displayStatusOrder.indexOf(bType);
+      if (aIdx !== -1 && bIdx !== -1) {
+        return sortOrder === 'asc' ? aIdx - bIdx : bIdx - aIdx;
+      }
+      if (aIdx !== -1) return sortOrder === 'asc' ? -1 : 1;
+      if (bIdx !== -1) return sortOrder === 'asc' ? 1 : -1;
       return 0;
     } else if (sortField === 'name') {
       if (!a.formName || !b.formName) return 0;
@@ -329,18 +350,13 @@ export default function TaskScreen({ navigation }) {
   // Memoized Task Card for FlatList performance
   const TaskCard = React.memo(({ item }: any) => {
     // ...existing code from renderTask...
-    const normalizeStatus = (status: string = '') => {
-      const s = status.trim().toLowerCase();
-      if (s === 'schedule' || s === 'scheduled' || s === 'schedule') return 'Scheduled';
-      if (s === 'active') return 'Active';
-      if (s === 'expired') return 'Expired';
-      if (s === 'completed') return 'Completed';
-      return status;
-    };
-    const normalizedStatus = normalizeStatus(item.scheduleType)
-    const statusColor = STATUS_COLORS[normalizedStatus] || '#0088E7';
-    const statusBg = STATUS_BG_COLORS[normalizedStatus] || '#E6F1FB';
-    const statusText = item.normalizedStatus || item.scheduleType;
+  // Use displayStatus for badge and colors
+  const displayStatus = item.displayStatus || item.scheduleType;
+  // Map displayStatus to STATUS_COLORS using capitalized key
+  const colorKey = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1).toLowerCase();
+  const statusColor = STATUS_COLORS[colorKey] || '#0088E7';
+  const statusBg = STATUS_BG_COLORS[colorKey] || '#E6F1FB';
+  const statusText = displayStatus;
 
     function formatTaskDateRange(startDate: any, endDate: any) {
       if (!startDate && !endDate) return 'No date';
