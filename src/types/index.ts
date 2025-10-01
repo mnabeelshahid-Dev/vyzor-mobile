@@ -49,6 +49,7 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   message?: string;
   errors?: Record<string, string[]>;
+  error_description?: string;
 }
 
 export interface PaginatedResponse<T = unknown> {

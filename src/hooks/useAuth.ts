@@ -26,11 +26,15 @@ export const useLogin = () => {
       email: string;
       password: string;
     }) => {
-      const success = await login(email, password);
-      if (!success) {
-        throw new Error('Login failed');
+      try {
+        const success = await login(email, password);
+        return success;
+      } catch (error: any) {
+        // Log the full error object for debugging
+        console.log('====================================>>>', error);
+        // Throw the full error object so UI can access backend message
+        throw error;
       }
-      return success;
     },
     onSuccess: () => {
       showSuccessToast(

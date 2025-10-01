@@ -23,6 +23,7 @@ import PasswordIcon from '../../../assets/svgs/passwordIcon.svg';
 import CheckIcon from '../../../assets/svgs/checkIcon.svg';
 import EyeSlash from '../../../assets/svgs/eyeSlash.svg';
 import GoogleIcon from '../../../assets/svgs/googleIcon.svg';
+import { parseApiError } from '../../../utils/errorHandler';
 type RootStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -40,11 +41,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   // Password strength indicator removed
 
   const styles = useThemedStyles(createStyles);
@@ -58,15 +58,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       StatusBar.setBarStyle('light-content', true);
     }, [])
   );
-
-  // Password requirements function removed
-
-  /**
-   * Only email validation for login
-   */
-  const validateForm = async (): Promise<boolean> => {
-    return validateEmailOnBlur();
-  };
 
   /**
    * Handles email input change
@@ -115,6 +106,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   const handleLogin = async () => {
     let valid = true;
+
     if (!email.trim()) {
       setEmailError('Email is required');
       valid = false;
@@ -124,12 +116,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     } else {
       setEmailError('');
     }
+
     if (!password.trim()) {
       setPasswordError('Password is required');
       valid = false;
     } else {
       setPasswordError('');
     }
+
     if (!valid) return;
 
     try {
@@ -137,14 +131,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         email: email.trim(),
         password: password.trim(),
       });
-      // If login is successful, modal stays hidden
+
+      // Reset errors on success
       setErrorModalVisible(false);
-    } catch (error) {
-      // Show modal only if login fails
+      setErrorMessage('');
+    } catch (error: any) {
+      console.log('====================================');
+      console.log('❌ Login failed:', error);
+      console.log('====================================');
+      const apiMessage = parseApiError(error);
+      setErrorMessage(apiMessage);
       setErrorModalVisible(true);
-      console.log('Login error:', error);
+      console.log("Final error message shown:", apiMessage);
     }
+
   };
+
 
   const handleNavigateToRegister = () => {
     navigation.navigate('Register');
@@ -156,24 +158,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   const togglePasswordVisibility = () => {
     setIsPasswordVisible(!isPasswordVisible);
-  };
-
-  const handleEmailFocus = () => {
-    setEmailFocused(true);
-  };
-
-  const handleEmailBlur = () => {
-    setEmailFocused(false);
-    validateEmailOnBlur();
-  };
-
-  const handlePasswordFocus = () => {
-    setPasswordFocused(true);
-  };
-
-  const handlePasswordBlur = () => {
-    setPasswordFocused(false);
-    // No password validation
   };
 
   /**
@@ -218,7 +202,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       <ErrorModal
         visible={errorModalVisible}
         onClose={() => setErrorModalVisible(false)}
-        message={'Your email/password is incorrect'}
+        message={errorMessage || 'Your email/password is incorrect'}
       />
       <KeyboardAvoidingView
         style={styles.container}
@@ -234,7 +218,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           scrollEnabled={true}
         >
           {/* Blue Gradient Background */}
-          <View style={[styles.gradientBackground, { minHeight: '100%' }]}> 
+          <View style={[styles.gradientBackground, { minHeight: '100%' }]}>
             {/* Logo Section - Updated to match UI */}
             <View style={styles.logoSection}>
               <View style={styles.logoContainer}>
@@ -245,7 +229,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               </View>
             </View>
             {/* Login Card */}
-            <View style={[styles.loginCard, { marginBottom: 32 }]}> {/* Add marginBottom for spacing */}
+            <View style={[styles.loginCard]}> {/* Add marginBottom for spacing */}
               <Text style={styles.cardTitle}>Sign In</Text>
               <Text style={styles.cardSubtitle}>Sign in to your account</Text>
               <View style={styles.form}>
@@ -254,9 +238,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   label="Email"
                   value={email}
                   onChangeText={handleEmailChange}
-                  onFocus={handleEmailFocus}
                   onBlur={() => {
-                    handleEmailBlur();
                     validateEmailOnBlur();
                   }}
                   keyboardType="email-address"
@@ -275,8 +257,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   label="Password"
                   value={password}
                   onChangeText={handlePasswordChange}
-                  onFocus={handlePasswordFocus}
-                  onBlur={handlePasswordBlur}
                   secureTextEntry={!isPasswordVisible}
                   textContentType="password"
                   autoCapitalize="none"
@@ -355,7 +335,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 </View>
 
                 {/* Sign Up Link */}
-                <View style={[styles.signUpContainer]}>
+                <View style={styles.signUpContainer}>
                   <Text style={styles.signUpText}>Don't have an account? </Text>
                   <TouchableOpacity
                     onPress={handleNavigateToRegister}

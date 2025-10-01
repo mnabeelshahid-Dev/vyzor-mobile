@@ -80,11 +80,14 @@ export class ApiClient {
           message: data.message,
         };
       } else {
+        // Prefer error_description from backend if present
+        const errorMsg = data.error_description || data.message || `Request failed with status ${response.status}`;
         return {
           success: false,
-          error: data.message || `HTTP ${response.status}`,
-          message:
-            data.message || `Request failed with status ${response.status}`,
+          error: errorMsg,
+          message: errorMsg,
+          error_description: data.error_description,
+          data,
         };
       }
     } catch (error: any) {

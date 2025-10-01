@@ -38,53 +38,85 @@ export const authApi = {
 
     console.log('🔐 [AUTH] Form data:', formData.toString());
 
-    const response = await oauthClient.post<any>('/oauth/token', formData);
+    try {
+      const response = await oauthClient.post<any>('/oauth/token', formData);
 
-    console.log('🔐 [AUTH] API response:', {
-      success: response.success,
-      hasData: !!response.data,
-      hasAccessToken: !!(response.data && response.data.access_token),
-    });
+      console.log('🔐 [AUTH] API response:', {
+        success: response.success,
+        hasData: !!response.data,
+        hasAccessToken: !!(response.data && response.data.access_token),
+      });
 
-    if (response.success && response.data && response.data.access_token) {
-      console.log('🔐 [AUTH] Login successful, processing response...');
+      if (response.success && response.data && response.data.access_token) {
+        console.log('🔐 [AUTH] Login successful, processing response...');
 
-      const result = {
-        success: true,
-        message: 'Login successful',
-        data: {
-          user: {
-            id: 'user-id', // Will be populated from user profile API later
-            email: email,
-            name: email.split('@')[0], // Use email prefix as temporary name
-            firstName: email.split('@')[0],
-            lastName: '',
-            dateOfBirth: '',
-            phoneNumber: '',
-            emailVerified: true, // Assume verified since login succeeded
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+        const result = {
+          success: true,
+          message: 'Login successful',
+          data: {
+            user: {
+              id: 'user-id', // Will be populated from user profile API later
+              email: email,
+              name: email.split('@')[0], // Use email prefix as temporary name
+              firstName: email.split('@')[0],
+              lastName: '',
+              dateOfBirth: '',
+              phoneNumber: '',
+              emailVerified: true, // Assume verified since login succeeded
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            tokens: {
+              accessToken: response.data.access_token,
+              refreshToken: response.data.refresh_token || '',
+              expiresIn: response.data.expires_in || 3600,
+            },
           },
-          tokens: {
-            accessToken: response.data.access_token,
-            refreshToken: response.data.refresh_token || '',
-            expiresIn: response.data.expires_in || 3600,
-          },
+        };
+
+        console.log('🔐 [AUTH] Returning successful result');
+        return result;
+      }
+
+      // Debug: print response.data for failed login
+      console.log('🔐 [AUTH] Failed login response.data:', response.data);
+      let errorMsg = 'Login failed';
+      if (response.data) {
+        if (response.data.error_description) {
+          errorMsg = response.data.error_description;
+        } else if (response.data.message) {
+          errorMsg = response.data.message;
+        } else if (response.data.error) {
+          errorMsg = response.data.error;
+        }
+      } else if (response.message) {
+        errorMsg = response.message;
+      }
+      return {
+        success: false,
+        message: errorMsg,
+        errors: {
+          email: [errorMsg],
         },
       };
-
-      console.log('🔐 [AUTH] Returning successful result');
-      return result;
+    } catch (error: any) {
+      // Network or backend error
+      let errorMsg = 'Login failed';
+      if (error?.response?.data?.error_description) {
+        errorMsg = error.response.data.error_description;
+      } else if (error?.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      } else if (error?.message) {
+        errorMsg = error.message;
+      }
+      return {
+        success: false,
+        message: errorMsg,
+        errors: {
+          email: [errorMsg],
+        },
+      };
     }
-
-    console.log('🔐 [AUTH] Login failed:', response.message);
-    return {
-      success: false,
-      message: response.message || 'Login failed',
-      errors: {
-        email: [response.message || 'Invalid credentials'],
-      },
-    };
   },
 
   async register(
