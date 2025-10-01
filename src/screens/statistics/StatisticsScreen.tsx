@@ -206,9 +206,9 @@ export default function StatisticsScreen({ navigation }) {
       const startDateObj = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
       updatedStartDate = formatDateWithOffset(startDateObj, true);
     }
-          console.log('====================================');
-          console.log(updatedStartDate, updatedEndDate);
-          console.log('====================================');
+    console.log('====================================');
+    console.log(updatedStartDate, updatedEndDate);
+    console.log('====================================');
     if (user?.id) {
       setStatisticsParams((prev) => ({
         ...prev,
@@ -246,16 +246,16 @@ export default function StatisticsScreen({ navigation }) {
     enabled: Array.isArray(statisticsParams.userIds) && statisticsParams.userIds.length > 0,
   });
 
-  
+
 
   const statsTyped = (statsData as { data?: { content?: any[] } })?.data?.content[0] as any || {};
   const stats = {
-  onTime: Number(statsTyped.onTime) || 0,
-  outside: Number(statsTyped.outsidePeriod) || 0,
-  expired: Number(statsTyped.expire) || 0,
-  totalOnTime: Number(statsTyped.previousOnTime) || 0,
-  totalOutside: Number(statsTyped.previousOutsidePeriod) || 0,
-  totalExpired: Number(statsTyped.previousExpire) || 0,
+    onTime: Number(statsTyped.onTime) || 0,
+    outside: Number(statsTyped.outsidePeriod) || 0,
+    expired: Number(statsTyped.expire) || 0,
+    totalOnTime: Number(statsTyped.previousOnTime) || 0,
+    totalOutside: Number(statsTyped.previousOutsidePeriod) || 0,
+    totalExpired: Number(statsTyped.previousExpire) || 0,
   };
   const progress = {
     onTime: parseFloat(statsTyped.onTimePercentage),
@@ -456,24 +456,24 @@ export default function StatisticsScreen({ navigation }) {
   };
 
   // --- Date Range Picker Logic ---
-const startDateObj = statisticsParams.startDate ? new Date(statisticsParams.startDate) : new Date();
-const endDateObj = statisticsParams.endDate ? new Date(statisticsParams.endDate) : new Date();
-const getStartDateMax = () => {
-  if (statisticsParams.endDate) {
-    const d = new Date(statisticsParams.endDate);
-    // Allow same day selection for start and end date
-    return d < new Date() ? d : new Date();
-  }
-  return new Date();
-};
-const getEndDateMin = () => {
-  if (statisticsParams.startDate) {
-    const d = new Date(statisticsParams.startDate);
-    // Allow same day selection for start and end date
-    return d;
-  }
-  return undefined;
-};
+  const startDateObj = statisticsParams.startDate ? new Date(statisticsParams.startDate) : new Date();
+  const endDateObj = statisticsParams.endDate ? new Date(statisticsParams.endDate) : new Date();
+  const getStartDateMax = () => {
+    if (statisticsParams.endDate) {
+      const d = new Date(statisticsParams.endDate);
+      // Allow same day selection for start and end date
+      return d < new Date() ? d : new Date();
+    }
+    return new Date();
+  };
+  const getEndDateMin = () => {
+    if (statisticsParams.startDate) {
+      const d = new Date(statisticsParams.startDate);
+      // Allow same day selection for start and end date
+      return d;
+    }
+    return undefined;
+  };
 
   const handleStartDateChange = (date) => {
     const newStartDate = formatDateWithOffset(date, true);
@@ -574,18 +574,18 @@ const getEndDateMin = () => {
         customBackdrop={null}
         panResponderThreshold={4}
         swipeThreshold={100}
-        onModalShow={() => {}}
-        onModalWillShow={() => {}}
-        onModalHide={() => {}}
-        onModalWillHide={() => {}}
-        onModalDismiss={() => {}}
+        onModalShow={() => { }}
+        onModalWillShow={() => { }}
+        onModalHide={() => { }}
+        onModalWillHide={() => { }}
+        onModalDismiss={() => { }}
         onBackButtonPress={() => setFilterModal(false)}
-        onSwipeComplete={() => {}}
+        onSwipeComplete={() => { }}
         swipeDirection={null}
         scrollHorizontal={false}
         statusBarTranslucent={false}
         supportedOrientations={['portrait', 'landscape']}
-        scrollTo={() => {}}
+        scrollTo={() => { }}
         scrollOffset={0}
         scrollOffsetMax={0}
         onBackdropPress={closeFilterModal}
@@ -647,75 +647,24 @@ const getEndDateMin = () => {
                   <CalendarIcon width={20} height={20} />
                 </View>
               </TouchableOpacity>
-              {/* Date Picker Modal */}
-              <Modal
-                isVisible={showFilterDatePicker}
-                hasBackdrop={true}
-                backdropColor="#000"
-                backdropOpacity={0.18}
-                animationIn="fadeIn"
-                animationOut="fadeOut"
-                animationInTiming={300}
-                animationOutTiming={300}
-                backdropTransitionInTiming={300}
-                backdropTransitionOutTiming={300}
-                avoidKeyboard={true}
-                coverScreen={true}
-                style={{ margin: 0 }}
-                onBackdropPress={() => setShowFilterDatePicker(false)}
-                useNativeDriver={true}
-                hideModalContentWhileAnimating={false}
-                propagateSwipe={false}
-                deviceHeight={typeof window !== 'undefined' ? window.innerHeight : 800}
-                deviceWidth={typeof window !== 'undefined' ? window.innerWidth : 400}
-                customBackdrop={null}
-                panResponderThreshold={4}
-                swipeThreshold={100}
-                onModalShow={() => {}}
-                onModalWillShow={() => {}}
-                onModalHide={() => {}}
-                onModalWillHide={() => {}}
-                onModalDismiss={() => {}}
-                onBackButtonPress={() => setShowFilterDatePicker(false)}
-                onSwipeComplete={() => {}}
-                swipeDirection={null}
-                scrollHorizontal={false}
-                statusBarTranslucent={false}
-                supportedOrientations={['portrait', 'landscape']}
-                scrollTo={() => {}}
-                scrollOffset={0}
-                scrollOffsetMax={0}
-              >
-                <View style={{ justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-                  <View style={{ backgroundColor: '#fff', borderRadius: 16, width: '90%', paddingBottom: 16 }}>
-                    {/* Custom Header */}
-                    <View style={{ backgroundColor: '#0088E7', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 18, alignItems: 'center' }}>
-                      <Text style={{ color: '#ffff', fontSize: 16, fontWeight: '500' }}>
-                        Select Date
-                      </Text>
-                    </View>
-                    <DateTimePicker
-                      value={tempFilterDate ? new Date(tempFilterDate) : new Date()}
-                      mode="date"
-                      display="default"
-                      maximumDate={new Date()}
-                      onChange={(event, date) => {
-                        setShowFilterDatePicker(false);
-                        if (date) applyFilterDateToRange(date.toISOString().split('T')[0]);
-                      }}
-                      style={{ alignSelf: 'center', marginVertical: 16 }}
-                    />
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 24, width: '100%' }}>
-                      <TouchableOpacity onPress={() => setShowFilterDatePicker(false)}>
-                        <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => setShowFilterDatePicker(false)}>
-                        <Text style={{ color: '#0088E7', fontSize: 14, fontWeight: '500' }}>OK</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              </Modal>
+              {/* Inline Date Picker for Filter Date */}
+              {showFilterDatePicker && (
+                <DateTimePicker
+                  value={tempFilterDate ? new Date(tempFilterDate) : new Date()}
+                  mode="date"
+                  display="default"
+                  maximumDate={new Date()}
+                  onChange={(event, date) => {
+                    if (event?.type === 'set' && date) {
+                      applyFilterDateToRange(date.toISOString().split('T')[0]);
+                      setShowFilterDatePicker(false);
+                    } else if (event?.type === 'dismissed') {
+                      setShowFilterDatePicker(false);
+                    }
+                  }}
+                  style={{ alignSelf: 'center', marginVertical: 16 }}
+                />
+              )}
             </View>
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
@@ -765,6 +714,7 @@ const getEndDateMin = () => {
       {showSortModal && (
         <SortModal />
       )}
+
       <View
         style={{
           flex: 1,
@@ -774,6 +724,58 @@ const getEndDateMin = () => {
           paddingTop: getResponsive(44),
         }}
       >
+        {/* Date Range */}
+        <View style={styles.dateRangeBox}>
+          <CalendarIcon width={getResponsive(20)} height={getResponsive(20)} />
+          {/* Start Date Picker */}
+          <TouchableOpacity
+            onPress={() => setShowStartDatePicker(true)}
+            disabled={false}
+            style={{}}
+          >
+            <Text style={styles.dateRangeText}>
+              {statisticsParams.startDate ? formatDate(statisticsParams.startDate, false) : ''}
+            </Text>
+          </TouchableOpacity>
+          {showStartDatePicker && (
+            <DateTimePicker
+              value={statisticsParams.startDate ? new Date(statisticsParams.startDate) : new Date()}
+              mode="date"
+              display="default"
+              maximumDate={getStartDateMax()}
+              onChange={(event, date) => {
+                setShowStartDatePicker(false);
+                if (date) handleStartDateChange(date);
+              }}
+              style={{ alignSelf: 'center', marginVertical: 16 }}
+            />
+          )}
+          <Text style={styles.dateRangeText}> -- </Text>
+          {/* End Date Picker */}
+          <TouchableOpacity
+            onPress={() => setShowEndDatePicker(true)}
+            disabled={false}
+            style={{}}
+          >
+            <Text style={styles.dateRangeText}>
+              {statisticsParams.endDate ? formatDate(statisticsParams.endDate, false) : ''}
+            </Text>
+          </TouchableOpacity>
+          {showEndDatePicker && (
+            <DateTimePicker
+              value={statisticsParams.endDate ? new Date(statisticsParams.endDate) : new Date()}
+              mode="date"
+              display="default"
+              maximumDate={new Date()}
+              minimumDate={getEndDateMin()}
+              onChange={(event, date) => {
+                setShowEndDatePicker(false);
+                if (date) handleEndDateChange(date);
+              }}
+              style={{ alignSelf: 'center', marginVertical: 16 }}
+            />
+          )}
+        </View>
         {/* Stats Cards */}
         <View style={styles.statsRow}>
           {/* On Time = Completed Task Count */}
@@ -839,59 +841,6 @@ const getEndDateMin = () => {
           </View>
         </View>
 
-        {/* Date Range */}
-        <View style={styles.dateRangeBox}>
-          <CalendarIcon width={getResponsive(20)} height={getResponsive(20)} />
-          {/* Start Date Picker */}
-          <TouchableOpacity
-            onPress={() => setShowStartDatePicker(true)}
-            disabled={false}
-            style={{}}
-          >
-            <Text style={styles.dateRangeText}>
-              {statisticsParams.startDate ? formatDate(statisticsParams.startDate, false) : ''}
-            </Text>
-          </TouchableOpacity>
-          {showStartDatePicker && (
-            <DateTimePicker
-              value={statisticsParams.startDate ? new Date(statisticsParams.startDate) : new Date()}
-              mode="date"
-              display="default"
-              maximumDate={getStartDateMax()}
-              onChange={(event, date) => {
-                setShowStartDatePicker(false);
-                if (date) handleStartDateChange(date);
-              }}
-              style={{ alignSelf: 'center', marginVertical: 16 }}
-            />
-          )}
-          <Text style={styles.dateRangeText}> -- </Text>
-          {/* End Date Picker */}
-          <TouchableOpacity
-            onPress={() => setShowEndDatePicker(true)}
-            disabled={false}
-            style={{}}
-          >
-            <Text style={styles.dateRangeText}>
-              {statisticsParams.endDate ? formatDate(statisticsParams.endDate, false) : ''}
-            </Text>
-          </TouchableOpacity>
-          {showEndDatePicker && (
-            <DateTimePicker
-              value={statisticsParams.endDate ? new Date(statisticsParams.endDate) : new Date()}
-              mode="date"
-              display="default"
-              maximumDate={new Date()}
-              minimumDate={getEndDateMin()}
-              onChange={(event, date) => {
-                setShowEndDatePicker(false);
-                if (date) handleEndDateChange(date);
-              }}
-              style={{ alignSelf: 'center', marginVertical: 16 }}
-            />
-          )}
-        </View>
-
         {/* Task List with loading and empty state */}
         {isLoading || isRefetching ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 32 }}>
@@ -951,8 +900,8 @@ const getEndDateMin = () => {
         deviceHeight={Dimensions.get('window').height}
         deviceWidth={Dimensions.get('window').width}
         customBackdrop={undefined}
-        onModalShow={() => {}}
-        onModalHide={() => {}}
+        onModalShow={() => { }}
+        onModalHide={() => { }}
         onBackButtonPress={() => setShowDropdown(false)}
         propagateSwipe={false}
         supportedOrientations={['portrait', 'landscape']}
