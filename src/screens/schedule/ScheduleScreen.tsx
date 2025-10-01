@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { fetchDevices, fetchSections, fetchNotes, fetchUserSites } from '../../api/tasks';
 // ActivityIndicator moved into the main import block below
 import { apiService } from '../../services/api';
 import { Calendar } from 'react-native-calendars';
@@ -12,17 +13,26 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  TextInput,
   ActivityIndicator,
 } from 'react-native';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
 import LeftArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
 import LogoutIcon from '../../assets/svgs/logout.svg';
+import SearchIcon from '../../assets/svgs/searchIcon.svg';
+import LocationIcon from '../../assets/svgs/locationIcon.svg';
+
 import SettingsIcon from '../../assets/svgs/settings.svg';
 import { useLogout } from '../../hooks/useAuth';
 import UserIcon from '../../assets/svgs/user.svg';
 import MenuIcon from '../../assets/svgs/menuIcon.svg';
 import NotesIcon from '../../assets/svgs/notesIcon.svg';
+import { useAuthStore } from '../../store/authStore';
+import { useRoute } from '@react-navigation/native';
+
+
+
 
 // Fallbacks for environments where Modal/Pressable types are not exposed
 const RNModal: any = (RN as any).Modal;
@@ -174,17 +184,17 @@ let effectiveScheduleType = task.scheduleType;
 // Determine border color and background based on scheduleType and current time
 if (isActive) {
   borderColor = ACTIVE_BLUE;
-  bg = '#E6F1FB';
+  bg = '#a9d3fbff';
   effectiveScheduleType = 'ACTIVE';
 } else if (task.scheduleType === 'EXPIRED') {
   borderColor = EXPIRED_RED;
-  bg = '#FDEBEB';
+  bg = '#E4190A1A';
 } else if (task.scheduleType === 'COMPLETED') {
   borderColor = COMPLETED_GREEN;
   bg = '#ECEFF3';
 } else if (task.scheduleType === 'SCHEDULED') {
   borderColor = SCHEDULED_ORANGE;
-  bg = '#FEF4E6';  // Light orange background for scheduled
+  bg = '#f6e0c1ff';  // Light orange background for scheduled
 } else if (task.scheduleType === 'ON_TIME') {
   borderColor = BLUE;
   bg = '#E3F2FD';
@@ -288,6 +298,33 @@ export default function CalendarAgendaScreen({ navigation }) {
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
 
+  const [userModal, setUserModal] = useState(false);
+const [sectionsModal, setSectionsModal] = useState(false);
+const [notesModal, setNotesModal] = useState(false);
+const [devicesModal, setDevicesModal] = useState(false);
+const [searchUser, setSearchUser] = useState('');
+const [selectedTaskForModal, setSelectedTaskForModal] = useState<any | null>(null);
+
+const user = useAuthStore((state) => state.user);
+const branchId = useAuthStore((state) => state.branchId);
+const route: any = useRoute();
+
+// Get branchId from route params (similar to TaskScreen)
+// const branchId =
+//   route.params?.branchId ||
+//   route.params?.params?.branchId ||
+//   route.params?.params?.params?.branchId;
+
+const userId = user?.id || '';
+
+
+    useEffect(() => {
+      console.log("Web ID from Store", user?.id)
+      console.log("Site ID from Store", user?.currentUserSite[0]?.siteId)
+      console.log("User Data from Store", user)
+    }, [])
+  
+
   const logoutMutation = useLogout({
     onSuccess: () => {
       navigation.navigate('Auth', { screen: 'Login' });
@@ -304,30 +341,111 @@ export default function CalendarAgendaScreen({ navigation }) {
     formatDateForAPI(selectedDate);
 
   // Update the React Query section with better error handling and logging:
-  const {
-    data: tasksData,
-    isLoading: isLoadingTasks,
-    error: tasksError,
-    refetch: refetchTasks,
-  } = useQuery({
-    queryKey: ['scheduleTasks', selectedDate.toISOString().split('T')[0]],
-    queryFn: async () => {
-      const { startDate: apiStartDate, endDate: apiEndDate } =
-        formatDateForAPI(selectedDate);
-      const url = `/api/document/schedule?startDate=${apiStartDate}&endDate=${apiEndDate}&search=`;
-      console.log('Fetching tasks with URL:', url);
-      console.log('Selected date:', selectedDate);
-      console.log('API Start Date:', apiStartDate);
-      console.log('API End Date:', apiEndDate);
+  // const {
+  //   data: tasksData,
+  //   isLoading: isLoadingTasks,
+  //   error: tasksError,
+  //   refetch: refetchTasks,
+  // } = useQuery({
+  //   queryKey: ['scheduleTasks', selectedDate.toISOString().split('T')[0]],
+  //   queryFn: async () => {
+  //     const { startDate: apiStartDate, endDate: apiEndDate } =
+  //       formatDateForAPI(selectedDate);
+  //     // const url = `/api/document/schedule?startDate=${apiStartDate}&endDate=${apiEndDate}&search=`;
+  //     const url = `/api/document/schedule?startDate=${apiStartDate}&endDate=${apiEndDate}&siteIds=7181512&userIds=7187169&search=`;
+  //     console.log('Fetching tasks with URL:', url);
+  //     console.log('Selected date:', selectedDate);
+  //     console.log('API Start Date:', apiStartDate);
+  //     console.log('API End Date:', apiEndDate);
 
-      const response = await apiService.get(url);
-      console.log('Schedule tasks response:', response.data);
-      const tasksArray = response.data as unknown as any[];
-      console.log('Tasks count:', (Array.isArray(tasksArray) ? tasksArray.length : 0));
+  //     const response = await apiService.get(url);
+  //     console.log('Schedule tasks response:', response.data);
+  //     const tasksArray = response.data as unknown as any[];
+  //     console.log('Tasks count:', (Array.isArray(tasksArray) ? tasksArray.length : 0));
 
-      return response.data as TaskSchedulingModel[];
-    },
-  });
+  //     return response.data as TaskSchedulingModel[];
+  //   },
+  // });
+
+
+  
+
+
+const {
+  data: tasksData,
+  isLoading: isLoadingTasks,
+  error: tasksError,
+  refetch: refetchTasks,
+} = useQuery({
+  queryKey: ['scheduleTasks', selectedDate.toISOString().split('T')[0], userId, branchId],
+  queryFn: async () => {
+    const { startDate: apiStartDate, endDate: apiEndDate } =
+      formatDateForAPI(selectedDate);
+    
+    // Build dynamic URL with user ID and selected branch ID
+    const url = `/api/document/schedule?startDate=${apiStartDate}&endDate=${apiEndDate}&siteIds=${branchId || ''}&userIds=${userId}&search=`;
+    
+    console.log('Fetching tasks with URL:', url);
+    console.log('Selected date:', selectedDate);
+    console.log('User ID:', userId);
+    console.log('Branch/Site ID:', branchId);
+
+    const response = await apiService.get(url);
+    console.log('Schedule tasks response:', response.data);
+
+    return response.data as TaskSchedulingModel[];
+  },
+  // enabled: !!userId && !!branchId, // Only fetch when we have both user ID and branch ID
+});
+
+
+// Devices Query
+const {
+  data: devicesData,
+  isLoading: isDevicesLoading,
+  isError: isDevicesError,
+  refetch: refetchDevices,
+} = useQuery({
+  queryKey: ['devices'],
+  queryFn: fetchDevices,
+  enabled: devicesModal,
+});
+
+// Sections Query
+const {
+  data: sectionsData,
+  isLoading: isSectionsLoading,
+  isError: isSectionsError,
+  refetch: refetchSections,
+} = useQuery({
+  queryKey: ['sections'],
+  queryFn: fetchSections,
+  enabled: sectionsModal,
+});
+
+// Notes Query
+const {
+  data: notesData,
+  isLoading: isNotesLoading,
+  isError: isNotesError,
+  refetch: refetchNotes,
+} = useQuery({
+  queryKey: ['notes'],
+  queryFn: fetchNotes,
+  enabled: notesModal,
+});
+
+// UserSites Query
+const {
+  data: userSitesData,
+  isLoading: isUserSitesLoading,
+  isError: isUserSitesError,
+  refetch: refetchUserSites,
+} = useQuery({
+  queryKey: ['userSites', branchId, searchUser],
+  queryFn: () => fetchUserSites(branchId, searchUser),
+  enabled: !!branchId && userModal,
+});
 
   // Format tasks for UI
   const formattedTasks = tasksData ? formatTasksForUI(tasksData) : [];
@@ -399,6 +517,25 @@ const normalizeStatus = (status: string = '') => {
     }
     return format(startDate || endDate);
   };
+
+
+  const openModal = (type: string, task?: any) => {
+  if (task) setSelectedTaskForModal(task);
+  setUserModal(type === 'user');
+  setSectionsModal(type === 'sections');
+  setNotesModal(type === 'notes');
+  setDevicesModal(type === 'devices');
+};
+
+const closeModal = () => {
+  setUserModal(false);
+  setSectionsModal(false);
+  setNotesModal(false);
+  setDevicesModal(false);
+  setSelectedTaskForModal(null);
+};
+
+const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BLUE }}>
@@ -721,38 +858,68 @@ const normalizeStatus = (status: string = '') => {
                         <Text style={{ color: '#222E44', fontWeight: '400', fontSize: 12 }}>{`${progressPct}%`}</Text>
                       </View>
 
-                      {/* Summary section */}
-                      <View style={{ backgroundColor: '#F7F9FC', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', marginTop: 14 }}>
-                        <View style={{ flexDirection: 'row', padding: 12 }}>
-                          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                            <UserIcon width={14} height={14} />
-                            <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Reassign</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', opacity: 0.6 }}>
-                            <SettingsIcon width={14} height={14} />
-                            <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Devices</Text>
-                            <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                              <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>0</Text>
-                            </View>
-                          </TouchableOpacity>
-                        </View>
-                        <View style={{ flexDirection: 'row', padding: 12, paddingTop: 0 }}>
-                          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                            <MenuIcon width={14} height={14} />
-                            <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Sections</Text>
-                            <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                              <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>0</Text>
-                            </View>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', opacity: 0.6 }}>
-                            <NotesIcon width={14} height={14} />
-                            <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Notes</Text>
-                            <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                              <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{selectedTask.notesCount ?? 0}</Text>
-                            </View>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
+{/* Summary section */}
+<View style={{ backgroundColor: '#F7F9FC', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', marginTop: 14 }}>
+  <View style={{ flexDirection: 'row', padding: 12 }}>
+    <TouchableOpacity 
+      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+      onPress={() => {
+        setShowTaskModal(false);
+        openModal('user', selectedTask);
+      }}
+    >
+      <UserIcon width={14} height={14} />
+      <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Reassign</Text>
+    </TouchableOpacity>
+    <TouchableOpacity 
+      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+      onPress={() => {
+        setShowTaskModal(false);
+        openModal('devices', selectedTask);
+      }}
+    >
+      <SettingsIcon width={14} height={14} />
+      <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Devices</Text>
+      <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+        <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>
+          {Array.isArray((devicesData?.data as any)?.content) ? (devicesData.data as any).content.length : 0}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  </View>
+  <View style={{ flexDirection: 'row', padding: 12, paddingTop: 0 }}>
+    <TouchableOpacity 
+      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+      onPress={() => {
+        setShowTaskModal(false);
+        openModal('sections', selectedTask);
+      }}
+    >
+      <MenuIcon width={14} height={14} />
+      <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Sections</Text>
+      <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+        <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>
+          {Array.isArray((sectionsData?.data as any)?.content) ? (sectionsData.data as any).content.length : 0}
+        </Text>
+      </View>
+    </TouchableOpacity>
+    <TouchableOpacity 
+      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+      onPress={() => {
+        setShowTaskModal(false);
+        openModal('notes', selectedTask);
+      }}
+    >
+      <NotesIcon width={14} height={14} />
+      <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Notes</Text>
+      <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+        <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>
+          {selectedTask.notesCount ?? 0}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  </View>
+</View>
 
                       {/* Get Started button */}
                       <TouchableOpacity
@@ -831,6 +998,203 @@ const normalizeStatus = (status: string = '') => {
           </View>
         </TouchableOpacity>
       </RNModal>
+
+
+{/* User Modal */}
+<RNModal
+  visible={userModal}
+  transparent
+  animationType="fade"
+  onRequestClose={closeModal}
+>
+  <RNPressable style={styles.modalBackdrop} onPress={closeModal}>
+    <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, justifyContent: 'flex-start', width: '90%', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 8, minHeight: '60%' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
+        <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Users</Text>
+        <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 16, color: '#0088E7' }}>✕</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 18, paddingBottom: 0 }}>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderTopLeftRadius: 12, borderBottomLeftRadius: 12, paddingHorizontal: 12, height: 44 }}>
+          <SearchIcon width={22} height={22} style={{ marginRight: 8, opacity: 0.6 }} />
+          <TextInput
+            placeholder="Search ..."
+            style={{ flex: 1, fontSize: 16, color: '#363942', fontWeight: '500', padding: 0 }}
+            value={searchUser}
+            onChangeText={setSearchUser}
+            onSubmitEditing={() => refetchUserSites()}
+            returnKeyType="search"
+          />
+        </View>
+        <TouchableOpacity onPress={() => refetchUserSites()} style={{ backgroundColor: '#0088E7', borderBottomRightRadius: 12, borderTopRightRadius: 12, paddingHorizontal: 18, height: 44, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: '#fff', fontWeight: '500', fontSize: 16 }}>Search</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={{ marginTop: 14, paddingHorizontal: 18, flex: 1, paddingVertical: 8 }}>
+        {isUserSitesLoading ? (
+          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+        ) : isUserSitesError ? (
+          <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading users</Text>
+        ) : filteredUsers.length > 0 ? (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {filteredUsers.map((item, idx) => (
+              <View key={item.id || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 10, marginBottom: 12 }}>
+                <Text style={{ fontWeight: '500', fontSize: 16, color: '#222E44' }}>{item.name || item.username || item.storeEmail}</Text>
+                <Text style={{ color: '#0088E7', fontSize: 14 }}>
+                  {item.email || 'email@example.com'}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No users found</Text>
+        )}
+      </View>
+    </View>
+  </RNPressable>
+</RNModal>
+
+{/* Sections Modal */}
+<RNModal
+  visible={sectionsModal}
+  transparent
+  animationType="fade"
+  onRequestClose={closeModal}
+>
+  <RNPressable style={styles.modalBackdrop} onPress={closeModal}>
+    <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 20, width: '90%', maxHeight: '60%' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+        <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44', flex: 1 }}>Sections</Text>
+        <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 16, color: '#0088E7' }}>✕</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {isSectionsLoading ? (
+          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+        ) : isSectionsError ? (
+          <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading sections</Text>
+        ) : Array.isArray((sectionsData?.data as any)?.content) && (sectionsData.data as any).content.length > 0 ? (
+          (sectionsData.data as any).content.map((section, idx) => (
+            <View key={section.documentId || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: '500', fontSize: 15, color: '#222E44' }}>{section.name || 'Cleaning'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <LocationIcon width={16} height={16} style={{ opacity: 0.7 }} />
+                  <Text style={{ color: '#676869', fontSize: 12, marginLeft: 8 }}>
+                    {section.location || 'No Location Available'}
+                  </Text>
+                </View>
+              </View>
+              <View>
+                {section.location ? (
+                  <View style={{ backgroundColor: '#E6FAEF', borderRadius: 50, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: '#11A330', fontSize: 14 }}>✓</Text>
+                  </View>
+                ) : (
+                  <View style={{ backgroundColor: '#FDEBEB', borderRadius: 50, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: '#E4190A', fontSize: 14 }}>✕</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          ))
+        ) : (
+          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No sections found</Text>
+        )}
+      </ScrollView>
+    </View>
+  </RNPressable>
+</RNModal>
+
+{/* Devices Modal */}
+<RNModal
+  visible={devicesModal}
+  transparent
+  animationType="fade"
+  onRequestClose={closeModal}
+>
+  <RNPressable style={styles.modalBackdrop} onPress={closeModal}>
+    <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, width: '90%', minHeight: 320, maxHeight: '60%' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
+        <Text style={{ fontWeight: '700', fontSize: 20, color: '#222E44' }}>Devices</Text>
+        <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 18, color: '#0088E7' }}>✕</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+      <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 12 }}>
+        {isDevicesLoading ? (
+          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+        ) : isDevicesError ? (
+          <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading devices</Text>
+        ) : Array.isArray((devicesData?.data as any)?.content) && (devicesData.data as any).content.length > 0 ? (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {(devicesData.data as any).content.map((item, idx) => (
+              <View key={item.uuid || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '700', fontSize: 17, color: '#222E44' }}>{item.name || ''}</Text>
+                  <Text style={{ color: '#0088E7', fontSize: 12, marginTop: 2 }}>{item.macAddress || ''}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#AAB3BB', fontSize: 12 }}>uuid # {item.uuId ?? ''}</Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No devices found</Text>
+        )}
+      </View>
+    </View>
+  </RNPressable>
+</RNModal>
+
+{/* Notes Modal */}
+<RNModal
+  visible={notesModal}
+  transparent
+  animationType="fade"
+  onRequestClose={closeModal}
+>
+  <RNPressable style={styles.modalBackdrop} onPress={closeModal}>
+    <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, width: '90%', minHeight: 320, maxHeight: '60%' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
+        <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Notes</Text>
+        <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 18, color: '#0088E7' }}>✕</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+      <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 12 }}>
+        {isNotesLoading ? (
+          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+        ) : isNotesError ? (
+          <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading notes</Text>
+        ) : Array.isArray((notesData?.data as any)?.list) && (notesData.data as any).list.length > 0 ? (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {(notesData.data as any).list.map((item, idx) => (
+              <View key={item.id || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16 }}>
+                <Text style={{ color: '#222E44', fontSize: 16, fontWeight: '600' }}>{item.text || item.note || ''}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No notes found</Text>
+        )}
+      </View>
+    </View>
+  </RNPressable>
+</RNModal>
+
+
     </SafeAreaView>
   );
 }
