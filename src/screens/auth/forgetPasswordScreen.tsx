@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Dimensions,
+  Modal,
   StatusBar,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,6 +22,9 @@ import LogoIconSvg from '../../assets/svgs/logoIcon.svg';
 import EmailIcon from '../../assets/svgs/emailIcon.svg';
 import CheckIcon from '../../assets/svgs/checkIcon.svg';
 import FloatingInput from '../../components/TextInput/TextInput';
+import { apiService } from '../../services/api';
+import { useMutation } from '@tanstack/react-query';
+
 
 /**
  * Root navigation stack parameter list
@@ -38,6 +43,9 @@ interface ForgotPasswordScreenProps {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ForgotPassword'>;
 }
 
+const { width } = Dimensions.get('window');
+
+
 /**
  * ForgotPasswordScreen component for password reset
  */
@@ -47,8 +55,45 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
 
-  const { forgotPassword, isLoading } = useAuthStore();
   const styles = useThemedStyles(createStyles);
+
+  const [showModal, setShowModal] = useState(false);
+const [modalMessage, setModalMessage] = useState('');
+const [isSuccess, setIsSuccess] = useState(false);
+
+interface ForgotPasswordErrorResponse {
+  status: string;
+  timestamp: string;
+  message: string;
+  debugMessage: string;
+  resourceName: string | null;
+}
+
+const forgotPasswordMutation = useMutation({
+  mutationFn: async (email: string) => {
+    const response = await apiService.post(
+      `/api/forgetPassword?email=${encodeURIComponent(email.trim())}`,
+    );
+    return response.data;
+  },
+  onSuccess: (data) => {
+    setIsSuccess(true);
+    setModalMessage('Password reset email has been sent successfully!');
+    setShowModal(true);
+  },
+  onError: (error: any) => {
+    setIsSuccess(false);
+    const errorMessage = error?.response?.data?.message || 
+                        error?.response?.data?.debugMessage || 
+                        'Failed to send reset email. Please try again.';
+    setModalMessage(errorMessage);
+    setShowModal(true);
+  },
+});
+
+const isLoading = forgotPasswordMutation.isPending;
+
+  
 
   // Ensure consistent StatusBar on focus
   useFocusEffect(
@@ -127,23 +172,14 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   /**
    * Handles password reset request
    */
-  const handleResetPassword = async (): Promise<void> => {
-    // Validate form
-    const isEmailValid = validateEmailOnBlur();
-    if (!isEmailValid) {
-      return;
-    }
-    try {
-      const success = await forgotPassword(email);
-      if (success) {
-        setTimeout(() => {
-          navigation.navigate('Login');
-        }, 2000);
-      }
-    } catch (error) {
-      console.log('Password reset error:', error);
-    }
-  };
+const handleResetPassword = async (): Promise<void> => {
+  const isEmailValid = validateEmailOnBlur();
+  if (!isEmailValid) {
+    return;
+  }
+  
+  forgotPasswordMutation.mutate(email.trim());
+};
 
   /**
    * Navigate back to login screen
@@ -237,6 +273,43 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
           </View>
         </View>
       </ScrollView>
+
+{/* Success/Error Modal */}
+<Modal
+  visible={showModal}
+  transparent
+  animationType="fade"
+  onRequestClose={() => {
+    setShowModal(false);
+    if (isSuccess) {
+      navigation.navigate('Login');
+    }
+  }}
+>
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalContainer}>
+      <View style={styles.modalContent}>
+        <Text style={styles.modalTitle}>
+          {isSuccess ? 'Success' : 'Error'}
+        </Text>
+        <Text style={styles.modalMessage}>{modalMessage}</Text>
+        <TouchableOpacity
+          style={styles.modalButton}
+          onPress={() => {
+            setShowModal(false);
+            if (isSuccess) {
+              navigation.navigate('Login');
+            }
+          }}
+        >
+          <Text style={styles.modalButtonText}>OK</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+</Modal>
+
+
     </KeyboardAvoidingView>
   );
 };
@@ -449,6 +522,57 @@ const createStyles = (theme: {
       fontWeight: '600',
       fontFamily: 'Poppins',
     },
+    modalOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+modalContainer: {
+  width: width * 0.85,
+  backgroundColor: '#FFFFFF',
+  borderRadius: 16,
+  padding: 24,
+  shadowColor: '#000',
+  shadowOffset: {
+    width: 0,
+    height: 2,
+  },
+  shadowOpacity: 0.25,
+  shadowRadius: 4,
+  elevation: 5,
+},
+modalContent: {
+  alignItems: 'center',
+},
+modalTitle: {
+  fontSize: 20,
+  fontWeight: '600',
+  color: '#101828',
+  marginBottom: 12,
+  fontFamily: 'Poppins',
+},
+modalMessage: {
+  fontSize: 14,
+  color: '#475467',
+  textAlign: 'center',
+  marginBottom: 20,
+  fontFamily: 'Poppins',
+},
+modalButton: {
+  backgroundColor: '#0088E7',
+  borderRadius: 8,
+  paddingVertical: 12,
+  paddingHorizontal: 32,
+  minWidth: 100,
+},
+modalButtonText: {
+  color: '#FFFFFF',
+  fontSize: 16,
+  fontWeight: '600',
+  textAlign: 'center',
+  fontFamily: 'Poppins',
+},
   });
 
 export default ForgotPasswordScreen;
