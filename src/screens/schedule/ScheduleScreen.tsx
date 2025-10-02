@@ -669,7 +669,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
           showsVerticalScrollIndicator={true}
           contentContainerStyle={{ paddingBottom: 20, paddingTop: 20 }}
         >
-          {/* Agenda */}
+{/* Agenda */}
           {isLoadingTasks ? (
             <View
               style={{
@@ -711,149 +711,156 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={{ minHeight: HOUR_LIST.length * SLOT_HEIGHT, position: 'relative' }}>
-              {HOUR_LIST.map(hour => (
-                <View key={hour} style={styles.hourBlock}>
-                  {/* Horizontal grid line */}
-                  <View style={styles.gridLine} />
-                  <View style={styles.hourRow}>
-                    {/* Time label */}
-                    <View style={styles.hourLabelWrap}>
-                      <Text style={styles.hourLabel}>{hour}</Text>
-                    </View>
-                    {/* Empty space for grid; tasks are rendered in overlay */}
-                    <View style={styles.tasksRow} />
-                  </View>
-                </View>
-              ))}
+            (() => {
+              // Calculate tasks and columns first
+              const assignTaskColumns = (tasks: any[]) => {
+                const sortedTasks = tasks
+                  .filter(t => Array.isArray(t.slots) && t.slots.length > 0)
+                  .map(task => ({
+                    ...task,
+                    startIndex: HOUR_LIST.indexOf(task.slots[0]),
+                    endIndex: HOUR_LIST.indexOf(task.slots[0]) + (task.slotCount || 1) - 1,
+                  }))
+                  .filter(task => task.startIndex >= 0)
+                  .sort((a, b) => a.startIndex - b.startIndex || (a.endIndex - b.endIndex));
 
-              {/* Absolute-positioned task overlay spanning multiple slots */}
-              <View style={styles.overlayContainer}>
-                {(() => {
-                  // Function to detect overlapping tasks and assign columns
-                  const assignTaskColumns = (tasks: any[]) => {
-                    const sortedTasks = tasks
-                      .filter(t => Array.isArray(t.slots) && t.slots.length > 0)
-                      .map(task => ({
-                        ...task,
-                        startIndex: HOUR_LIST.indexOf(task.slots[0]),
-                        endIndex: HOUR_LIST.indexOf(task.slots[0]) + (task.slotCount || 1) - 1,
-                      }))
-                      .filter(task => task.startIndex >= 0)
-                      .sort((a, b) => a.startIndex - b.startIndex || (a.endIndex - b.endIndex));
-
-                    const columns: any[][] = [];
+                const columns: any[][] = [];
+                
+                sortedTasks.forEach(task => {
+                  let placed = false;
+                  
+                  for (let i = 0; i < columns.length; i++) {
+                    const column = columns[i];
+                    const lastTaskInColumn = column[column.length - 1];
                     
-                    sortedTasks.forEach(task => {
-                      let placed = false;
-                      
-                      // Try to place in existing columns
-                      for (let i = 0; i < columns.length; i++) {
-                        const column = columns[i];
-                        const lastTaskInColumn = column[column.length - 1];
-                        
-                        // Check if task can be placed in this column (no overlap)
-                        if (!lastTaskInColumn || lastTaskInColumn.endIndex < task.startIndex) {
-                          column.push({ ...task, column: i });
-                          placed = true;
-                          break;
-                        }
-                      }
-                      
-                      // If not placed, create new column
-                      if (!placed) {
-                        columns.push([{ ...task, column: columns.length }]);
-                      }
-                    });
+                    if (!lastTaskInColumn || lastTaskInColumn.endIndex < task.startIndex) {
+                      column.push({ ...task, column: i });
+                      placed = true;
+                      break;
+                    }
+                  }
+                  
+                  if (!placed) {
+                    columns.push([{ ...task, column: columns.length }]);
+                  }
+                });
 
-                    return columns.flat();
-                  };
+                return columns.flat();
+              };
 
-                  const tasksWithColumns = assignTaskColumns(formattedTasks);
+              const tasksWithColumns = assignTaskColumns(formattedTasks);
+              const maxColumnsOverall = Math.max(1, ...tasksWithColumns.map(t => t.column + 1));
+              const taskWidth = 180;
+              const totalContentWidth = maxColumnsOverall * (taskWidth + 8) + 88 + 50; // 88 for time labels + 50 padding
 
-                  // Group tasks by their start index for rendering
-                  const groups: Record<number, any[]> = {};
-                  tasksWithColumns.forEach(task => {
-                    const startIndex = task.startIndex;
-                    if (!groups[startIndex]) groups[startIndex] = [];
-                    groups[startIndex].push(task);
-                  });
+              const tasksContentWidth = maxColumnsOverall * (taskWidth + 8) + 50; // Width for tasks only
 
-                  return Object.entries(groups).map(([indexStr, items]) => {
-                    const index = Number(indexStr);
-                    const top = index * SLOT_HEIGHT + 4;
-                    const maxHeight = Math.max(
-                      54,
-                      ...items.map(it => (it.slotCount || 1) * SLOT_HEIGHT - 8),
-                    );
-
-                    // Calculate max columns for this time band
-                    const maxColumnsInBand = Math.max(1, ...items.map(t => t.column + 1));
-                    const taskWidth = maxColumnsInBand === 1 ? 220 : Math.max(140, 200);
-                    const totalContentWidth = maxColumnsInBand * (taskWidth + 8) - 8; // Remove last margin
-                    
-                    return (
-                      <View key={`band-${index}`} style={[styles.overlayBand, { top, height: maxHeight }]}>
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={[
-                            styles.overlayBandScrollContent,
-                            { width: Math.max(totalContentWidth, 220) }
-                          ]}
-                        >
-                          <View style={{ position: 'relative', width: totalContentWidth, height: maxHeight }}>
-                            {items.map(item => (
-                              <RNPressable
-                                key={item.id}
-                                style={[
-                                  styles.taskCard,
-                                  {
-                                    position: 'absolute',
-                                    left: item.column * (taskWidth + 8),
-                                    top: 0,
-                                    height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
-                                    borderColor: item.borderColor,
-                                    backgroundColor: item.bg,
-                                    width: taskWidth,
-                                    marginRight: 0, // Remove margin since we're using absolute positioning
-                                  },
-                                ]}
-                                onPress={() => {
-                                  setSelectedTask(item);
-                                  setShowTaskModal(true);
-                                }}
-                              >
-                                <View style={styles.taskMetaRow}>
-                                  <Text style={styles.taskNumber}>{item.number}</Text>
-                                  <View style={styles.taskUserPill}>
-                                    <Text style={styles.taskUserText}>
-                                      {maxColumnsInBand > 2 || item.type === 'mini'
-                                        ? item.user.split(' ')[0]
-                                        : item.user}
-                                    </Text>
-                                  </View>
-                                </View>
-                                <Text
-                                  style={[
-                                    styles.taskTitle,
-                                    { fontSize: maxColumnsInBand > 2 || item.type === 'mini' ? 11 : 12 },
-                                  ]}
-                                  numberOfLines={maxColumnsInBand > 2 || item.type === 'mini' ? 2 : 3}
-                                >
-                                  {item.title}
-                                </Text>
-                              </RNPressable>
-                            ))}
+              return (
+                <View style={{ flex: 1, flexDirection: 'row' }}>
+                  {/* Fixed Time Column */}
+                  <View style={{ width: 88, minHeight: HOUR_LIST.length * SLOT_HEIGHT }}>
+                    {HOUR_LIST.map(hour => (
+                      <View key={hour} style={[styles.hourBlock, { width: 88 }]}>
+                        <View style={[styles.gridLine, { width: 88 }]} />
+                        <View style={[styles.hourRow, { width: 88 }]}>
+                          <View style={styles.hourLabelWrap}>
+                            <Text style={styles.hourLabel}>{hour}</Text>
                           </View>
-                        </ScrollView>
+                        </View>
                       </View>
-                    );
-                  });
-                })()}
-              </View>
-              
-            </View>
+                    ))}
+                  </View>
+
+                  {/* Scrollable Tasks Area */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ 
+                      width: Math.max(tasksContentWidth, 300)
+                    }}
+                  >
+                    <View style={{ width: tasksContentWidth, minHeight: HOUR_LIST.length * SLOT_HEIGHT, position: 'relative' }}>
+                      {/* Grid lines for tasks area */}
+                      {HOUR_LIST.map((hour, index) => (
+                        <View key={`grid-${hour}`} style={{
+                          position: 'absolute',
+                          top: index * SLOT_HEIGHT,
+                          left: 0,
+                          right: 0,
+                          height: 1,
+                          backgroundColor: '#E1E8F0',
+                        }} />
+                      ))}
+
+                      {/* Task overlay */}
+                      <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}>
+                        {(() => {
+                          const groups: Record<number, any[]> = {};
+                          tasksWithColumns.forEach(task => {
+                            const startIndex = task.startIndex;
+                            if (!groups[startIndex]) groups[startIndex] = [];
+                            groups[startIndex].push(task);
+                          });
+
+                          return Object.entries(groups).map(([indexStr, items]) => {
+                            const index = Number(indexStr);
+                            const top = index * SLOT_HEIGHT + 4;
+                            const maxHeight = Math.max(54, ...items.map(it => (it.slotCount || 1) * SLOT_HEIGHT - 8));
+                            
+                            return (
+                              <View key={`band-${index}`} style={{ position: 'absolute', left: 8, right: 0, top, height: maxHeight }}>
+                                {items.map(item => (
+                                  <RNPressable
+                                    key={item.id}
+                                    style={[
+                                      styles.taskCard,
+                                      {
+                                        position: 'absolute',
+                                        left: item.column * (taskWidth + 8),
+                                        top: 0,
+                                        height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
+                                        borderColor: item.borderColor,
+                                        backgroundColor: item.bg,
+                                        width: taskWidth,
+                                      },
+                                    ]}
+                                    onPress={() => {
+                                      setSelectedTask(item);
+                                      setShowTaskModal(true);
+                                    }}
+                                  >
+                                    <View style={styles.taskMetaRow}>
+                                      <Text style={styles.taskNumber}>{item.number}</Text>
+                                      <View style={styles.taskUserPill}>
+                                        <Text style={styles.taskUserText}>
+                                          {maxColumnsOverall > 2 || item.type === 'mini'
+                                            ? item.user.split(' ')[0]
+                                            : item.user}
+                                        </Text>
+                                      </View>
+                                    </View>
+                                    <Text
+                                      style={[
+                                        styles.taskTitle,
+                                        { fontSize: maxColumnsOverall > 2 || item.type === 'mini' ? 11 : 12 },
+                                      ]}
+                                      numberOfLines={maxColumnsOverall > 2 || item.type === 'mini' ? 2 : 3}
+                                    >
+                                      {item.title}
+                                    </Text>
+                                  </RNPressable>
+                                ))}
+                              </View>
+                            );
+                          });
+                        })()}
+                      </View>
+                    </View>
+                  </ScrollView>
+                </View>
+              );
+            })()
           )}
         </ScrollView>
       </View>
