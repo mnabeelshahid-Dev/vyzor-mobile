@@ -23,7 +23,8 @@ import LogoutIcon from '../../assets/svgs/logout.svg';
 import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import LocationIcon from '../../assets/svgs/locationIcon.svg';
 
-import SettingsIcon from '../../assets/svgs/deviceIcon.svg';
+import SettingsIcon from '../../assets/svgs/settings.svg';
+import DeviceIcon from '../../assets/svgs/deviceIcon.svg';
 import { useLogout } from '../../hooks/useAuth';
 import UserIcon from '../../assets/svgs/user.svg';
 import MenuIcon from '../../assets/svgs/menuIcon.svg';
@@ -963,7 +964,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
           }}
           disabled={isDevicesDisabled}
         >
-          <SettingsIcon width={14} height={14} style={{ opacity: isDevicesDisabled ? 0.5 : 1 }} />
+          <DeviceIcon width={14} height={14} style={{ opacity: isDevicesDisabled ? 0.5 : 1 }} />
           <Text style={{ 
             color: isDevicesDisabled ? '#AAB3BB' : '#1292E6', 
             fontWeight: '500', 
