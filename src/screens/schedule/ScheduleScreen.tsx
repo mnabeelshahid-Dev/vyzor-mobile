@@ -879,7 +879,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
                   const end = new Date(selectedTask.endDate);
                   const isCurrentlyActive = normalizedStatus === 'Active' && now >= start && now <= end;
                   const canStart = isCurrentlyActive;
-                  const progressPct = Math.min(100, Math.round(((selectedTask.slotCount || 1) * 30) / ((selectedTask.duration || 30)) * 100));
+                  const progressPct = 0;
 
                   return (
                     <>
