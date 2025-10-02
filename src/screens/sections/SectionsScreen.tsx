@@ -198,7 +198,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     <TouchableOpacity onPress={() => {
                         // Navigate back to the source screen
                         if (sourceScreen === 'Schedule') {
-                            navigation.navigate('Main', { screen: 'Schedule' });
+                            // Navigate back to Schedule tab and clear the Task stack
+                            navigation.getParent()?.navigate('Schedule');
                         } else {
                             navigation.goBack();
                         }

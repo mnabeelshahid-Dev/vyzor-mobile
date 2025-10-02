@@ -541,11 +541,10 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
     <SafeAreaView style={{ flex: 1, backgroundColor: BLUE }}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Branches')}>
           <LeftArrowIcon
             width={16}
             height={16}
-            onPress={() => navigation.goBack()}
           />
         </TouchableOpacity>
         <RNPressable
