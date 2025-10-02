@@ -86,9 +86,9 @@ const RefreshIcon = () => (
 );
 
 export default function SectionsScreen({ navigation }: { navigation: any }) {
-    // Get formDefinitionId and status from route params
+    // Get formDefinitionId, status, and sourceScreen from route params
     const route = useRoute();
-    const { formDefinitionId = "", status = "" }: any = route.params || {};
+    const { formDefinitionId = "", status = "", sourceScreen = "" }: any = route.params || {};
 
     // Fetch sections from API (moved to statistics.ts)
     // import fetchDefinitionSections from statistics.ts
@@ -195,7 +195,14 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerRow}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <TouchableOpacity onPress={() => {
+                        // Navigate back to the source screen
+                        if (sourceScreen === 'Schedule') {
+                            navigation.navigate('Main', { screen: 'Schedule' });
+                        } else {
+                            navigation.goBack();
+                        }
+                    }}>
                         <BackArrowIcon width={getResponsive(16)} height={getResponsive(16)} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Sections</Text>

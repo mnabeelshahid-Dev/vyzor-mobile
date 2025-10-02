@@ -983,6 +983,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
                         params: {
                           formDefinitionId: selectedTask.formDefinitionId || selectedTask.id,
                           status: selectedTask.scheduleType,
+                          sourceScreen: 'Schedule', // Add source information
                         },
                       });
                           }
