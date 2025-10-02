@@ -494,6 +494,43 @@ React.useEffect(() => {
     return true;
   };
 
+const areAllPhoneNumbersValid = (): boolean => {
+  // If there are no phone numbers, consider it valid
+  if (phoneNumbers.length === 0) return true;
+  
+  // Check each phone number
+  for (let i = 0; i < phoneNumbers.length; i++) {
+    const phone = phoneNumbers[i];
+    const phoneDigits = phone.phoneNumber.replace(/\D/g, '');
+    
+    // If phone is empty AND it's not the first (default) phone, it's invalid
+    // This ensures newly added phones must be filled before adding another
+    if (!phone.phoneNumber.trim()) {
+      if (i > 0) {
+        // Non-default phone is empty - not valid
+        return false;
+      }
+      // Default phone can be empty
+      continue;
+    }
+    
+    // If phone has less than 5 digits, consider invalid (user started typing)
+    if (phoneDigits.length > 0 && phoneDigits.length < 5) {
+      return false;
+    }
+    
+    // If phone has 5+ digits, validate it
+    if (phoneDigits.length >= 5) {
+      const phoneRef = phone.ref?.current;
+      if (phoneRef && phoneRef.isValidNumber && !phoneRef.isValidNumber(phone.phoneNumber)) {
+        return false;
+      }
+    }
+  }
+  
+  return true;
+};
+
   // Mutation for uploading profile picture
   const uploadProfilePictureMutation = useMutation({
     mutationFn: async (imageUri: string) => {
@@ -1249,6 +1286,7 @@ const updatePhoneNumber = (id, newPhoneNumber) => {
                   selectedCountryValue={selectedCountryValue}
                   selectedStateValue={selectedStateValue}
                   isMutationLoading={isMutationLoading}
+                  canAddNewPhone={areAllPhoneNumbersValid()}
                 />
               )}
               {/* Action Buttons */}

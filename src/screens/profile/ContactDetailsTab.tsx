@@ -49,6 +49,7 @@ type Props = {
   selectedCountryValue: string;
   selectedStateValue: string;
   isMutationLoading: boolean;
+  canAddNewPhone: boolean;
 };
 
 const DropdownFieldWithModal = ({
@@ -213,6 +214,7 @@ const ContactDetailsTab: React.FC<Props> = ({
   selectedCountryValue,
   selectedStateValue,
   isMutationLoading,
+  canAddNewPhone,
 }) => {
   useEffect(() => {
     console.log('country in component', country);
@@ -285,13 +287,17 @@ const ContactDetailsTab: React.FC<Props> = ({
         ))}
 
       {/* Add New Number button */}
-      <TouchableOpacity
-        style={styles.addNewNumberIconButton}
-        onPress={onAddNewPhone}
-      >
-        <Text style={styles.addNewNumberLabel}>Add New Number</Text>
-        <Text style={styles.addNewNumberIcon}>+</Text>
-      </TouchableOpacity>
+<TouchableOpacity
+  style={[
+    styles.addNewNumberIconButton,
+    !canAddNewPhone && { opacity: 0.3 }  // Visual feedback when disabled
+  ]}
+  onPress={onAddNewPhone}
+  disabled={!canAddNewPhone}  // Disable button when validation fails
+>
+  <Text style={styles.addNewNumberLabel}>Add New Number</Text>
+  <Text style={styles.addNewNumberIcon}>+</Text>
+</TouchableOpacity>
 
       {/* Render additional phone numbers */}
       {phoneNumbers
