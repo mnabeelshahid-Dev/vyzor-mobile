@@ -729,71 +729,122 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
               {/* Absolute-positioned task overlay spanning multiple slots */}
               <View style={styles.overlayContainer}>
                 {(() => {
-                  const groups: Record<number, any[]> = {};
-                  formattedTasks
-                    .filter(t => Array.isArray(t.slots) && t.slots.length > 0)
-                    .forEach(item => {
-                      const startIndex = HOUR_LIST.indexOf(item.slots[0]);
-                      if (startIndex >= 0) {
-                        if (!groups[startIndex]) groups[startIndex] = [];
-                        groups[startIndex].push(item);
+                  // Function to detect overlapping tasks and assign columns
+                  const assignTaskColumns = (tasks: any[]) => {
+                    const sortedTasks = tasks
+                      .filter(t => Array.isArray(t.slots) && t.slots.length > 0)
+                      .map(task => ({
+                        ...task,
+                        startIndex: HOUR_LIST.indexOf(task.slots[0]),
+                        endIndex: HOUR_LIST.indexOf(task.slots[0]) + (task.slotCount || 1) - 1,
+                      }))
+                      .filter(task => task.startIndex >= 0)
+                      .sort((a, b) => a.startIndex - b.startIndex || (a.endIndex - b.endIndex));
+
+                    const columns: any[][] = [];
+                    
+                    sortedTasks.forEach(task => {
+                      let placed = false;
+                      
+                      // Try to place in existing columns
+                      for (let i = 0; i < columns.length; i++) {
+                        const column = columns[i];
+                        const lastTaskInColumn = column[column.length - 1];
+                        
+                        // Check if task can be placed in this column (no overlap)
+                        if (!lastTaskInColumn || lastTaskInColumn.endIndex < task.startIndex) {
+                          column.push({ ...task, column: i });
+                          placed = true;
+                          break;
+                        }
+                      }
+                      
+                      // If not placed, create new column
+                      if (!placed) {
+                        columns.push([{ ...task, column: columns.length }]);
                       }
                     });
+
+                    return columns.flat();
+                  };
+
+                  const tasksWithColumns = assignTaskColumns(formattedTasks);
+
+                  // Group tasks by their start index for rendering
+                  const groups: Record<number, any[]> = {};
+                  tasksWithColumns.forEach(task => {
+                    const startIndex = task.startIndex;
+                    if (!groups[startIndex]) groups[startIndex] = [];
+                    groups[startIndex].push(task);
+                  });
 
                   return Object.entries(groups).map(([indexStr, items]) => {
                     const index = Number(indexStr);
                     const top = index * SLOT_HEIGHT + 4;
-                    const height = Math.max(
+                    const maxHeight = Math.max(
                       54,
                       ...items.map(it => (it.slotCount || 1) * SLOT_HEIGHT - 8),
                     );
+
+                    // Calculate max columns for this time band
+                    const maxColumnsInBand = Math.max(1, ...items.map(t => t.column + 1));
+                    const taskWidth = maxColumnsInBand === 1 ? 220 : Math.max(140, 200);
+                    const totalContentWidth = maxColumnsInBand * (taskWidth + 8) - 8; // Remove last margin
+                    
                     return (
-                      <View key={`band-${index}`} style={[styles.overlayBand, { top, height }]}>
+                      <View key={`band-${index}`} style={[styles.overlayBand, { top, height: maxHeight }]}>
                         <ScrollView
                           horizontal
                           showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={styles.overlayBandScrollContent}
+                          contentContainerStyle={[
+                            styles.overlayBandScrollContent,
+                            { width: Math.max(totalContentWidth, 220) }
+                          ]}
                         >
-{items.map(item => (
-  <RNPressable
-    key={item.id}
-    style={[
-      styles.taskCard,
-      {
-        position: 'relative',
-        height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
-        borderColor: item.borderColor,
-        backgroundColor: item.bg,
-        marginRight: 14,
-        width: item.type === 'mini' ? 140 : 220,  // Fixed width instead of min/max
-      },
-    ]}
-                              onPress={() => {
-                                setSelectedTask(item);
-                                setShowTaskModal(true);
-                              }}
-                            >
-                              <View style={styles.taskMetaRow}>
-                                <Text style={styles.taskNumber}>{item.number}</Text>
-                                <View style={styles.taskUserPill}>
-                                  <Text style={styles.taskUserText}>
-                                    {item.type === 'mini'
-                                      ? item.user.split(' ')[0]
-                                      : item.user}
-                                  </Text>
-                                </View>
-                              </View>
-                              <Text
+                          <View style={{ position: 'relative', width: totalContentWidth, height: maxHeight }}>
+                            {items.map(item => (
+                              <RNPressable
+                                key={item.id}
                                 style={[
-                                  styles.taskTitle,
-                                  { fontSize: item.type === 'mini' ? 11 : 12 },
+                                  styles.taskCard,
+                                  {
+                                    position: 'absolute',
+                                    left: item.column * (taskWidth + 8),
+                                    top: 0,
+                                    height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
+                                    borderColor: item.borderColor,
+                                    backgroundColor: item.bg,
+                                    width: taskWidth,
+                                    marginRight: 0, // Remove margin since we're using absolute positioning
+                                  },
                                 ]}
-                                numberOfLines={item.type === 'mini' ? 2 : 3}
+                                onPress={() => {
+                                  setSelectedTask(item);
+                                  setShowTaskModal(true);
+                                }}
                               >
-                                {item.title}
-                              </Text>
-                            </RNPressable>
-                          ))}
+                                <View style={styles.taskMetaRow}>
+                                  <Text style={styles.taskNumber}>{item.number}</Text>
+                                  <View style={styles.taskUserPill}>
+                                    <Text style={styles.taskUserText}>
+                                      {maxColumnsInBand > 2 || item.type === 'mini'
+                                        ? item.user.split(' ')[0]
+                                        : item.user}
+                                    </Text>
+                                  </View>
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.taskTitle,
+                                    { fontSize: maxColumnsInBand > 2 || item.type === 'mini' ? 11 : 12 },
+                                  ]}
+                                  numberOfLines={maxColumnsInBand > 2 || item.type === 'mini' ? 2 : 3}
+                                >
+                                  {item.title}
+                                </Text>
+                              </RNPressable>
+                            ))}
+                          </View>
                         </ScrollView>
                       </View>
                     );
