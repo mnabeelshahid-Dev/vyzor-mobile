@@ -6,10 +6,9 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
-  FlatList,
-  Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import * as ReactNative from 'react-native';
 import LogoutIcon from '../../assets/svgs/logout.svg';
 import SettingsIcon from '../../assets/svgs/settings.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
@@ -24,7 +23,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import ArrowDown from '../../assets/svgs/arrowDown.svg';
 import { useAuthStore } from '../../store/authStore';
 import { styles } from './styles';
-const { width } = Dimensions.get('window');
+const FlatListComponent: any = (ReactNative as any).FlatList;
+const DimensionsAny: any = (ReactNative as any).Dimensions;
+const { width } = DimensionsAny.get('window');
 import SortIcon from '../../assets/svgs/sortIcon.svg';
 import { useLogout } from '../../hooks/useAuth';
 const getResponsive = (val: number) => Math.round(val * (width / 390));
@@ -192,7 +193,7 @@ export default function StatisticsScreen({ navigation }) {
     if (isStart) {
       return `${yyyy}-${mm}-${dd}T00:00:00+05:00`;
     } else {
-      return `${yyyy}-${mm}-${dd}T23:59:59+05:00`;
+      return `${yyyy}-${mm}-${dd}T23:59:00+05:00`;
     }
   }
 
@@ -272,13 +273,13 @@ export default function StatisticsScreen({ navigation }) {
     let endDate = endDateRaw ? formatDateWithOffset(new Date(endDateRaw), false) : '';
     const params: any = {
       page: pageParam,
-      size: 10,
-      sort: sortOrder ?? '',
+      size: 20,
+      sort: 'startDate,desc',
       search: search ?? '',
-      filterSiteIds: branchId,
+      siteIds: branchId,
       startDate,
       endDate,
-      scheduleStatus: filterStatus ? filterStatus.toUpperCase() : 'ALL',
+      scheduleStatus: '',
       userIds: user?.id ? [user.id] : [],
     };
     return params;
@@ -315,7 +316,7 @@ export default function StatisticsScreen({ navigation }) {
     queryKey: ['tasks', statisticsParams],
     queryFn: fetchTasksInfinite,
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextPage : undefined),
-    initialPageParam: 1,
+    initialPageParam: 0,
     enabled: !!branchId,
   });
 
@@ -852,7 +853,7 @@ export default function StatisticsScreen({ navigation }) {
           </View>
         ) : (
           <View style={{ flex: 1 }}>
-            <FlatList
+            <FlatListComponent
               data={sortedTasks}
               style={{ flex: 1, marginTop: getResponsive(8) }}
               showsVerticalScrollIndicator={false}
@@ -897,8 +898,8 @@ export default function StatisticsScreen({ navigation }) {
         hideModalContentWhileAnimating={true}
         backdropTransitionInTiming={300}
         backdropTransitionOutTiming={300}
-        deviceHeight={Dimensions.get('window').height}
-        deviceWidth={Dimensions.get('window').width}
+        deviceHeight={DimensionsAny.get('window').height}
+        deviceWidth={DimensionsAny.get('window').width}
         customBackdrop={undefined}
         onModalShow={() => { }}
         onModalHide={() => { }}
