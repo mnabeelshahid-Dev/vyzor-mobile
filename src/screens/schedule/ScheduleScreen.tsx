@@ -24,6 +24,7 @@ import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import LocationIcon from '../../assets/svgs/locationIcon.svg';
 
 import SettingsIcon from '../../assets/svgs/settings.svg';
+import DeviceIcon from '../../assets/svgs/deviceIcon.svg';
 import { useLogout } from '../../hooks/useAuth';
 import UserIcon from '../../assets/svgs/user.svg';
 import MenuIcon from '../../assets/svgs/menuIcon.svg';
@@ -298,6 +299,9 @@ export default function CalendarAgendaScreen({ navigation }) {
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
 
+  // Add ref for horizontal ScrollView
+  const horizontalScrollRef = React.useRef<ScrollView>(null);
+
   const [userModal, setUserModal] = useState(false);
 const [sectionsModal, setSectionsModal] = useState(false);
 const [notesModal, setNotesModal] = useState(false);
@@ -456,6 +460,10 @@ const {
 
   const handleDateSelect = (newDate: Date) => {
     setSelectedDate(newDate);
+    // Reset horizontal scroll position to left
+    setTimeout(() => {
+      horizontalScrollRef.current?.scrollTo({ x: 0, animated: false });
+    }, 100);
     // The query will automatically refetch due to the queryKey dependency
   };
 
@@ -464,6 +472,10 @@ const {
     const newDate = new Date(day.dateString);
     setSelectedDate(newDate);
     setCalendarVisible(false);
+    // Reset horizontal scroll position to left
+    setTimeout(() => {
+      horizontalScrollRef.current?.scrollTo({ x: 0, animated: false });
+    }, 100);
     // The query will automatically refetch due to the queryKey dependency
   };
 
@@ -533,6 +545,7 @@ const closeModal = () => {
   setNotesModal(false);
   setDevicesModal(false);
   setSelectedTaskForModal(null);
+  // Don't close the task modal when closing sub-modals
 };
 
 const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
@@ -541,11 +554,10 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
     <SafeAreaView style={{ flex: 1, backgroundColor: BLUE }}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Branches')}>
           <LeftArrowIcon
             width={16}
             height={16}
-            onPress={() => navigation.goBack()}
           />
         </TouchableOpacity>
         <RNPressable
@@ -710,98 +722,157 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={{ minHeight: HOUR_LIST.length * SLOT_HEIGHT, position: 'relative' }}>
-              {HOUR_LIST.map(hour => (
-                <View key={hour} style={styles.hourBlock}>
-                  {/* Horizontal grid line */}
-                  <View style={styles.gridLine} />
-                  <View style={styles.hourRow}>
-                    {/* Time label */}
-                    <View style={styles.hourLabelWrap}>
-                      <Text style={styles.hourLabel}>{hour}</Text>
-                    </View>
-                    {/* Empty space for grid; tasks are rendered in overlay */}
-                    <View style={styles.tasksRow} />
-                  </View>
-                </View>
-              ))}
+            (() => {
+              // Calculate tasks and columns first
+                  const assignTaskColumns = (tasks: any[]) => {
+                    const sortedTasks = tasks
+                      .filter(t => Array.isArray(t.slots) && t.slots.length > 0)
+                      .map(task => ({
+                        ...task,
+                        startIndex: HOUR_LIST.indexOf(task.slots[0]),
+                        endIndex: HOUR_LIST.indexOf(task.slots[0]) + (task.slotCount || 1) - 1,
+                      }))
+                      .filter(task => task.startIndex >= 0)
+                      .sort((a, b) => a.startIndex - b.startIndex || (a.endIndex - b.endIndex));
 
-              {/* Absolute-positioned task overlay spanning multiple slots */}
-              <View style={styles.overlayContainer}>
-                {(() => {
-                  const groups: Record<number, any[]> = {};
-                  formattedTasks
-                    .filter(t => Array.isArray(t.slots) && t.slots.length > 0)
-                    .forEach(item => {
-                      const startIndex = HOUR_LIST.indexOf(item.slots[0]);
-                      if (startIndex >= 0) {
-                        if (!groups[startIndex]) groups[startIndex] = [];
-                        groups[startIndex].push(item);
+                    const columns: any[][] = [];
+                    
+                    sortedTasks.forEach(task => {
+                      let placed = false;
+                      
+                      for (let i = 0; i < columns.length; i++) {
+                        const column = columns[i];
+                        const lastTaskInColumn = column[column.length - 1];
+                        
+                        if (!lastTaskInColumn || lastTaskInColumn.endIndex < task.startIndex) {
+                          column.push({ ...task, column: i });
+                          placed = true;
+                          break;
+                        }
+                      }
+                      
+                      if (!placed) {
+                        columns.push([{ ...task, column: columns.length }]);
                       }
                     });
+
+                    return columns.flat();
+                  };
+
+                  const tasksWithColumns = assignTaskColumns(formattedTasks);
+              const maxColumnsOverall = Math.max(1, ...tasksWithColumns.map(t => t.column + 1));
+              const taskWidth = 180;
+              const totalContentWidth = maxColumnsOverall * (taskWidth + 8) + 88 + 50; // 88 for time labels + 50 padding
+
+              const tasksContentWidth = maxColumnsOverall * (taskWidth + 8) + 50; // Width for tasks only
+
+              return (
+                <View style={{ flex: 1, flexDirection: 'row' }}>
+                  {/* Fixed Time Column */}
+                  <View style={{ width: 88, minHeight: HOUR_LIST.length * SLOT_HEIGHT }}>
+                    {HOUR_LIST.map(hour => (
+                      <View key={hour} style={[styles.hourBlock, { width: 88 }]}>
+                        <View style={[styles.gridLine, { width: 88 }]} />
+                        <View style={[styles.hourRow, { width: 88 }]}>
+                          <View style={styles.hourLabelWrap}>
+                            <Text style={styles.hourLabel}>{hour}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Scrollable Tasks Area */}
+                  <ScrollView
+                    ref={horizontalScrollRef}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ 
+                      width: Math.max(tasksContentWidth, 300)
+                    }}
+                  >
+                    <View style={{ width: tasksContentWidth, minHeight: HOUR_LIST.length * SLOT_HEIGHT, position: 'relative' }}>
+                      {/* Grid lines for tasks area */}
+                      {HOUR_LIST.map((hour, index) => (
+                        <View key={`grid-${hour}`} style={{
+                          position: 'absolute',
+                          top: index * SLOT_HEIGHT,
+                          left: -8,
+                          width: tasksContentWidth + 16,
+                          height: 1,
+                          backgroundColor: '#E1E8F0',
+                        }} />
+                      ))}
+
+                      {/* Task overlay */}
+                      <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}>
+                        {(() => {
+                  const groups: Record<number, any[]> = {};
+                  tasksWithColumns.forEach(task => {
+                    const startIndex = task.startIndex;
+                    if (!groups[startIndex]) groups[startIndex] = [];
+                    groups[startIndex].push(task);
+                  });
 
                   return Object.entries(groups).map(([indexStr, items]) => {
                     const index = Number(indexStr);
                     const top = index * SLOT_HEIGHT + 4;
-                    const height = Math.max(
-                      54,
-                      ...items.map(it => (it.slotCount || 1) * SLOT_HEIGHT - 8),
-                    );
+                            const maxHeight = Math.max(54, ...items.map(it => (it.slotCount || 1) * SLOT_HEIGHT - 8));
+                    
                     return (
-                      <View key={`band-${index}`} style={[styles.overlayBand, { top, height }]}>
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={styles.overlayBandScrollContent}
-                        >
-{items.map(item => (
-  <RNPressable
-    key={item.id}
-    style={[
-      styles.taskCard,
-      {
-        position: 'relative',
-        height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
-        borderColor: item.borderColor,
-        backgroundColor: item.bg,
-        marginRight: 14,
-        width: item.type === 'mini' ? 140 : 220,  // Fixed width instead of min/max
-      },
-    ]}
-                              onPress={() => {
-                                setSelectedTask(item);
-                                setShowTaskModal(true);
-                              }}
-                            >
-                              <View style={styles.taskMetaRow}>
-                                <Text style={styles.taskNumber}>{item.number}</Text>
-                                <View style={styles.taskUserPill}>
-                                  <Text style={styles.taskUserText}>
-                                    {item.type === 'mini'
-                                      ? item.user.split(' ')[0]
-                                      : item.user}
-                                  </Text>
-                                </View>
-                              </View>
-                              <Text
+                              <View key={`band-${index}`} style={{ position: 'absolute', left: 8, right: 0, top, height: maxHeight }}>
+                            {items.map(item => (
+                              <RNPressable
+                                key={item.id}
                                 style={[
-                                  styles.taskTitle,
-                                  { fontSize: item.type === 'mini' ? 11 : 12 },
+                                  styles.taskCard,
+                                  {
+                                    position: 'absolute',
+                                    left: item.column * (taskWidth + 8),
+                                    top: 0,
+                                    height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
+                                    borderColor: item.borderColor,
+                                    backgroundColor: item.bg,
+                                    width: taskWidth,
+                                  },
                                 ]}
-                                numberOfLines={item.type === 'mini' ? 2 : 3}
+                                onPress={() => {
+                                  setSelectedTask(item);
+                                  setShowTaskModal(true);
+                                }}
                               >
-                                {item.title}
-                              </Text>
-                            </RNPressable>
-                          ))}
-                        </ScrollView>
+                                <View style={styles.taskMetaRow}>
+                                  <Text style={styles.taskNumber}>{item.number}</Text>
+                                  <View style={styles.taskUserPill}>
+                                    <Text style={styles.taskUserText}>
+                                          {maxColumnsOverall > 2 || item.type === 'mini'
+                                        ? item.user.split(' ')[0]
+                                        : item.user}
+                                    </Text>
+                                  </View>
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.taskTitle,
+                                        { fontSize: maxColumnsOverall > 2 || item.type === 'mini' ? 11 : 12 },
+                                  ]}
+                                      numberOfLines={maxColumnsOverall > 2 || item.type === 'mini' ? 2 : 3}
+                                >
+                                  {item.title}
+                                </Text>
+                              </RNPressable>
+                            ))}
                       </View>
                     );
                   });
                 })()}
               </View>
-              
             </View>
+                  </ScrollView>
+                </View>
+              );
+            })()
           )}
         </ScrollView>
       </View>
@@ -814,7 +885,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
         onRequestClose={() => setShowTaskModal(false)}
       >
         <RNPressable style={styles.modalBackdrop} onPress={() => setShowTaskModal(false)}>
-          <View style={styles.taskModalBox}>
+          <RNPressable style={styles.taskModalBox} onPress={(e) => e.stopPropagation()}>
             {selectedTask ? (
               <>
                 {(() => {
@@ -828,7 +899,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
                   const end = new Date(selectedTask.endDate);
                   const isCurrentlyActive = normalizedStatus === 'Active' && now >= start && now <= end;
                   const canStart = isCurrentlyActive;
-                  const progressPct = Math.min(100, Math.round(((selectedTask.slotCount || 1) * 30) / ((selectedTask.duration || 30)) * 100));
+                  const progressPct = 0;
 
                   return (
                     <>
@@ -861,63 +932,185 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
 {/* Summary section */}
 <View style={{ backgroundColor: '#F7F9FC', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', marginTop: 14 }}>
   <View style={{ flexDirection: 'row', padding: 12 }}>
-    <TouchableOpacity 
-      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
-      onPress={() => {
-        setShowTaskModal(false);
-        openModal('user', selectedTask);
-      }}
-    >
-      <UserIcon width={14} height={14} />
-      <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Reassign</Text>
-    </TouchableOpacity>
-    <TouchableOpacity 
-      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
-      onPress={() => {
-        setShowTaskModal(false);
-        openModal('devices', selectedTask);
-      }}
-    >
-      <SettingsIcon width={14} height={14} />
-      <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Devices</Text>
-      <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-        <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>
-          {Array.isArray((devicesData?.data as any)?.content) ? (devicesData.data as any).content.length : 0}
-        </Text>
-      </View>
-    </TouchableOpacity>
+    {(() => {
+      const userCount = Array.isArray(filteredUsers) ? filteredUsers.length : 0;
+      const isReassignDisabled = userCount === 0;
+      
+      return (
+        <TouchableOpacity 
+          style={{ 
+            flex: 1, 
+            flexDirection: 'row', 
+            alignItems: 'center',
+            opacity: isReassignDisabled ? 0.5 : 1 
+          }}
+          onPress={() => {
+            if (!isReassignDisabled) {
+              openModal('user', selectedTask);
+            }
+          }}
+          disabled={isReassignDisabled}
+        >
+          <UserIcon width={14} height={14} style={{ opacity: isReassignDisabled ? 0.5 : 1 }} />
+          <Text style={{ 
+            color: isReassignDisabled ? '#AAB3BB' : '#1292E6', 
+            fontWeight: '500', 
+            fontSize: 12, 
+            marginLeft: 8 
+          }}>
+            Reassign
+          </Text>
+        </TouchableOpacity>
+      );
+    })()}
+    
+    {(() => {
+      const deviceCount = Array.isArray((devicesData?.data as any)?.content) ? (devicesData.data as any).content.length : 0;
+      const isDevicesDisabled = deviceCount === 0;
+      
+      return (
+        <TouchableOpacity 
+          style={{ 
+            flex: 1, 
+            flexDirection: 'row', 
+            alignItems: 'center',
+            opacity: isDevicesDisabled ? 0.5 : 1 
+          }}
+          onPress={() => {
+            if (!isDevicesDisabled) {
+              openModal('devices', selectedTask);
+            }
+          }}
+          disabled={isDevicesDisabled}
+        >
+          <DeviceIcon width={14} height={14} style={{ opacity: isDevicesDisabled ? 0.5 : 1 }} />
+          <Text style={{ 
+            color: isDevicesDisabled ? '#AAB3BB' : '#1292E6', 
+            fontWeight: '500', 
+            fontSize: 12, 
+            marginLeft: 8 
+          }}>
+            Devices
+          </Text>
+          <View style={{ 
+            backgroundColor: isDevicesDisabled ? '#F0F0F0' : '#D0ECFF', 
+            borderRadius: 12, 
+            minWidth: 28, 
+            height: 28, 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            marginLeft: 8 
+          }}>
+            <Text style={{ 
+              color: isDevicesDisabled ? '#AAB3BB' : '#1292E6', 
+              fontWeight: '600', 
+              fontSize: 12 
+            }}>
+              {deviceCount}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    })()}
   </View>
   <View style={{ flexDirection: 'row', padding: 12, paddingTop: 0 }}>
-    <TouchableOpacity 
-      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
-      onPress={() => {
-        setShowTaskModal(false);
-        openModal('sections', selectedTask);
-      }}
-    >
-      <MenuIcon width={14} height={14} />
-      <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Sections</Text>
-      <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-        <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>
-          {Array.isArray((sectionsData?.data as any)?.content) ? (sectionsData.data as any).content.length : 0}
-        </Text>
-      </View>
-    </TouchableOpacity>
-    <TouchableOpacity 
-      style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
-      onPress={() => {
-        setShowTaskModal(false);
-        openModal('notes', selectedTask);
-      }}
-    >
-      <NotesIcon width={14} height={14} />
-      <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Notes</Text>
-      <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-        <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>
-          {selectedTask.notesCount ?? 0}
-        </Text>
-      </View>
-    </TouchableOpacity>
+    {(() => {
+      const sectionCount = Array.isArray((sectionsData?.data as any)?.content) ? (sectionsData.data as any).content.length : 0;
+      const isSectionsDisabled = sectionCount === 0;
+      
+      return (
+        <TouchableOpacity 
+          style={{ 
+            flex: 1, 
+            flexDirection: 'row', 
+            alignItems: 'center',
+            opacity: isSectionsDisabled ? 0.5 : 1 
+          }}
+          onPress={() => {
+            if (!isSectionsDisabled) {
+              openModal('sections', selectedTask);
+            }
+          }}
+          disabled={isSectionsDisabled}
+        >
+          <MenuIcon width={14} height={14} style={{ opacity: isSectionsDisabled ? 0.5 : 1 }} />
+          <Text style={{ 
+            color: isSectionsDisabled ? '#AAB3BB' : '#1292E6', 
+            fontWeight: '500', 
+            fontSize: 12, 
+            marginLeft: 8 
+          }}>
+            Sections
+          </Text>
+          <View style={{ 
+            backgroundColor: isSectionsDisabled ? '#F0F0F0' : '#D0ECFF', 
+            borderRadius: 12, 
+            minWidth: 28, 
+            height: 28, 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            marginLeft: 8 
+          }}>
+            <Text style={{ 
+              color: isSectionsDisabled ? '#AAB3BB' : '#1292E6', 
+              fontWeight: '600', 
+              fontSize: 12 
+            }}>
+              {sectionCount}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    })()}
+    
+    {(() => {
+      const notesCount = selectedTask.notesCount ?? 0;
+      const isNotesDisabled = notesCount === 0;
+      
+      return (
+        <TouchableOpacity 
+          style={{ 
+            flex: 1, 
+            flexDirection: 'row', 
+            alignItems: 'center',
+            opacity: isNotesDisabled ? 0.5 : 1 
+          }}
+          onPress={() => {
+            if (!isNotesDisabled) {
+              openModal('notes', selectedTask);
+            }
+          }}
+          disabled={isNotesDisabled}
+        >
+          <NotesIcon width={14} height={14} style={{ opacity: isNotesDisabled ? 0.5 : 1 }} />
+          <Text style={{ 
+            color: isNotesDisabled ? '#AAB3BB' : '#1292E6', 
+            fontWeight: '500', 
+            fontSize: 12, 
+            marginLeft: 8 
+          }}>
+            Notes
+          </Text>
+          <View style={{ 
+            backgroundColor: isNotesDisabled ? '#F0F0F0' : '#D0ECFF', 
+            borderRadius: 12, 
+            minWidth: 28, 
+            height: 28, 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            marginLeft: 8 
+          }}>
+            <Text style={{ 
+              color: isNotesDisabled ? '#AAB3BB' : '#1292E6', 
+              fontWeight: '600', 
+              fontSize: 12 
+            }}>
+              {notesCount}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    })()}
   </View>
 </View>
 
@@ -932,6 +1125,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
                         params: {
                           formDefinitionId: selectedTask.formDefinitionId || selectedTask.id,
                           status: selectedTask.scheduleType,
+                          sourceScreen: 'Schedule', // Add source information
                         },
                       });
                           }
@@ -951,7 +1145,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
                 })()}
               </>
             ) : null}
-          </View>
+          </RNPressable>
         </RNPressable>
       </RNModal>
 
@@ -1007,8 +1201,8 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
   animationType="fade"
   onRequestClose={closeModal}
 >
-  <RNPressable style={styles.modalBackdrop} onPress={closeModal}>
-    <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, justifyContent: 'flex-start', width: '90%', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 8, minHeight: '60%' }}>
+  <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
+    <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, justifyContent: 'flex-start', width: '90%', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 8, minHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
         <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Users</Text>
         <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1053,7 +1247,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
           <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No users found</Text>
         )}
       </View>
-    </View>
+    </RNPressable>
   </RNPressable>
 </RNModal>
 
@@ -1064,8 +1258,8 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
   animationType="fade"
   onRequestClose={closeModal}
 >
-  <RNPressable style={styles.modalBackdrop} onPress={closeModal}>
-    <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 20, width: '90%', maxHeight: '60%' }}>
+  <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
+    <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 20, width: '90%', maxHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
         <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44', flex: 1 }}>Sections</Text>
         <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1108,7 +1302,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
           <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No sections found</Text>
         )}
       </ScrollView>
-    </View>
+    </RNPressable>
   </RNPressable>
 </RNModal>
 
@@ -1119,8 +1313,8 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
   animationType="fade"
   onRequestClose={closeModal}
 >
-  <RNPressable style={styles.modalBackdrop} onPress={closeModal}>
-    <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, width: '90%', minHeight: 320, maxHeight: '60%' }}>
+  <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
+    <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, width: '90%', minHeight: 320, maxHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
         <Text style={{ fontWeight: '700', fontSize: 20, color: '#222E44' }}>Devices</Text>
         <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1152,7 +1346,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
           <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No devices found</Text>
         )}
       </View>
-    </View>
+    </RNPressable>
   </RNPressable>
 </RNModal>
 
@@ -1163,8 +1357,8 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
   animationType="fade"
   onRequestClose={closeModal}
 >
-  <RNPressable style={styles.modalBackdrop} onPress={closeModal}>
-    <View style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, width: '90%', minHeight: 320, maxHeight: '60%' }}>
+  <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
+    <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, width: '90%', minHeight: 320, maxHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
         <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Notes</Text>
         <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -1190,7 +1384,7 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
           <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No notes found</Text>
         )}
       </View>
-    </View>
+    </RNPressable>
   </RNPressable>
 </RNModal>
 

@@ -70,8 +70,9 @@ const CameraIcon = () => (
 );
 
 export default function SectionsScreen({ navigation }: { navigation: any }) {
-    // Get formDefinitionId and status from route params
+    // Get formDefinitionId, status, and sourceScreen from route params
     const route = useRoute();
+<<<<<<< HEAD
     const {
         formSectionIds = {},
         data
@@ -85,6 +86,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         clientId = "",
         siteId = ""
     } = data
+=======
+    const { formDefinitionId = "", status = "", sourceScreen = "" }: any = route.params || {};
+>>>>>>> 84725c87982a382276de9cadcedf7b631b692464
 
     // Mutation for document sync
     const syncMutation = useMutation({
@@ -258,7 +262,15 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerRow}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <TouchableOpacity onPress={() => {
+                        // Navigate back to the source screen
+                        if (sourceScreen === 'Schedule') {
+                            // Navigate back to Schedule tab and clear the Task stack
+                            navigation.getParent()?.navigate('Schedule');
+                        } else {
+                            navigation.goBack();
+                        }
+                    }}>
                         <BackArrowIcon width={getResponsive(16)} height={getResponsive(16)} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Sections</Text>

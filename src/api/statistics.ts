@@ -7,6 +7,7 @@ export async function fetchDocument(params: {
 	search?: string;
 	sort?: string;
 	userIds?: string | number | (string | number)[];
+	siteIds?: string | number | (string | number)[];
 	startDate?: string;
 	endDate?: string;
 	scheduleStatus?: string;
@@ -21,6 +22,13 @@ export async function fetchDocument(params: {
 			query.append('userIds', params.userIds.join(','));
 		} else {
 			query.append('userIds', params.userIds.toString());
+		}
+	}
+	if (params.siteIds !== undefined) {
+		if (Array.isArray(params.siteIds)) {
+			query.append('siteIds', params.siteIds.join(','));
+		} else {
+			query.append('siteIds', params.siteIds.toString());
 		}
 	}
 	if (params.startDate !== undefined) query.append('startDate', params.startDate);
