@@ -1,3 +1,4 @@
+
 import { apiService } from '../services/api';
 // Fetch documents with filters
 export async function fetchDocument(params: {
@@ -26,22 +27,22 @@ export async function fetchDocument(params: {
 	if (params.endDate !== undefined) query.append('endDate', params.endDate);
 	if (params.scheduleStatus !== undefined) query.append('scheduleStatus', params.scheduleStatus);
 
-		const url = `/api/document/?${query.toString()}`;
-		const response = await apiService.get(url);
-		console.log('[API] fetchDocument response:', response);
-		return response;
+	const url = `/api/document/?${query.toString()}`;
+	const response = await apiService.get(url);
+	console.log('[API] fetchDocument response:', response);
+	return response;
 }
 // Fetch definition sections by formDefinitionId and status
 
-export async function fetchDefinitionSections({ formDefinitionId, status }: { formDefinitionId: string | number, status: string }) {
-	if (!formDefinitionId) return [];
-	const url = `/api/forms/definitionSections?formDefinitionId=${formDefinitionId}&status=${status}`;
+export async function fetchDefinitionSections() {
+	const url = `/api/forms/sections/all`;
 	const response = await apiService.get(url) as { data?: { content?: any[] } };
-	console.log("response", response);
-	
-	// If using fetch, replace with fetch(url) and await response.json()
 	return response?.data || [];
 }
+
+
+
+
 
 export async function fetchStatisticsUserDetail(params: {
 	page?: number;
@@ -75,4 +76,35 @@ export async function fetchStatisticsUserDetail(params: {
 
 	const url = `/api/document/statistics/usersDetail?${query.toString()}`;
 	return apiService.get(url);
+}
+
+
+// Sync document by documentId
+export async function syncDocument(documentId: string | number, body: {
+	formDefinitionId: number;
+	status: string;
+	userAccountId: number;
+	clientId: number;
+	siteId: number;
+	flow: number;
+	deleted: boolean;
+	completedDate: string;
+	key: string | null;
+	sectionModels: Array<{
+		startDate: string;
+		endDate: string;
+		key: string;
+		formConfigurationSectionId: number;
+		documentId: number;
+		userId: number;
+		data: Array<{
+			value: string | string[];
+			controlId: string;
+			groupName: string | null;
+			senserData: any;
+		}>;
+	}>;
+}) {
+	const url = `/api/document/sync/${documentId}`;
+	return apiService.put(url, body);
 }

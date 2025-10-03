@@ -16,7 +16,7 @@ export async function fetchDevices() {
 
 // Fetch sections
 export async function fetchSections() {
-  const response: any = await apiService.get('/api/forms/sections/all');
+  const response: any = await apiService.get('/api/forms/definitions');
   return response;
 }
 

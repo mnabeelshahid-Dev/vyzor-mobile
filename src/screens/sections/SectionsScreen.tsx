@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchDefinitionSections } from '../../api/statistics';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { fetchDefinitionSections, syncDocument } from '../../api/statistics';
 import {
     View,
     Text,
+    ActivityIndicator,
     StyleSheet,
     SafeAreaView,
     ScrollView,
@@ -18,6 +19,7 @@ import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import Signiture from '../../assets/svgs/segnitureImage.svg'
 import { useRoute } from '@react-navigation/native';
+import { showErrorToast, showSuccessToast } from '../../components';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -32,7 +34,7 @@ const Radio = ({ selected }: { selected: boolean }) => (
             height: getResponsive(16),
             borderRadius: getResponsive(14),
             borderWidth: 2,
-            borderColor: selected ? '#1292E6' : '#19233C',
+            borderColor: selected ? '#0088E7' : '#19233C',
             backgroundColor: '#fff',
             justifyContent: 'center',
             alignItems: 'center',
@@ -45,7 +47,7 @@ const Radio = ({ selected }: { selected: boolean }) => (
                     width: getResponsive(8),
                     height: getResponsive(8),
                     borderRadius: getResponsive(7),
-                    backgroundColor: '#1292E6',
+                    backgroundColor: '#0088E7',
                 }}
             />
         ) : null}
@@ -67,31 +69,130 @@ const CameraIcon = () => (
     </View>
 );
 
-const RefreshIcon = () => (
-    <View
-        style={{
-            width: getResponsive(16),
-            height: getResponsive(16),
-            borderRadius: getResponsive(14),
-            backgroundColor: '#1292E6',
-            justifyContent: 'center',
-            alignItems: 'center',
-            position: 'absolute',
-            top: -2,
-            right: -6,
-        }}
-    >
-        <Text style={{ color: '#ffff', fontWeight: 'bold', fontSize: getResponsive(12), alignSelf: 'center', bottom: 2 }}>↻</Text>
-    </View>
-);
-
 export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Get formDefinitionId and status from route params
     const route = useRoute();
-    const { formDefinitionId = "", status = "" }: any = route.params || {};
+    const {
+        formSectionIds = {},
+        data
+    }: any = route.params || {};
+    const {
+        formName = "",
+        startDate = "",
+        documentId = "",
+        formDefinitionId = "",
+        userId = "",
+        clientId = "",
+        siteId = ""
+    } = data
 
-    // Fetch sections from API (moved to statistics.ts)
-    // import fetchDefinitionSections from statistics.ts
+    // Mutation for document sync
+    const syncMutation = useMutation({
+        mutationFn: async (body: any) => {
+            return syncDocument(documentId, body);
+        },
+        onSuccess: () => {
+            showSuccessToast('Document synced successfully!', 'Your document has been saved.');
+        },
+        onError: () => {
+            showErrorToast('Failed to sync document.', 'Please try again.');
+        }
+    });
+
+    const [rowImages, setRowImages] = useState<{ [rowId: string]: Array<{ uri: string, id: string }> }>({});
+
+    const handleAddImages = async (rowId: string) => {
+        launchImageLibrary(
+            { selectionLimit: 5, mediaType: 'photo' },
+            response => {
+                if (response.assets && response.assets.length > 0) {
+                    const newImgs = response.assets
+                        .filter(a => a.uri)
+                        .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
+                    setRowImages(prev => ({
+                        ...prev,
+                        [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5)
+                    }));
+                }
+            }
+        );
+    };
+
+    const handleRemoveImage = (rowId: string, imgId: string) => {
+        setRowImages(prev => ({
+            ...prev,
+            [rowId]: (prev[rowId] || []).filter(img => img.id !== imgId)
+        }));
+    };
+
+    // Submission handler
+    const handleSubmit = () => {
+        const sectionModels = filteredList.map(section => ({
+            startDate: startDate || new Date().toISOString(),
+            endDate: new Date().toISOString(),
+            key: section.key || section.webId || '',
+            formConfigurationSectionId: section.formConfigurationSectionId || section.webId,
+            documentId: documentId,
+            userId: userId,
+            data: (section.formSectionRowModels || []).flatMap(row => {
+                const answer = answers[section.webId]?.[row.webId];
+                // Collect RADIO_BUTTON answers
+                const radioData = row.columns[1]?.components.filter(comp => comp.component === 'RADIO_BUTTON').map(comp => ({
+                    value: answer || '',
+                    controlId: comp.webId,
+                    groupName: comp.groupName || null,
+                    senserData: null,
+                })) || [];
+                // Collect CAMERA answers (images)
+                const cameraData = row.columns.some(col => col.components.some(comp => comp.component === 'CAMERA'))
+                    ? (rowImages[row.webId] || []).map(img => ({
+                        value: [img.id],
+                        controlId: 'CAMERA_' + section.webId + '_' + row.webId,
+                        groupName: null,
+                        senserData: null,
+                    }))
+                    : [];
+                return [...radioData, ...cameraData];
+            }),
+        }));
+        const body = {
+            formDefinitionId,
+            status: 'COMPLETED',
+            userAccountId: userId,
+            clientId,
+            siteId,
+            flow: 1,
+            deleted: false,
+            completedDate: new Date().toISOString(),
+            key: null,
+            sectionModels,
+        };
+        syncMutation.mutate(body);
+    };
+    // Memoized filtered and ordered section list
+
+
+    function formatDateTime(dateString: any) {
+        const date = new Date(dateString);
+
+        // Get date parts
+        const month = date.getMonth() + 1; // months are 0-based
+        const day = date.getDate();
+        const year = date.getFullYear();
+
+        // Get time parts
+        let hours = date.getHours();
+        const minutes = date.getMinutes();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+
+        hours = hours % 12;
+        hours = hours ? hours : 12; // 0 becomes 12
+
+        // Pad minutes with leading 0 if needed
+        const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+
+        return `${month}/${day}/${year} ${hours}:${minutesStr}${ampm}`;
+    }
 
     const {
         data: sectionData,
@@ -99,99 +200,61 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         isError: isSectionsError,
         refetch: refetchSections,
     } = useQuery({
-        queryKey: ['definitionSections', formDefinitionId, status],
-        queryFn: () => fetchDefinitionSections({ formDefinitionId, status }),
-        enabled: !!formDefinitionId,
+        queryKey: ['definitionSections'],
+        queryFn: async () => {
+            const res = await fetchDefinitionSections();
+            return Array.isArray(res) ? res : res.content || [];
+        },
     });
-    const [answers, setAnswers] = useState({
-        q1: true,
-        q2: true,
-        q3: true,
-        notes1: 'Yes all things are working fine.',
-        notes2: 'Yes all okey',
-        signature: true,
-    });
+
+    const filteredList = (() => {
+        if (!sectionData || sectionData.length === 0) return [];
+        const ids = Object.values(formSectionIds);
+        const filtered = sectionData.filter(section => ids.includes(section.webId));
+        const ordered = ids
+            .map(id => filtered.find(section => section.webId === id))
+            .filter(Boolean);
+        return ordered;
+    })();
+
+    // Removed getSectionList and useEffect, logic is now in useMemo above
+
+    // answers state per section and row
+    const [answers, setAnswers] = useState<{ [sectionId: string]: { [rowId: string]: string } }>({});
     // State for multiple images
-    const [images, setImages] = useState([
-        {
-            uri: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80',
-            id: '1',
-        },
-        {
-            uri: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80',
-            id: '2',
-        },
-        {
-            uri: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80',
-            id: '3',
-        },
-    ]);
+    const [images, setImages] = useState([]);
 
     // Picker handler for multiple images
-    const handleAddImages = async () => {
-        launchImageLibrary(
-            {
-                selectionLimit: 5,
-                mediaType: 'photo',
-            },
-            response => {
-                if (response.assets && response.assets.length > 0) {
-                    const newImgs = response.assets
-                        .filter(a => a.uri)
-                        .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
-                    setImages(prev =>
-                        [...prev, ...newImgs].slice(0, 5)
-                    );
-                }
-            }
-        );
-    };
+    // const handleAddImages = async () => {
+    //     launchImageLibrary(
+    //         {
+    //             selectionLimit: 5,
+    //             mediaType: 'photo',
+    //         },
+    //         response => {
+    //             if (response.assets && response.assets.length > 0) {
+    //                 const newImgs = response.assets
+    //                     .filter(a => a.uri)
+    //                     .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
+    //                 setImages(prev =>
+    //                     [...prev, ...newImgs].slice(0, 5)
+    //                 );
+    //             }
+    //         }
+    //     );
+    // };
 
-    const handleRemoveImage = (id: string) => {
-        setImages(prev => prev.filter(img => img.id !== id));
-    };
+    // const handleRemoveImage = (id: string) => {
+    //     setImages(prev => prev.filter(img => img.id !== id));
+    // };
 
-    const checklist = [
-        {
-            type: 'radio',
-            question: 'Is the store front, entrance, and lobby area clean and presentable?',
-            key: 'q1',
-        },
-        {
-            type: 'radio',
-            question: 'Are all lights, air conditioning, and power systems functioning properly?',
-            key: 'q2',
-        },
-        {
-            type: 'radio',
-            question: 'Is the staff present, in uniform, and ready for their assigned shifts?',
-            key: 'q3',
-        },
-        {
-            type: 'images',
-            label: 'Take Pictures;',
-            key: 'imgs',
-        },
-        {
-            type: 'notes',
-            question: 'Are the POS (Point of Sale) system and payment terminals working?',
-            key: 'notes1',
-        },
-        {
-            type: 'notes',
-            question: 'Is the opening cash float counted and verified in all registers?',
-            key: 'notes2',
-        },
-        {
-            type: 'signature',
-            label: 'Signature',
-            key: 'signature',
-        },
-    ];
+    // Section navigation state
+    const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
+    const currentSection = filteredList[currentSectionIdx] || null;
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
-            <StatusBar barStyle="dark-content" backgroundColor="#007AFF" />
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#0088E7' }}>
+            <StatusBar barStyle="dark-content" backgroundColor="#0088E7" />
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerRow}>
@@ -218,14 +281,14 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             <View style={styles.topCardFloatWrap}>
                 <View style={styles.topCard}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                        <Text style={styles.topCardTitle}>Daily Operations Checklist</Text>
+                        <Text style={styles.topCardTitle}>{formName}</Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                        <Text style={styles.topCardSub}>#41516184</Text>
+                        <Text style={styles.topCardSub}>{documentId}</Text>
                         <Text style={styles.dot}>|</Text>
-                        <Text style={styles.topCardSub}>SCHEDULE</Text>
+                        <Text style={styles.topCardSub}>In-Progress</Text>
                         <View style={{ flex: 1 }} />
-                        <Text style={styles.topCardDate}>08/12/2025 5:55pm</Text>
+                        <Text style={styles.topCardDate}>{formatDateTime(startDate)}</Text>
                     </View>
                 </View>
             </View>
@@ -245,145 +308,151 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     showsVerticalScrollIndicator={false}
                 >
                     {/* Checklist Card */}
-                    <View style={styles.formCard}>
-                        {/* Checklist Title Row */}
-                        <View
-                            style={{
-                                borderTopLeftRadius: CARD_RADIUS,
-                                borderTopRightRadius: CARD_RADIUS,
-                                backgroundColor: 'transparent',
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                paddingHorizontal: getResponsive(16),
-                                paddingTop: getResponsive(16),
-                                paddingBottom: getResponsive(10),
-                                borderBottomColor: '#ECECEC',
-                                borderBottomWidth: 1,
-                            }}
-                        >
-                            <Text style={styles.formCardTitle}>Opening Checks</Text>
-                            <View style={{ flex: 1 }} />
-                            <Text style={styles.formCardTitle}>
-                                <Text style={{ fontWeight: '600' }}>2</Text> of 2
-                            </Text>
+                    {currentSection && (
+                        <View style={styles.formCard}>
+                            {/* Checklist Title Row */}
+                            <View
+                                style={{
+                                    borderTopLeftRadius: CARD_RADIUS,
+                                    borderTopRightRadius: CARD_RADIUS,
+                                    backgroundColor: 'transparent',
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    paddingHorizontal: getResponsive(16),
+                                    paddingTop: getResponsive(16),
+                                    paddingBottom: getResponsive(10),
+                                    borderBottomColor: '#ECECEC',
+                                    borderBottomWidth: 1,
+                                }}
+                            >
+                                <Text style={styles.formCardTitle}>{currentSection.name}</Text>
+                                <View style={{ flex: 1 }} />
+                                <Text style={styles.formCardTitle}>
+                                    <Text style={{ fontWeight: '600' }}>{currentSectionIdx + 1}</Text> of {filteredList.length}
+                                </Text>
+                            </View>
+                            {/* Checklist */}
+                            <View style={{ paddingHorizontal: getResponsive(10), paddingVertical: getResponsive(10) }}>
+                                {currentSection.formSectionRowModels.map((row, rIdx) => (
+                                    <View key={row.webId} style={styles.radioRow}>
+                                        {/* Render label and radio buttons for each row */}
+                                        <Text style={styles.radioLabel}>
+                                            {row.columns[0]?.components[0]?.text}
+                                        </Text>
+                                        <View style={styles.radioChoiceRow}>
+                                            {row.columns[1]?.components.map((comp, cIdx) => (
+                                                comp.component === 'RADIO_BUTTON' ? (
+                                                    <TouchableOpacity
+                                                        key={comp.webId}
+                                                        style={styles.radioOption}
+                                                        activeOpacity={0.8}
+                                                        onPress={() => {
+                                                            setAnswers(prev => ({
+                                                                ...prev,
+                                                                [currentSection.webId]: {
+                                                                    ...(prev[currentSection.webId] || {}),
+                                                                    [row.webId]: comp.text,
+                                                                },
+                                                            }));
+                                                        }}
+                                                    >
+                                                        <Radio selected={answers[currentSection.webId]?.[row.webId] === comp.text} />
+                                                        <Text style={[styles.radioOptionText, answers[currentSection.webId]?.[row.webId] === comp.text && { color: '#0088E7', fontWeight: 'bold' }]}>{comp.text}</Text>
+                                                    </TouchableOpacity>
+                                                ) : null
+                                            ))}
+                                        </View>
+                                    </View>
+                                ))}
+                                {/* Render image picker if section contains CAMERA or image label */}
+                                {currentSection.formSectionRowModels.map((row, rIdx) => (
+                                    <View key={row.webId} style={styles.radioRow}>
+                                        {/* ...radio buttons... */}
+                                        {row.columns.some(col => col.components.some(comp => comp.component === 'CAMERA')) && (
+                                            <View style={styles.mediaRow}>
+                                                <View style={{ width: '50%', justifyContent: 'center' }}>
+                                                    <Text style={{ fontSize: getResponsive(13) }}>Take Pictures</Text>
+                                                </View>
+                                                <View style={styles.multiImgBox}>
+                                                    {(rowImages[row.webId] || []).map(img => (
+                                                        <View key={img.id} style={styles.multiImgThumbBox}>
+                                                            <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
+                                                            <TouchableOpacity
+                                                                style={styles.multiImgRemove}
+                                                                onPress={() => handleRemoveImage(row.webId, img.id)}
+                                                            >
+                                                                <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ))}
+                                                    <TouchableOpacity
+                                                        style={styles.multiImgAddBtn}
+                                                        onPress={() => handleAddImages(row.webId)}
+                                                        activeOpacity={0.7}
+                                                    >
+                                                        <CameraIcon />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        )}
+                                    </View>
+                                ))}
+                            </View>
+                            {/* Next/Previous navigation */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+                                {currentSectionIdx === 0 && filteredList.length > 1 && (
+                                    <TouchableOpacity
+                                        style={[styles.submitBtn, { marginLeft: 'auto', marginRight: 0, backgroundColor: '#28B446', paddingHorizontal: 20, bottom: 20, right: 20 }]}
+                                        activeOpacity={0.85}
+                                        onPress={() => setCurrentSectionIdx(idx => Math.min(filteredList.length - 1, idx + 1))}
+                                    >
+                                        <Text style={styles.submitBtnText}>Next</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {currentSectionIdx === filteredList.length - 1 && filteredList.length > 1 && (
+                                    <>
+                                        <TouchableOpacity
+                                            style={[styles.submitBtn, { marginRight: 8, backgroundColor: '#28B446', paddingHorizontal: 20, bottom: 20, left: 20 }]}
+                                            activeOpacity={0.85}
+                                            onPress={() => setCurrentSectionIdx(idx => Math.max(0, idx - 1))}
+                                        >
+                                            <Text style={styles.submitBtnText}>Previous</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.submitBtn, { marginLeft: 8, backgroundColor: '#28B446', paddingHorizontal: 20, bottom: 20, right: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
+                                            activeOpacity={0.85}
+                                            onPress={handleSubmit}
+                                            disabled={syncMutation.status === 'pending'}
+                                        >
+                                            {syncMutation.status === 'pending' ? (
+                                                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                                            ) : null}
+                                            <Text style={styles.submitBtnText}>Submit</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
+                                {currentSectionIdx > 0 && currentSectionIdx < filteredList.length - 1 && (
+                                    <>
+                                        <TouchableOpacity
+                                            style={[styles.submitBtn, { flex: 1, marginRight: 8, backgroundColor: '#28B446' }]}
+                                            activeOpacity={0.85}
+                                            onPress={() => setCurrentSectionIdx(idx => Math.max(0, idx - 1))}
+                                        >
+                                            <Text style={styles.submitBtnText}>Previous</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.submitBtn, { flex: 1, marginLeft: 8, backgroundColor: '#28B446' }]}
+                                            activeOpacity={0.85}
+                                            onPress={() => setCurrentSectionIdx(idx => Math.min(filteredList.length - 1, idx + 1))}
+                                        >
+                                            <Text style={styles.submitBtnText}>Next</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
+                            </View>
                         </View>
-                        {/* Checklist */}
-                        <View style={{ paddingHorizontal: getResponsive(10), paddingVertical: getResponsive(10) }}>
-                            {checklist.map((item, idx) => {
-                                if (item.type === 'radio') {
-                                    const value = answers[item.key as keyof typeof answers];
-                                    return (
-                                        <View key={item.key} style={styles.radioRow}>
-                                            <Text style={styles.radioLabel}>{item.question}</Text>
-                                            <View style={styles.radioChoiceRow}>
-                                                <TouchableOpacity
-                                                    style={styles.radioOption}
-                                                    activeOpacity={0.8}
-                                                    onPress={() => setAnswers(a => ({ ...a, [item.key]: true }))}
-                                                >
-                                                    <Radio selected={value === true} />
-                                                    <Text style={[
-                                                        styles.radioOptionText,
-                                                        value === true && { color: '#1292E6' }
-                                                    ]}>YES</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={styles.radioOption}
-                                                    activeOpacity={0.8}
-                                                    onPress={() => setAnswers(a => ({ ...a, [item.key]: false }))}
-                                                >
-                                                    <Radio selected={value === false} />
-                                                    <Text style={[
-                                                        styles.radioOptionText,
-                                                        value === false && { color: '#1292E6' }
-                                                    ]}>NO</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                    );
-                                }
-                                if (item.type === 'images') {
-                                    return (
-                                        <View key={item.key} style={styles.mediaRow}>
-                                            <View style={{ width: '50%', justifyContent: 'center' }}>
-                                                <Text style={{ fontSize: getResponsive(13) }}>{item.label}</Text>
-                                            </View>
-                                            <View style={styles.multiImgBox}>
-                                                {images.map(img => (
-                                                    <View key={img.id} style={styles.multiImgThumbBox}>
-                                                        <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
-                                                        <TouchableOpacity
-                                                            style={styles.multiImgRemove}
-                                                            onPress={() => handleRemoveImage(img.id)}
-                                                        >
-                                                            <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
-                                                        </TouchableOpacity>
-                                                    </View>
-                                                ))}
-                                                <TouchableOpacity
-                                                    style={styles.multiImgAddBtn}
-                                                    onPress={handleAddImages}
-                                                    activeOpacity={0.7}
-                                                >
-                                                    <CameraIcon />
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                    );
-                                }
-                                if (item.type === 'notes') {
-                                    return (
-                                        <View key={item.key} style={styles.notesRow}>
-                                            <Text style={{
-                                                color: '#19233C',
-                                                fontSize: getResponsive(12),
-                                                marginBottom: getResponsive(10),
-                                                lineHeight: getResponsive(16),
-                                                backgroundColor: '#F7F9FC',
-                                                width: '50%',
-                                            }}>{item.question}</Text>
-                                            <View style={styles.notesBox}>
-                                                <Text style={styles.notesText}>{answers[item.key as keyof typeof answers]}</Text>
-                                            </View>
-                                        </View>
-                                    );
-                                }
-                                if (item.type === 'signature') {
-                                    return (
-                                        <View key={item.key} style={styles.signatureRow}>
-                                            <Text style={{
-                                                color: '#19233C',
-                                                fontSize: getResponsive(12),
-                                                marginBottom: getResponsive(10),
-                                                lineHeight: getResponsive(16),
-                                                backgroundColor: '#F7F9FC',
-                                                width: '60%',
-                                                alignSelf: 'center',
-                                            }}>{item.label}</Text>
-                                            <View style={styles.signatureBox}>
-                                                <Signiture
-                                                    width={styles.signatureImg.width}
-                                                    height={styles.signatureImg.height}
-                                                    style={styles.signatureImg}
-                                                />
-                                                <TouchableOpacity style={styles.signatureOverlay} activeOpacity={0.7}>
-                                                    <RefreshIcon />
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                    );
-                                }
-                                return null;
-                            })}
-                        </View>
-                    </View>
+                    )}
                 </ScrollView>
-            </View>
-            {/* Submit Button */}
-            <View style={styles.submitBar}>
-                <TouchableOpacity style={styles.submitBtn} activeOpacity={0.85}>
-                    <Text style={styles.submitBtnText}>Submit</Text>
-                </TouchableOpacity>
             </View>
         </SafeAreaView>
     );
@@ -391,7 +460,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
 const styles = StyleSheet.create({
     header: {
-        backgroundColor: '#007AFF',
+        backgroundColor: '#0088E7',
         paddingTop: Platform.OS === 'ios' ? getResponsive(18) : getResponsive(55),
         paddingBottom: getResponsive(14),
         paddingHorizontal: 0,
@@ -432,24 +501,24 @@ const styles = StyleSheet.create({
         marginBottom: getResponsive(8),
     },
     topCardTitle: {
-        color: '#222E44',
+        color: '#021639',
         fontWeight: '700',
         fontSize: getResponsive(16),
     },
     topCardSub: {
-        color: '#7A8194',
+        color: '#02163980',
         fontWeight: '500',
         fontSize: getResponsive(12),
     },
     dot: {
-        color: '#7A8194',
+        color: '#02163980',
         fontSize: getResponsive(18),
         marginHorizontal: 2,
         marginRight: getResponsive(8),
     },
     topCardDate: {
         fontSize: getResponsive(14),
-        color: '#7A8194',
+        color: '#02163980',
         fontWeight: '500',
     },
     formCard: {

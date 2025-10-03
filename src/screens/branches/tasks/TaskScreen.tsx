@@ -56,7 +56,7 @@ export default function TaskScreen({ navigation }) {
     }, [])
   );
   const user = useAuthStore((state) => state.user);
-  
+
   // State
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -191,8 +191,7 @@ export default function TaskScreen({ navigation }) {
   const fetchTasksInfinite = async ({ pageParam = 1 }) => {
     const params = buildParams(pageParam);
     const response = await fetchTasks(params);
-    console.log("-----------------",response);
-    
+
     // Support both array and paginated object
     let content = [];
     if (Array.isArray(response?.data)) {
@@ -223,7 +222,7 @@ export default function TaskScreen({ navigation }) {
   });
 
   console.log(isError);
-  
+
 
 
   // Flatten all pages, no deduplication (show all items)
@@ -362,21 +361,62 @@ export default function TaskScreen({ navigation }) {
     setShowSortModal(false);
   };
 
+  interface FormDefinitionSectionModel {
+    formDefinitionId: string | number;
+    deleted?: boolean;
+    formSectionId?: string | number;
+    // Add other fields if known
+  }
 
-  // Memoized Task Card for FlatList performance
-  const TaskCard = React.memo(({ item }: any) => {
-    // ...existing code from renderTask...
-  // Use displayStatus for badge and colors
-  const displayStatus = item.displayStatus || item.scheduleType;
-  // Map displayStatus to STATUS_COLORS using capitalized key
-  const colorKey = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1).toLowerCase();
-  const statusColor = STATUS_COLORS[colorKey] || '#0088E7';
-  const statusBg = STATUS_BG_COLORS[colorKey] || '#E6F1FB';
-  const statusText = displayStatus;
+  interface Section {
+    documentId?: string | number;
+    name?: string;
+    location?: string;
+    formDefinitionSectionModels?: FormDefinitionSectionModel[];
+    // Add other fields if known
+  }
 
-    function formatTaskDateRange(startDate: any, endDate: any) {
-      if (!startDate && !endDate) return 'No date';
-      const format = (date: any) => {
+  // Get array of section models for a given formDefinitionId
+  function getSectionModels(formDefinationsId: string | number): FormDefinitionSectionModel[] {
+    if (!sectionsData?.data?.content) return [];
+    let tempArray: FormDefinitionSectionModel[] = [];
+    sectionsData.data.content.forEach((section: Section) => {
+      if (Array.isArray(section.formDefinitionSectionModels)) {
+        section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel) => {
+          if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
+            tempArray.push(model);
+          }
+        });
+      }
+    });
+    return tempArray;
+  }
+
+  function getSectionModelsForSectionIds(formDefinationsId: string | number): any {
+    if (!sectionsData?.data?.content) return [];
+    let tempArray: any = [];
+    sectionsData.data.content.forEach((section: Section) => {
+      if (Array.isArray(section.formDefinitionSectionModels)) {
+        section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel) => {
+          if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
+            tempArray.push(model);
+          }
+        });
+      }
+    });
+    const formSectionIDs = {};
+    let id = 1;
+    tempArray.forEach((model: FormDefinitionSectionModel) => {
+      if (model.formSectionId) {
+        formSectionIDs[`id${id++}`] = model.formSectionId;
+      }
+    });
+    return formSectionIDs;
+  }
+
+  function formatTaskDateRange(startDate: any, endDate: any) {
+    if (!startDate && !endDate) return 'No date';
+    const format = (date: any) => {
       if (!date) return '';
       const d = new Date(date);
       if (isNaN(d.getTime())) return '';
@@ -384,18 +424,27 @@ export default function TaskScreen({ navigation }) {
         d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
         ' ' +
         d.toLocaleTimeString(undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
         })
       );
-      };
-      if (startDate && endDate) {
+    };
+    if (startDate && endDate) {
       if (startDate === endDate) return format(startDate);
       return `${format(startDate)} - ${format(endDate)}`;
-      }
-      return format(startDate || endDate);
     }
+    return format(startDate || endDate);
+  }
+
+  // Memoized Task Card for FlatList performance
+  const renderTask = (({ item }: any) => {
+    const displayStatus = item.displayStatus || item.scheduleType;
+    const colorKey = displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1).toLowerCase();
+    const statusColor = STATUS_COLORS[colorKey] || '#0088E7';
+    const statusBg = STATUS_BG_COLORS[colorKey] || '#E6F1FB';
+    const statusText = displayStatus;
+
 
     return (
       <View key={item?.documentId} style={[styles.taskCard, { borderRadius: 18, padding: 20, marginBottom: 22, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }]}>
@@ -446,7 +495,7 @@ export default function TaskScreen({ navigation }) {
               <MenuIcon width={14} height={14} />
               <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Sections</Text>
               <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>{Array.isArray((sectionsData?.data as any)?.content) ? (sectionsData.data as any).content.length : 0}</Text>
+                <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>{getSectionModels(item.formDefinitionId)?.length ?? 0}</Text>
               </View>
             </TouchableOpacity>
             {/* Notes */}
@@ -469,7 +518,7 @@ export default function TaskScreen({ navigation }) {
           return (
             <TouchableOpacity
               disabled={!isEnabled}
-              onPress={() => navigation.navigate('Section', { formDefinitionId: item?.formDefinitionId, status: item?.status })}
+              onPress={() => navigation.navigate('Section', { formSectionIds: getSectionModelsForSectionIds(item?.formDefinitionId), data: item })}
               style={{
                 backgroundColor: isEnabled ? '#1292E6' : '#bac0cdff',
                 borderRadius: 8,
@@ -487,7 +536,7 @@ export default function TaskScreen({ navigation }) {
   });
 
   // Use memoized TaskCard in FlatList
-  const renderTask = React.useCallback(({ item }) => <TaskCard item={item} />, []);
+  // const renderTask = React.useCallback(({ item }) => <TaskCard item={item} />, []);
 
   // Modals
   const FilterModal = (
@@ -553,7 +602,7 @@ export default function TaskScreen({ navigation }) {
             </TouchableOpacity>
             {/* Status Dropdown List */}
             {showStatusDropdown && (
-              <View style={{ backgroundColor: '#fff', borderRadius: 8, marginVertical: 4, marginHorizontal: 3, elevation: 2, shadowColor: '#0002', borderWidth: 1, borderColor: '#00000033', top:-10, zIndex: 10 }}>
+              <View style={{ backgroundColor: '#fff', borderRadius: 8, marginVertical: 4, marginHorizontal: 3, elevation: 2, shadowColor: '#0002', borderWidth: 1, borderColor: '#00000033', top: -10, zIndex: 10 }}>
                 {['Active', 'Scheduled', 'Completed', 'Expired'].map((status) => (
                   <TouchableOpacity
                     key={status}
