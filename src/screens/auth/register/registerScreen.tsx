@@ -184,7 +184,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
     // Set to exactly 16 years ago, same month/day
     return new Date(now.getFullYear() - 16, now.getMonth(), now.getDate());
   };
-  const defaultDOBString = getDefaultDOB().toISOString().split('T')[0];
+  const defaultDOBString = '';
   const [formData, setFormData] = useState<IFormData>({
     firstname: '',
     lastname: '',
@@ -918,7 +918,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                       style={[
                         styles.floatingLabelContainer,
                         { left: -5 },
-                        (true || dateOfBirthFocused || formData.dateOfBirth) &&
+                        (dateOfBirthFocused || formData.dateOfBirth) &&
                         [styles.floatingLabelContainerActive],
                       ]}
                     >
@@ -931,9 +931,9 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                       <Text
                         style={[
                           styles.floatingLabel,
-                          (true || dateOfBirthFocused || formData.dateOfBirth) &&
+                          (dateOfBirthFocused || formData.dateOfBirth) &&
                           styles.floatingLabelActive,
-                          (true || dateOfBirthFocused) && styles.floatingLabelFocused,
+                          (dateOfBirthFocused) && styles.floatingLabelFocused,
                         ]}
                       >
                         Date of Birth {''}
@@ -943,7 +943,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                     <TouchableOpacity
                       style={[
                         styles.floatingInput,
-                        (true || dateOfBirthFocused) && styles.floatingInputFocused,
+                        (dateOfBirthFocused) && styles.floatingInputFocused,
                         dateOfBirthError && styles.floatingInputError,
                       ]}
                       onPress={handleDatePickerPress}
@@ -964,7 +964,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                     <View
                       style={[
                         styles.underline,
-                        (true || dateOfBirthFocused) && styles.underlineFocused,
+                        (dateOfBirthFocused) && styles.underlineFocused,
                         dateOfBirthError && styles.underlineError,
                       ]}
                     />
