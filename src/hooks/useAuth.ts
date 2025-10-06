@@ -175,7 +175,7 @@ export const useRefreshTokens = () => {
       return success;
     },
     onError: (error: Error) => {
-      Debugconsole.log('useAuth', 'Token refresh failed', error);
+      console.log('useAuth', 'Token refresh failed', error);
       // Don't show toast for token refresh failures as they happen automatically
     },
   });

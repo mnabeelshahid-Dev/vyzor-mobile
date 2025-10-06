@@ -1,9 +1,27 @@
 import React from 'react';
+import { View, Text } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { useCurrentUser } from '../hooks/useAuth';
+// Tab icon components using SVGs from assets/svgs
+import BranchActiveIcon from '../assets/svgs/taskBranchActiveIcon.svg';
+import BranchInActiveIcon from '../assets/svgs/taskBranchInActiveIcon.svg';
+import ScheduleInActiveIcon from '../assets/svgs/scheduleInActive.svg';
+import ScheduleActiveIcon from '../assets/svgs/scheduleActiveIcon.svg';
+import EmailInActiveIcon from '../assets/svgs/bottomEmailIcon.svg';
+import EmailActiveIcon from '../assets/svgs/EmailActiveIcon.svg';
+import StatsBarInActiveIcon from '../assets/svgs/statsbarsInActive.svg';
+import StatsBarActiveIcon from '../assets/svgs/statsBarActiveIcon.svg';
+import ChatInActiveIcon from '../assets/svgs/chatInActive.svg';
+import ChatActiveIcon from '../assets/svgs/chatActiveIcon.svg';
+import EmailScreen from '../screens/email/EmailScreen';
+import BranchesScreen from '../screens/branches/BranchesScreen';
+import StatisticsScreen from '../screens/statistics/StatisticsScreen';
+import ScheduleScreen from '../screens/schedule/ScheduleScreen';
+import LoginScreen from '../screens/auth/login/loginScreen';
+import ChatScreen from '../screens/chat/ChatScreen';
+import ProfileScreen from '../screens/profile/ProfileScreen';
 
 // Auth Screens
 import RegisterScreen from '../screens/auth/register/registerScreen';
@@ -12,9 +30,6 @@ import ForgotPasswordScreen from '../screens/auth/forgetPasswordScreen';
 // Main App Screens
 import TasksScreen from '../screens/branches/tasks/TaskScreen';
 import SectionsScreen from '../screens/sections/SectionsScreen';
-
-// Loading Component
-import LoadingWrapper from '../components/loadWrapper';
 
 const Stack = createNativeStackNavigator();
 const AuthStack = createNativeStackNavigator();
@@ -57,24 +72,6 @@ const AuthNavigator = () => {
   );
 };
 
-// Tab icon components using SVGs from assets/svgs
-import BranchActiveIcon from '../assets/svgs/taskBranchActiveIcon.svg';
-import BranchInActiveIcon from '../assets/svgs/taskBranchInActiveIcon.svg';
-import ScheduleInActiveIcon from '../assets/svgs/scheduleInActive.svg';
-import ScheduleActiveIcon from '../assets/svgs/scheduleActiveIcon.svg';
-import EmailInActiveIcon from '../assets/svgs/bottomEmailIcon.svg';
-import EmailActiveIcon from '../assets/svgs/EmailActiveIcon.svg';
-import StatsBarInActiveIcon from '../assets/svgs/statsbarsInActive.svg';
-import StatsBarActiveIcon from '../assets/svgs/statsBarActiveIcon.svg';
-import ChatInActiveIcon from '../assets/svgs/chatInActive.svg';
-import ChatActiveIcon from '../assets/svgs/chatActiveIcon.svg';
-import EmailScreen from '../screens/email/EmailScreen';
-import BranchesScreen from '../screens/branches/BranchesScreen';
-import StatisticsScreen from '../screens/statistics/StatisticsScreen';
-import ScheduleScreen from '../screens/schedule/ScheduleScreen';
-import LoginScreen from '../screens/auth/login/loginScreen';
-import ChatScreen from '../screens/chat/ChatScreen';
-import ProfileScreen from '../screens/profile/ProfileScreen';
 
 const TaskStack = () => {
   return (
