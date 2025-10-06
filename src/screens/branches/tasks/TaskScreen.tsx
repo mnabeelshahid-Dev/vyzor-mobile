@@ -238,9 +238,9 @@ export default function TaskScreen({ navigation }) {
   }
   if (filterStatus) {
     filteredTasks = filteredTasks.filter((task) => {
-      // Use scheduleType for filtering if present, fallback to siteStatus/status
-      const s = (task.scheduleType || task.siteStatus || task.status || '').toLowerCase();
-      return s === filterStatus.toLowerCase();
+      // Compare using derived display status so 'ACTIVE' works even if API returns 'SCHEDULED'
+      const derived = (getDisplayStatus(task) || '').toLowerCase();
+      return derived === filterStatus.toLowerCase();
     });
   }
   if (filterDate && startDate && endDate) {
@@ -267,6 +267,7 @@ export default function TaskScreen({ navigation }) {
     const end = new Date(task.endDate);
     const isEnabled = now >= start && now <= end;
     if (rawStatus === 'SCHEDULED') {
+      // Convert to ACTIVE when within time window; otherwise remain SCHEDULED
       return isEnabled ? 'ACTIVE' : 'SCHEDULED';
     }
     if (rawStatus === 'OUTSIDE_PERIOD' || rawStatus === 'ON_TIME') {
@@ -286,7 +287,13 @@ export default function TaskScreen({ navigation }) {
       const aIdx = displayStatusOrder.indexOf(aType);
       const bIdx = displayStatusOrder.indexOf(bType);
       if (aIdx !== -1 && bIdx !== -1) {
-        return sortOrder === 'asc' ? aIdx - bIdx : bIdx - aIdx;
+        // Primary: status order
+        const statusComparison = sortOrder === 'asc' ? aIdx - bIdx : bIdx - aIdx;
+        if (statusComparison !== 0) return statusComparison;
+        // Secondary: startDate ascending within same status
+        const aStart = new Date(a.startDate).getTime() || 0;
+        const bStart = new Date(b.startDate).getTime() || 0;
+        return sortOrder === 'asc' ? aStart - bStart : bStart - aStart;
       }
       if (aIdx !== -1) return sortOrder === 'asc' ? -1 : 1;
       if (bIdx !== -1) return sortOrder === 'asc' ? 1 : -1;
