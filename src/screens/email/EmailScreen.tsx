@@ -147,6 +147,8 @@ export default function EmailNotificationsScreen({ navigation }) {
     startDate: '',
     endDate: '',
   });
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [selectedEmail, setSelectedEmail] = useState<any | null>(null);
 
   const logoutMutation = useLogout({
     onSuccess: () => {
@@ -158,6 +160,29 @@ export default function EmailNotificationsScreen({ navigation }) {
     await logoutMutation.mutateAsync();
     setShowDropdown(false);
   };
+
+  // Detail helpers and safe WebView fallback
+  const stripHtml = (html: string = '') =>
+    html
+      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+      .replace(/<\/?[^>]+(>|$)/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const formatDateTime = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    let h = d.getHours();
+    const m = String(d.getMinutes()).padStart(2, '0');
+    const ampm = h >= 12 ? 'pm' : 'am';
+    h = h % 12 || 12;
+    return `${dd}-${mm}-${yyyy} at ${h}:${m} ${ampm}`;
+  };
+  // WebView is not used to avoid native dependency issues; render clean text instead
 
   const { width } = useWindowDimensions();
   const isSmall = width < 350;
@@ -363,29 +388,41 @@ export default function EmailNotificationsScreen({ navigation }) {
   const filteredEmails = emails;
 
   const renderEmail = ({
-    item: { subject = '', recipientEmails = '', startDate = '', status = '' },
-  }) => (
-    <View style={[styles.emailRow, { padding: containerPadding }]}>
-      <View style={styles.emailTextBlock}>
-        <Text style={styles.emailTitle}>{subject}</Text>
-        <Text style={styles.emailAddress}>{recipientEmails}</Text>
-      </View>
-      <View style={styles.emailMetaBlock}>
-        <Text style={styles.emailDate}>{formatDate(startDate)}</Text>
-        <View
-          style={[
-            styles.statusPill,
-            {
-              backgroundColor: STATUS_COLORS[status],
-              borderColor: STATUS_COLORS[status],
-            },
-          ]}
-        >
-          <Text style={[styles.statusText]}>{status}</Text>
+    item,
+  }) => {
+    const { subject = '', recipientEmails = '', startDate = '', status = '' } =
+      item || {};
+    return (
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => {
+          setSelectedEmail(item);
+          setDetailsVisible(true);
+        }}
+      >
+        <View style={[styles.emailRow, { padding: containerPadding }]}> 
+          <View style={styles.emailTextBlock}>
+            <Text style={styles.emailTitle}>{subject}</Text>
+            <Text style={styles.emailAddress}>{recipientEmails}</Text>
+          </View>
+          <View style={styles.emailMetaBlock}>
+            <Text style={styles.emailDate}>{formatDate(startDate)}</Text>
+            <View
+              style={[
+                styles.statusPill,
+                {
+                  backgroundColor: STATUS_COLORS[status],
+                  borderColor: STATUS_COLORS[status],
+                },
+              ]}
+            >
+              <Text style={[styles.statusText]}>{status}</Text>
+            </View>
+          </View>
         </View>
-      </View>
-    </View>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   // Responsive font
   const labelFont = isSmall ? 13 : 16;
@@ -889,6 +926,69 @@ export default function EmailNotificationsScreen({ navigation }) {
         </Pressable>
       </Modal>
 
+      {/* Email Details Modal */}
+      <Modal
+        visible={detailsVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDetailsVisible(false)}
+      >
+        <Pressable
+          style={styles.detailModalBackdrop}
+          onPress={() => setDetailsVisible(false)}
+        >
+          <Pressable
+            style={[styles.detailModalBox, { width: modalWidth }]}
+            onPress={e => e.stopPropagation()}
+          >
+            <View style={styles.detailHeaderRow}>
+              <View style={styles.detailBadge}>
+                <View
+                  style={[
+                    styles.detailBadgeDot,
+                    {
+                      backgroundColor:
+                        STATUS_COLORS[selectedEmail?.status || 'SUCCESS'],
+                    },
+                  ]}
+                />
+                <Text style={styles.detailBadgeText}>Delivered</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setDetailsVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.closeBtn}>x</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={{ maxHeight: 560 }}
+              showsVerticalScrollIndicator
+              contentContainerStyle={{ paddingBottom: 16 }}
+            >
+              <Text style={styles.detailSubject}>
+                {selectedEmail?.subject || ''}
+              </Text>
+              <View style={styles.detailMetaRow}>
+                <Text style={styles.detailMetaLabel}>To:</Text>
+                <Text style={styles.detailMetaValue}>
+                  {selectedEmail?.recipientEmails || '-'}
+                </Text>
+              </View>
+              <Text style={styles.detailTime}>
+                {formatDateTime(selectedEmail?.createdDate)}
+              </Text>
+
+              <View style={styles.detailBodyWrap}>
+                <Text style={styles.detailBodyFallback}>
+                  {stripHtml(selectedEmail?.body || '')}
+                </Text>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
       {/* Dropdown Modal */}
       <Modal
         visible={showDropdown}
@@ -1189,6 +1289,89 @@ const styles = StyleSheet.create({
   navIcon: {
     fontSize: 27,
     color: '#7A8194',
+  },
+  // Details modal styles
+  detailModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailModalBox: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 18,
+    maxHeight: 640,
+    width: '90%',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  detailHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  detailBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F2FAF4',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  detailBadgeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  detailBadgeText: {
+    color: '#28B446',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  detailSubject: {
+    fontSize: 18,
+    color: '#1A1A1A',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  detailMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  detailMetaLabel: {
+    color: '#6C7789',
+    fontSize: 13,
+    marginRight: 6,
+  },
+  detailMetaValue: {
+    color: '#184B74',
+    fontSize: 13,
+    flexShrink: 1,
+  },
+  detailTime: {
+    color: '#7A8194',
+    fontSize: 12,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  detailBodyWrap: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E8EE',
+    overflow: 'hidden',
+  },
+  detailBodyFallback: {
+    padding: 14,
+    fontSize: 14,
+    color: '#1A1A1A',
+    lineHeight: 20,
   },
   dropdownOverlayIcon: {
     flex: 1,
