@@ -597,7 +597,7 @@ const areAllPhoneNumbersValid = (): boolean => {
   const updateGeneralInfoMutation = useMutation({
     mutationFn: async (updatePayload: any) => {
       const response = await apiService.put<ProfileData>(
-        `/api/security/userAccounts/${profileData?.updatedById}`,
+        `/api/security/userAccounts/${profileData?.webId}`,
         updatePayload,
       );
 
@@ -626,7 +626,7 @@ const areAllPhoneNumbersValid = (): boolean => {
   const updatePasswordMutation = useMutation({
     mutationFn: async (updatePayload: any) => {
       const response = await apiService.put<ProfileData>(
-        `/api/security/userAccounts/${profileData?.updatedById}`,
+        `/api/security/userAccounts/${profileData?.webId}`,
         updatePayload,
       );
 
@@ -700,7 +700,7 @@ const areAllPhoneNumbersValid = (): boolean => {
   const updatePhoneDetailsMutation = useMutation({
     mutationFn: async (updatePayload: any) => {
       const response = await apiService.put(
-        `/api/security/userAccounts/userAccount/${profileData?.updatedById}/updatePhone`,
+        `/api/security/userAccounts/userAccount/${profileData?.webId}/updatePhone`,
         updatePayload,
       );
 
