@@ -105,30 +105,34 @@ export default function StatisticsScreen({ navigation }) {
     }
   }, [user?.id, branchId]);
   // Memoized TaskCard for FlatList performance
-  const TaskCard = React.memo(({ item }: { item: any }) => (
-    <View
-      style={[
-        styles.taskCard,
-        {
-          borderLeftColor:
-            item.status === 'Active'
-              ? '#22C55E'
-              : item.status === 'Expired'
-                ? '#ebb748ff'
-                : '#EF4444',
-          borderLeftWidth: getResponsive(4),
-        },
-      ]}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={styles.taskTitle}>{item.documentName}</Text>
-        <View style={styles.taskDates}>
-          <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Starting:</Text> {formatDate(item.startDate, true)}</Text>
-          <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Ending:</Text> {formatDate(item.endDate, true)}</Text>
+  const TaskCard = React.memo(({ item }: { item: any }) => {
+    const scheduleStatus = (item?.scheduleStatus || item?.status || '').toString().toUpperCase();
+    const borderColor =
+      scheduleStatus === 'EXPIRED'
+        ? '#EF4444'
+        : scheduleStatus === 'COMPLETED' || scheduleStatus === 'ON_TIME'
+          ? '#22C55E'
+          : '#ebb748ff';
+    return (
+      <View
+        style={[
+          styles.taskCard,
+          {
+            borderLeftColor: borderColor,
+            borderLeftWidth: getResponsive(4),
+          },
+        ]}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.taskTitle}>{item.documentName}</Text>
+          <View style={styles.taskDates}>
+            <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Starting:</Text> {formatDate(item.startDate, true)}</Text>
+            <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Ending:</Text> {formatDate(item.endDate, true)}</Text>
+          </View>
         </View>
       </View>
-    </View>
-  ));
+    );
+  });
 
   // Memoized renderItem and keyExtractor
   const renderTask = React.useCallback(({ item }) => <TaskCard item={item} />, []);
@@ -324,7 +328,15 @@ export default function StatisticsScreen({ navigation }) {
   const allTasks: any[] = infiniteData?.pages?.flatMap((page: any) => page.data) ?? [];
 
   // Filtering logic
-  let filteredTasks = allTasks;
+  // Base business rule: show only expired or completed (COMPLETED/ON_TIME) items
+  // Exclude items where scheduleStatus is SCHEDULE or scheduleType is SCHEDULED
+  let filteredTasks = allTasks.filter((task) => {
+    const status = (task?.scheduleStatus || task?.status || '').toString().toUpperCase();
+    const type = (task?.scheduleType || '').toString().toUpperCase();
+    if (type === 'SCHEDULED') return false;
+    if (status === 'SCHEDULE' || status === 'SCHEDULED') return false;
+    return status === 'EXPIRED' || status === 'COMPLETED' || status === 'ON_TIME';
+  });
   if (filterStatus) {
     filteredTasks = filteredTasks.filter((task) => {
       // Use scheduleStatus for filtering if present, fallback to scheduleType/siteStatus/status
