@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { use, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
@@ -7,7 +7,9 @@ import { ThemeProvider } from './src/contexts/ThemeContext';
 import { getToastConfig } from './src/components/toast';
 import { logDebuggerStatus, DebugConsole } from './src/utils/debug';
 import { queryClient } from './src/services/queryClient';
-import { Text as RNText, TextProps as RNTextProps } from 'react-native';
+import { Text as RNText, TextProps as RNTextProps, PermissionsAndroid, Alert } from 'react-native';
+import messaging from '@react-native-firebase/messaging';
+
 
 // Set default font for all Text components with fontWeight mapping
 const fontMap = {
@@ -60,6 +62,50 @@ const AppContent = () => {
 };
 
 export default function App() {
+
+  const requestPermissions = async () => {
+    try {
+      const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      console.log("result: ", result)
+      console.log("result permissions: ", PermissionsAndroid.RESULTS.GRANTED)
+      if(result === PermissionsAndroid.RESULTS.GRANTED) {
+        //request for device permissions
+        requestToken();
+      } else {
+        Alert.alert('Permission Denied', 'Notification permission is required for full functionality of the app.');
+      }
+      
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  const requestToken = async () => {
+    try {
+      await messaging().registerDeviceForRemoteMessages();
+      const token = await messaging().getToken();
+      console.log("token**: ", token)
+      //store fcm token in your server
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  useEffect(() => {
+    requestPermissions();
+  })
+
+  /* foreground notification */
+
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      Alert.alert('A new FCM message arrived!', JSON.stringify(remoteMessage));
+    });
+
+    return unsubscribe;
+  }, []);
+
+
   useEffect(() => {
     // Log debugger connection status on app start
     logDebuggerStatus();
