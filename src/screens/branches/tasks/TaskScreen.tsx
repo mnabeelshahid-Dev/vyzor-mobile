@@ -388,6 +388,7 @@ export default function TaskScreen({ navigation }) {
     if (!sectionsData?.data?.content) return [];
     let tempArray: FormDefinitionSectionModel[] = [];
     sectionsData.data.content.forEach((section: Section) => {
+
       if (Array.isArray(section.formDefinitionSectionModels)) {
         section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel) => {
           if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
@@ -395,7 +396,7 @@ export default function TaskScreen({ navigation }) {
           }
         });
       }
-    });
+    });    
     return tempArray;
   }
 

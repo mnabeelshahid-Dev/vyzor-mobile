@@ -79,12 +79,17 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const {
         formName = "",
         startDate = "",
+        endDate = "",
         documentId = "",
         formDefinitionId = "",
-        userId = "",
+        assignUserId = "",
         clientId = "",
         siteId = ""
     } = data
+
+
+    console.log("formSectionIds", formSectionIds);
+
 
     // Mutation for document sync
     const syncMutation = useMutation({
@@ -94,8 +99,15 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         onSuccess: () => {
             showSuccessToast('Document synced successfully!', 'Your document has been saved.');
         },
-        onError: () => {
-            showErrorToast('Failed to sync document.', 'Please try again.');
+        onError: (error: any) => {
+            console.log('[SectionsScreen] Document sync failed');
+            console.log('Error:', error);
+            if (error instanceof Error) {
+                console.log('Error message:', error.message);
+                showErrorToast('Failed to sync document.', error.message);
+            } else {
+                showErrorToast('Failed to sync document.', 'Please try again.');
+            }
         }
     });
 
@@ -125,51 +137,126 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         }));
     };
 
+    const {
+        data: sectionData,
+        isLoading: isSectionsLoading,
+        isError: isSectionsError,
+        refetch: refetchSections,
+    } = useQuery({
+        queryKey: ['definitionSections'],
+        queryFn: async () => {
+            const res = await fetchDefinitionSections();
+            return Array.isArray(res) ? res : res.content || [];
+        },
+    });
+
+    const filteredList = (() => {
+        if (!sectionData || sectionData.length === 0) return [];
+        const ids = Object.values(formSectionIds);
+        const filtered = sectionData.filter(section => ids.includes(section.webId));
+        const ordered = ids
+            .map(id => filtered.find(section => section.webId === id))
+            .filter(Boolean);
+        return ordered;
+    })();
+
     // Submission handler
+
+    function formatDateTimeUTC(date: Date | string) {
+        const d = new Date(date);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        const ss = String(d.getSeconds()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}Z`;
+    }
+
+    function formatToUTC(date) {
+        return date.toISOString().split('.')[0] + 'Z';
+    }
+
     const handleSubmit = () => {
-        const sectionModels = filteredList.map(section => ({
-            startDate: startDate || new Date().toISOString(),
-            endDate: new Date().toISOString(),
-            key: section.key || section.webId || '',
-            formConfigurationSectionId: section.formConfigurationSectionId || section.webId,
-            documentId: documentId,
-            userId: userId,
-            data: (section.formSectionRowModels || []).flatMap(row => {
-                const answer = answers[section.webId]?.[row.webId];
-                // Collect RADIO_BUTTON answers
-                const radioData = row.columns[1]?.components.filter(comp => comp.component === 'RADIO_BUTTON').map(comp => ({
-                    value: answer || '',
-                    controlId: comp.webId,
-                    groupName: comp.groupName || null,
-                    senserData: null,
-                })) || [];
-                // Collect CAMERA answers (images)
-                const cameraData = row.columns.some(col => col.components.some(comp => comp.component === 'CAMERA'))
-                    ? (rowImages[row.webId] || []).map(img => ({
-                        value: [img.id],
-                        controlId: 'CAMERA_' + section.webId + '_' + row.webId,
-                        groupName: null,
-                        senserData: null,
-                    }))
-                    : [];
-                return [...radioData, ...cameraData];
-            }),
-        }));
+        const sectionModels = filteredList.map(section => {
+            return {
+                startDate: formatDateTimeUTC(startDate || new Date()),
+                endDate: formatDateTimeUTC(endDate || new Date()),
+                key: section.key || section.webId || '',
+                formConfigurationSectionId: section?.webId || 0,
+                documentId: documentId,
+                userId: assignUserId,
+                data: (section.formSectionRowModels || []).flatMap(row => {
+                    // RADIO_BUTTON answers
+                    const answer = answers[section.webId]?.[row.webId];
+                    const radioData = row.columns[1]?.components
+                        .filter(comp => comp.component === 'RADIO_BUTTON')
+                        .map(comp => ({
+                            value: answer === comp.text ? comp.text : '', // Only set value if selected
+                            controlId: comp.webId,
+                            groupName: comp.groupName || null,
+                            senserData: null,
+                        }))?.filter(item => item.value) || [];
+
+                    // CAMERA answers (images)
+                    const cameraData = row.columns.some(col => col.components.some(comp => comp.component === 'CAMERA'))
+                        ? [{
+                            value: (rowImages[row.webId] || []).map(img => img.id),
+                            controlId: row.columns[1]?.components.find(comp => comp.component === 'CAMERA')?.webId || '',
+                            groupName: null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    return [...radioData, ...cameraData];
+                }),
+            }
+        });
+
         const body = {
             formDefinitionId,
             status: 'COMPLETED',
-            userAccountId: userId,
+            userAccountId: assignUserId,
             clientId,
             siteId,
             flow: 1,
             deleted: false,
-            completedDate: new Date().toISOString(),
-            key: null,
+            completedDate: formatToUTC(new Date()),
             sectionModels,
         };
-        syncMutation.mutate(body);
+
+        // Log the full request body before sending
+        console.log('[SectionsScreen] Submitting body:', JSON.stringify(body, null, 2));
+
+        syncMutation.mutate(body, {
+            onSuccess: (data: any, variables, context) => {
+                // Log the full response from backend
+                () => showSuccessToast('Document synced successfully!', 'Your document has been saved.');
+                navigation.goBack();
+                console.log('[SectionsScreen] Backend full response:', data);
+                if (data?.status) {
+                    console.log(`[SectionsScreen] Backend responded with status: ${data.status}`);
+                } else if (data?.response?.status) {
+                    console.log(`[SectionsScreen] Backend responded with status: ${data.response.status}`);
+                }
+            },
+            onError: (error: any) => {
+                // Log the full error object
+                console.log('[SectionsScreen] Backend error (full):', error);
+                if (error?.response) {
+                    // If axios-like error, log response data
+                    console.log('[SectionsScreen] Backend error response data:', error.response.data);
+                    console.log('[SectionsScreen] Backend error response status:', error.response.status);
+                    console.log('[SectionsScreen] Backend error response headers:', error.response.headers);
+                }
+                if (error?.response?.status) {
+                    console.log(`[SectionsScreen] Backend error status: ${error.response.status}`);
+                } else if (error?.status) {
+                    console.log(`[SectionsScreen] Backend error status: ${error.status}`);
+                }
+            }
+        });
     };
-    // Memoized filtered and ordered section list
 
 
     function formatDateTime(dateString: any) {
@@ -194,61 +281,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         return `${month}/${day}/${year} ${hours}:${minutesStr}${ampm}`;
     }
 
-    const {
-        data: sectionData,
-        isLoading: isSectionsLoading,
-        isError: isSectionsError,
-        refetch: refetchSections,
-    } = useQuery({
-        queryKey: ['definitionSections'],
-        queryFn: async () => {
-            const res = await fetchDefinitionSections();
-            return Array.isArray(res) ? res : res.content || [];
-        },
-    });
-
-    const filteredList = (() => {
-        if (!sectionData || sectionData.length === 0) return [];
-        const ids = Object.values(formSectionIds);
-        const filtered = sectionData.filter(section => ids.includes(section.webId));
-        const ordered = ids
-            .map(id => filtered.find(section => section.webId === id))
-            .filter(Boolean);
-        return ordered;
-    })();
-
-    // Removed getSectionList and useEffect, logic is now in useMemo above
-
-    // answers state per section and row
     const [answers, setAnswers] = useState<{ [sectionId: string]: { [rowId: string]: string } }>({});
-    // State for multiple images
-    const [images, setImages] = useState([]);
-
-    // Picker handler for multiple images
-    // const handleAddImages = async () => {
-    //     launchImageLibrary(
-    //         {
-    //             selectionLimit: 5,
-    //             mediaType: 'photo',
-    //         },
-    //         response => {
-    //             if (response.assets && response.assets.length > 0) {
-    //                 const newImgs = response.assets
-    //                     .filter(a => a.uri)
-    //                     .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
-    //                 setImages(prev =>
-    //                     [...prev, ...newImgs].slice(0, 5)
-    //                 );
-    //             }
-    //         }
-    //     );
-    // };
-
-    // const handleRemoveImage = (id: string) => {
-    //     setImages(prev => prev.filter(img => img.id !== id));
-    // };
-
-    // Section navigation state
     const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
     const currentSection = filteredList[currentSectionIdx] || null;
 
@@ -336,47 +369,30 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             </View>
                             {/* Checklist */}
                             <View style={{ paddingHorizontal: getResponsive(10), paddingVertical: getResponsive(10) }}>
-                                {currentSection.formSectionRowModels.map((row, rIdx) => (
-                                    <View key={row.webId} style={styles.radioRow}>
-                                        {/* Render label and radio buttons for each row */}
-                                        <Text style={styles.radioLabel}>
-                                            {row.columns[0]?.components[0]?.text}
-                                        </Text>
-                                        <View style={styles.radioChoiceRow}>
-                                            {row.columns[1]?.components.map((comp, cIdx) => (
-                                                comp.component === 'RADIO_BUTTON' ? (
-                                                    <TouchableOpacity
-                                                        key={comp.webId}
-                                                        style={styles.radioOption}
-                                                        activeOpacity={0.8}
-                                                        onPress={() => {
-                                                            setAnswers(prev => ({
-                                                                ...prev,
-                                                                [currentSection.webId]: {
-                                                                    ...(prev[currentSection.webId] || {}),
-                                                                    [row.webId]: comp.text,
-                                                                },
-                                                            }));
-                                                        }}
-                                                    >
-                                                        <Radio selected={answers[currentSection.webId]?.[row.webId] === comp.text} />
-                                                        <Text style={[styles.radioOptionText, answers[currentSection.webId]?.[row.webId] === comp.text && { color: '#0088E7', fontWeight: 'bold' }]}>{comp.text}</Text>
-                                                    </TouchableOpacity>
-                                                ) : null
-                                            ))}
-                                        </View>
-                                    </View>
-                                ))}
-                                {/* Render image picker if section contains CAMERA or image label */}
-                                {currentSection.formSectionRowModels.map((row, rIdx) => (
-                                    <View key={row.webId} style={styles.radioRow}>
-                                        {/* ...radio buttons... */}
-                                        {row.columns.some(col => col.components.some(comp => comp.component === 'CAMERA')) && (
-                                            <View style={styles.mediaRow}>
-                                                <View style={{ width: '50%', justifyContent: 'center' }}>
-                                                    <Text style={{ fontSize: getResponsive(13) }}>Take Pictures</Text>
+                                {currentSection.formSectionRowModels.map((row, rIdx) => {
+                                    const isLastRow = rIdx === currentSection.formSectionRowModels.length - 1;
+                                    const isTakePictures = row.columns[0]?.components[0]?.text?.toLowerCase() === 'take pictures';
+                                    const hasCamera = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'CAMERA')
+                                    );
+
+                                    // If it's the last row and Take Pictures → render ONLY media row
+                                    if (isLastRow && isTakePictures && hasCamera) {
+                                        return (
+                                            <View
+                                                key={row.webId}
+                                                style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
+                                            >
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>Take Pictures</Text>
                                                 </View>
-                                                <View style={styles.multiImgBox}>
+
+                                                <View
+                                                    style={[
+                                                        styles.multiImgBox,
+                                                        { width: '50%', marginTop: 0, marginRight: getResponsive(8) },
+                                                    ]}
+                                                >
                                                     {(rowImages[row.webId] || []).map(img => (
                                                         <View key={img.id} style={styles.multiImgThumbBox}>
                                                             <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
@@ -384,10 +400,19 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                 style={styles.multiImgRemove}
                                                                 onPress={() => handleRemoveImage(row.webId, img.id)}
                                                             >
-                                                                <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                                <Text
+                                                                    style={{
+                                                                        color: '#1292E6',
+                                                                        fontWeight: 'bold',
+                                                                        fontSize: getResponsive(10),
+                                                                    }}
+                                                                >
+                                                                    ✕
+                                                                </Text>
                                                             </TouchableOpacity>
                                                         </View>
                                                     ))}
+
                                                     <TouchableOpacity
                                                         style={styles.multiImgAddBtn}
                                                         onPress={() => handleAddImages(row.webId)}
@@ -397,59 +422,121 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     </TouchableOpacity>
                                                 </View>
                                             </View>
-                                        )}
-                                    </View>
-                                ))}
+                                        );
+                                    }
+
+                                    // Otherwise → render the normal label + radio buttons
+                                    return (
+                                        <View key={row.webId} style={[styles.radioRow]}>
+                                            <Text style={styles.radioLabel}>
+                                                {row.columns[0]?.components[0]?.text}
+                                            </Text>
+
+                                            <View style={styles.radioChoiceRow}>
+                                                {row.columns[1]?.components.map((comp, cIdx) =>
+                                                    comp.component === 'RADIO_BUTTON' ? (
+                                                        <TouchableOpacity
+                                                            key={comp.webId}
+                                                            style={styles.radioOption}
+                                                            activeOpacity={0.8}
+                                                            onPress={() => {
+                                                                setAnswers(prev => ({
+                                                                    ...prev,
+                                                                    [currentSection.webId]: {
+                                                                        ...(prev[currentSection.webId] || {}),
+                                                                        [row.webId]: comp.text,
+                                                                    },
+                                                                }));
+                                                            }}
+                                                        >
+                                                            <Radio
+                                                                selected={answers[currentSection.webId]?.[row.webId] === comp.text}
+                                                            />
+                                                            <Text
+                                                                style={[
+                                                                    styles.radioOptionText,
+                                                                    answers[currentSection.webId]?.[row.webId] === comp.text && {
+                                                                        color: '#0088E7',
+                                                                        fontWeight: 'bold',
+                                                                    },
+                                                                ]}
+                                                            >
+                                                                {comp.text}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ) : null
+                                                )}
+                                            </View>
+                                        </View>
+                                    );
+                                })}
                             </View>
+
                             {/* Next/Previous navigation */}
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
-                                {currentSectionIdx === 0 && filteredList.length > 1 && (
+                                {filteredList.length === 1 ? (
                                     <TouchableOpacity
-                                        style={[styles.submitBtn, { marginLeft: 'auto', marginRight: 0, backgroundColor: '#28B446', paddingHorizontal: 20, bottom: 20, right: 20 }]}
+                                        style={[styles.submitBtn, { backgroundColor: '#28B446', flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
                                         activeOpacity={0.85}
-                                        onPress={() => setCurrentSectionIdx(idx => Math.min(filteredList.length - 1, idx + 1))}
+                                        onPress={handleSubmit}
+                                        disabled={syncMutation.status === 'pending'}
                                     >
-                                        <Text style={styles.submitBtnText}>Next</Text>
+                                        <Text style={styles.submitBtnText}>Submit</Text>
+                                        {syncMutation.status === 'pending' ? (
+                                            <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 8 }} />
+                                        ) : null}
                                     </TouchableOpacity>
-                                )}
-                                {currentSectionIdx === filteredList.length - 1 && filteredList.length > 1 && (
+                                ) : (
                                     <>
-                                        <TouchableOpacity
-                                            style={[styles.submitBtn, { marginRight: 8, backgroundColor: '#28B446', paddingHorizontal: 20, bottom: 20, left: 20 }]}
-                                            activeOpacity={0.85}
-                                            onPress={() => setCurrentSectionIdx(idx => Math.max(0, idx - 1))}
-                                        >
-                                            <Text style={styles.submitBtnText}>Previous</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[styles.submitBtn, { marginLeft: 8, backgroundColor: '#28B446', paddingHorizontal: 20, bottom: 20, right: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
-                                            activeOpacity={0.85}
-                                            onPress={handleSubmit}
-                                            disabled={syncMutation.status === 'pending'}
-                                        >
-                                            {syncMutation.status === 'pending' ? (
-                                                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-                                            ) : null}
-                                            <Text style={styles.submitBtnText}>Submit</Text>
-                                        </TouchableOpacity>
-                                    </>
-                                )}
-                                {currentSectionIdx > 0 && currentSectionIdx < filteredList.length - 1 && (
-                                    <>
-                                        <TouchableOpacity
-                                            style={[styles.submitBtn, { flex: 1, marginRight: 8, backgroundColor: '#28B446' }]}
-                                            activeOpacity={0.85}
-                                            onPress={() => setCurrentSectionIdx(idx => Math.max(0, idx - 1))}
-                                        >
-                                            <Text style={styles.submitBtnText}>Previous</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[styles.submitBtn, { flex: 1, marginLeft: 8, backgroundColor: '#28B446' }]}
-                                            activeOpacity={0.85}
-                                            onPress={() => setCurrentSectionIdx(idx => Math.min(filteredList.length - 1, idx + 1))}
-                                        >
-                                            <Text style={styles.submitBtnText}>Next</Text>
-                                        </TouchableOpacity>
+                                        {currentSectionIdx === 0 && filteredList.length > 1 && (
+                                            <TouchableOpacity
+                                                style={[styles.submitBtn, { marginLeft: 'auto', marginRight: 0, backgroundColor: '#28B446', paddingHorizontal: 20, bottom: 20, right: 20 }]}
+                                                activeOpacity={0.85}
+                                                onPress={() => setCurrentSectionIdx(idx => Math.min(filteredList.length - 1, idx + 1))}
+                                            >
+                                                <Text style={styles.submitBtnText}>Next</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {currentSectionIdx === filteredList.length - 1 && filteredList.length > 1 && (
+                                            <>
+                                                <TouchableOpacity
+                                                    style={[styles.submitBtn, { marginRight: 8, backgroundColor: '#28B446', paddingHorizontal: 20, bottom: 20, left: 20 }]}
+                                                    activeOpacity={0.85}
+                                                    onPress={() => setCurrentSectionIdx(idx => Math.max(0, idx - 1))}
+                                                >
+                                                    <Text style={styles.submitBtnText}>Previous</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={[styles.submitBtn, { backgroundColor: '#28B446', flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
+                                                    activeOpacity={0.85}
+                                                    onPress={handleSubmit}
+                                                    disabled={syncMutation.status === 'pending'}
+                                                >
+                                                    <Text style={styles.submitBtnText}>Submit</Text>
+                                                    {syncMutation.status === 'pending' ? (
+                                                        <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 8 }} />
+                                                    ) : null}
+                                                </TouchableOpacity>
+                                            </>
+                                        )}
+                                        {currentSectionIdx > 0 && currentSectionIdx < filteredList.length - 1 && (
+                                            <>
+                                                <TouchableOpacity
+                                                    style={[styles.submitBtn, { flex: 1, marginRight: 8, backgroundColor: '#28B446' }]}
+                                                    activeOpacity={0.85}
+                                                    onPress={() => setCurrentSectionIdx(idx => Math.max(0, idx - 1))}
+                                                >
+                                                    <Text style={styles.submitBtnText}>Previous</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={[styles.submitBtn, { flex: 1, marginLeft: 8, backgroundColor: '#28B446' }]}
+                                                    activeOpacity={0.85}
+                                                    onPress={() => setCurrentSectionIdx(idx => Math.min(filteredList.length - 1, idx + 1))}
+                                                >
+                                                    <Text style={styles.submitBtnText}>Next</Text>
+                                                </TouchableOpacity>
+                                            </>
+                                        )}
                                     </>
                                 )}
                             </View>
@@ -541,7 +628,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     radioRow: {
-        backgroundColor: '#F7F9FC',
+        backgroundColor: '#fcf7f9ff',
         borderRadius: getResponsive(12),
         marginBottom: getResponsive(14),
         paddingHorizontal: getResponsive(10),
@@ -554,7 +641,6 @@ const styles = StyleSheet.create({
     radioLabel: {
         color: '#19233C',
         fontSize: getResponsive(12),
-        marginBottom: getResponsive(10),
         lineHeight: getResponsive(16),
         backgroundColor: '#F7F9FC',
         width: '60%',
@@ -584,6 +670,7 @@ const styles = StyleSheet.create({
         marginBottom: getResponsive(14),
         padding: getResponsive(16),
         flexDirection: 'row',
+        // right: 200
         // backgroundColor: 'red',
     },
     multiImgBox: {
