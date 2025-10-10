@@ -4,7 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import AppNavigator from './src/navigation/AppNavigator';
 import { ThemeProvider } from './src/contexts/ThemeContext';
-import { getToastConfig } from './src/components/toast';
+import { getToastConfig, showNotificationToast } from './src/components/toast';
 import { logDebuggerStatus, DebugConsole } from './src/utils/debug';
 import { queryClient } from './src/services/queryClient';
 import { Text as RNText, TextProps as RNTextProps, PermissionsAndroid, Alert } from 'react-native';
@@ -58,7 +58,7 @@ const AppContent = () => {
       <NavigationContainer>
         <AppNavigator />
       </NavigationContainer>
-      {/* <Toast config={getToastConfig()} /> */}
+      <Toast config={getToastConfig()} />
     </>
   );
 };
@@ -149,7 +149,16 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = messaging().onMessage(async remoteMessage => {
-      Alert.alert('A new FCM message arrived!', JSON.stringify(remoteMessage));
+      const title = remoteMessage.notification?.title || 'Notification';
+      const body =
+        remoteMessage.notification?.body ||
+        (remoteMessage.data && (remoteMessage.data.body || remoteMessage.data.message)) ||
+        undefined;
+
+      // Show a themed, dismissible top banner
+      if (title || body) {
+        showNotificationToast(title, body);
+      }
     });
 
     return unsubscribe;
