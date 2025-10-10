@@ -93,7 +93,18 @@ export default function App() {
 
   useEffect(() => {
     requestPermissions();
-  })
+
+    // Subscribe topic using provided UUID
+    const topic = `6d7e6aa9-0941-44fc-8a18-91bd5bb183cd`;
+    messaging()
+      .subscribeToTopic(topic)
+      .then(() => {
+        console.log(`Subscribed to topic: ${topic}`);
+      })
+      .catch((err) => {
+        console.log('Failed to subscribe to topic', err);
+      });
+  }, [])
 
   /* foreground notification */
 
@@ -103,6 +114,28 @@ export default function App() {
     });
 
     return unsubscribe;
+  }, []);
+
+  // When the app is in background and opened by a notification
+  useEffect(() => {
+    const unsubscribe = messaging().onNotificationOpenedApp(remoteMessage => {
+      console.log('Notification caused app to open from background state:', remoteMessage);
+      // TODO: Optionally navigate to chat screen
+    });
+    return unsubscribe;
+  }, []);
+
+  // When the app is opened from a quit state by tapping the notification
+  useEffect(() => {
+    messaging()
+      .getInitialNotification()
+      .then(remoteMessage => {
+        if (remoteMessage) {
+          console.log('Notification caused app to open from quit state:', remoteMessage);
+          // TODO: Optionally navigate to specific screen
+        }
+      })
+      .catch(() => {});
   }, []);
 
 
