@@ -9,6 +9,8 @@ import { logDebuggerStatus, DebugConsole } from './src/utils/debug';
 import { queryClient } from './src/services/queryClient';
 import { Text as RNText, TextProps as RNTextProps, PermissionsAndroid, Alert } from 'react-native';
 import messaging from '@react-native-firebase/messaging';
+import { useAuthStore } from './src/store/authStore';
+
 
 
 // Set default font for all Text components with fontWeight mapping
@@ -63,6 +65,17 @@ const AppContent = () => {
 
 export default function App() {
 
+  const user = useAuthStore((state) => state.user);
+
+  const uuid = user?.pnUuId;
+
+
+  useEffect(() => {
+    console.log("user in app.tsx: ", user)
+    console.log("uuid in app.tsx: ", uuid)
+  } , [user])
+  
+
   const requestPermissions = async () => {
     try {
       const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
@@ -95,7 +108,7 @@ export default function App() {
     requestPermissions();
 
     // Subscribe topic using provided UUID
-    const topic = `6d7e6aa9-0941-44fc-8a18-91bd5bb183cd`;
+    const topic = uuid || 'default_topic';
     messaging()
       .subscribeToTopic(topic)
       .then(() => {
