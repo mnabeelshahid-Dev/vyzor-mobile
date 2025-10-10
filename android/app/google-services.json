@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "449376519093",
+    "project_id": "vyzorpushnotification",
+    "storage_bucket": "vyzorpushnotification.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:449376519093:android:311767374781bdc4274ffc",
+        "android_client_info": {
+          "package_name": "com.solelogiq.vyzor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBH3OV_xoqwK5q_tUQerW4meu72ExKuA90"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:449376519093:android:30f4a4f9e891b231274ffc",
+        "android_client_info": {
+          "package_name": "com.vyzormobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBH3OV_xoqwK5q_tUQerW4meu72ExKuA90"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

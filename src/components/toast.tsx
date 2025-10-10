@@ -89,16 +89,46 @@ const ThemedInfoToast = React.memo<ToastComponentProps>(props => {
   );
 });
 
+// High-contrast notification toast to stand out over blue headers
+const ThemedNotificationToast = React.memo<ToastComponentProps>(props => {
+  const { theme } = useTheme();
+
+  return (
+    <View
+      accessible={true}
+      accessibilityRole="alert"
+      accessibilityLabel={
+        props.text1 ? `Notification: ${props.text1}` : 'App notification'
+      }
+    >
+      <BaseToast
+        {...props}
+        style={[
+          styles.toastContainer,
+          {
+            backgroundColor: '#FFFFFF',
+          },
+        ]}
+        contentContainerStyle={styles.contentContainer}
+        text1Style={[styles.text1, { color: '#121212ff' }]}
+        text2Style={[styles.text2, { color: '#121212ff' }]}
+      />
+    </View>
+  );
+});
+
 // Add display names for better debugging
 ThemedSuccessToast.displayName = 'ThemedSuccessToast';
 ThemedErrorToast.displayName = 'ThemedErrorToast';
 ThemedInfoToast.displayName = 'ThemedInfoToast';
+ThemedNotificationToast.displayName = 'ThemedNotificationToast';
 
 // Toast configuration with themed components
 export const getToastConfig = (): ToastConfig => ({
   success: props => <ThemedSuccessToast {...props} />,
   error: props => <ThemedErrorToast {...props} />,
   info: props => <ThemedInfoToast {...props} />,
+  notification: props => <ThemedNotificationToast {...props} />,
 });
 
 // Type definitions for toast parameters
@@ -224,6 +254,20 @@ export const showInfoToast = (title: string, message?: string): void => {
     text2: message,
     visibilityTime: 4000,
     autoHide: true,
+  });
+};
+
+/**
+ * Shows a prominent notification toast that contrasts with a blue header
+ */
+export const showNotificationToast = (title: string, message?: string): void => {
+  Toast.show({
+    type: 'notification',
+    text1: title,
+    text2: message,
+    visibilityTime: 6000,
+    autoHide: true,
+    position: 'top',
   });
 };
 

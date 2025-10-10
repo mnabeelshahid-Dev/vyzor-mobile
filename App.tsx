@@ -1,13 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { use, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import AppNavigator from './src/navigation/AppNavigator';
 import { ThemeProvider } from './src/contexts/ThemeContext';
-import { getToastConfig } from './src/components/toast';
+import { getToastConfig, showNotificationToast } from './src/components/toast';
 import { logDebuggerStatus, DebugConsole } from './src/utils/debug';
 import { queryClient } from './src/services/queryClient';
-import { Text as RNText, TextProps as RNTextProps } from 'react-native';
+import { Text as RNText, TextProps as RNTextProps, PermissionsAndroid, Alert } from 'react-native';
+import messaging from '@react-native-firebase/messaging';
+import { useAuthStore } from './src/store/authStore';
+
+
 
 // Set default font for all Text components with fontWeight mapping
 const fontMap = {
@@ -54,12 +58,135 @@ const AppContent = () => {
       <NavigationContainer>
         <AppNavigator />
       </NavigationContainer>
-      {/* <Toast config={getToastConfig()} /> */}
+      <Toast config={getToastConfig()} />
     </>
   );
 };
 
 export default function App() {
+
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  const uuid = user?.pnUuId;
+
+
+  useEffect(() => {
+    console.log("user in app.tsx: ", user)
+    console.log("uuid in app.tsx: ", uuid)
+  } , [user])
+  
+
+  const requestPermissions = async () => {
+    try {
+      const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      console.log("result: ", result)
+      console.log("result permissions: ", PermissionsAndroid.RESULTS.GRANTED)
+      if(result === PermissionsAndroid.RESULTS.GRANTED) {
+        //request for device permissions
+        requestToken();
+      } else {
+        Alert.alert('Permission Denied', 'Notification permission is required for full functionality of the app.');
+      }
+      
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  const requestToken = async () => {
+    try {
+      await messaging().registerDeviceForRemoteMessages();
+      const token = await messaging().getToken();
+      console.log("token**: ", token)
+      //store fcm token in your server
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  // Ask for notification permission and register for remote messages on app start only
+  useEffect(() => {
+    requestPermissions();
+  }, [])
+
+  // Subscribe to topic only after login when uuid is available.
+  // Also handle topic change and logout by unsubscribing from the previous topic.
+  const lastSubscribedTopicRef = useRef<string | null>(null);
+  useEffect(() => {
+    const performSubscription = async () => {
+      const nextTopic = isAuthenticated && uuid ? uuid : null;
+
+      // If topic changed, unsubscribe from previous
+      if (lastSubscribedTopicRef.current && lastSubscribedTopicRef.current !== nextTopic) {
+        try {
+          await messaging().unsubscribeFromTopic(lastSubscribedTopicRef.current);
+          console.log(`Unsubscribed from topic: ${lastSubscribedTopicRef.current}`);
+        } catch (err) {
+          console.log('Failed to unsubscribe from previous topic', err);
+        }
+        lastSubscribedTopicRef.current = null;
+      }
+
+      // Subscribe to new topic if available
+      if (nextTopic && lastSubscribedTopicRef.current !== nextTopic) {
+        try {
+          await messaging().subscribeToTopic(nextTopic);
+          lastSubscribedTopicRef.current = nextTopic;
+          console.log(`Subscribed to topic: ${nextTopic}`);
+        } catch (err) {
+          console.log('Failed to subscribe to topic', err);
+        }
+      }
+
+      // If logged out and no topic, nothing else to do
+    };
+
+    performSubscription();
+  }, [isAuthenticated, uuid])
+
+  /* foreground notification */
+
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      const title = remoteMessage.notification?.title || 'Notification';
+      const body =
+        remoteMessage.notification?.body ||
+        (remoteMessage.data && (remoteMessage.data.body || remoteMessage.data.message)) ||
+        undefined;
+
+      // Show a themed, dismissible top banner
+      if (title || body) {
+        showNotificationToast(title, body);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // When the app is in background and opened by a notification
+  useEffect(() => {
+    const unsubscribe = messaging().onNotificationOpenedApp(remoteMessage => {
+      console.log('Notification caused app to open from background state:', remoteMessage);
+      // TODO: Optionally navigate to chat screen
+    });
+    return unsubscribe;
+  }, []);
+
+  // When the app is opened from a quit state by tapping the notification
+  useEffect(() => {
+    messaging()
+      .getInitialNotification()
+      .then(remoteMessage => {
+        if (remoteMessage) {
+          console.log('Notification caused app to open from quit state:', remoteMessage);
+          // TODO: Optionally navigate to specific screen
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+
   useEffect(() => {
     // Log debugger connection status on app start
     logDebuggerStatus();
