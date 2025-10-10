@@ -1,4 +1,4 @@
-import React, { use, useEffect } from 'react';
+import React, { use, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
@@ -66,6 +66,7 @@ const AppContent = () => {
 export default function App() {
 
   const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const uuid = user?.pnUuId;
 
@@ -104,20 +105,45 @@ export default function App() {
     }
   }
 
+  // Ask for notification permission and register for remote messages on app start only
   useEffect(() => {
     requestPermissions();
-
-    // Subscribe topic using provided UUID
-    const topic = uuid || 'default_topic';
-    messaging()
-      .subscribeToTopic(topic)
-      .then(() => {
-        console.log(`Subscribed to topic: ${topic}`);
-      })
-      .catch((err) => {
-        console.log('Failed to subscribe to topic', err);
-      });
   }, [])
+
+  // Subscribe to topic only after login when uuid is available.
+  // Also handle topic change and logout by unsubscribing from the previous topic.
+  const lastSubscribedTopicRef = useRef<string | null>(null);
+  useEffect(() => {
+    const performSubscription = async () => {
+      const nextTopic = isAuthenticated && uuid ? uuid : null;
+
+      // If topic changed, unsubscribe from previous
+      if (lastSubscribedTopicRef.current && lastSubscribedTopicRef.current !== nextTopic) {
+        try {
+          await messaging().unsubscribeFromTopic(lastSubscribedTopicRef.current);
+          console.log(`Unsubscribed from topic: ${lastSubscribedTopicRef.current}`);
+        } catch (err) {
+          console.log('Failed to unsubscribe from previous topic', err);
+        }
+        lastSubscribedTopicRef.current = null;
+      }
+
+      // Subscribe to new topic if available
+      if (nextTopic && lastSubscribedTopicRef.current !== nextTopic) {
+        try {
+          await messaging().subscribeToTopic(nextTopic);
+          lastSubscribedTopicRef.current = nextTopic;
+          console.log(`Subscribed to topic: ${nextTopic}`);
+        } catch (err) {
+          console.log('Failed to subscribe to topic', err);
+        }
+      }
+
+      // If logged out and no topic, nothing else to do
+    };
+
+    performSubscription();
+  }, [isAuthenticated, uuid])
 
   /* foreground notification */
 
