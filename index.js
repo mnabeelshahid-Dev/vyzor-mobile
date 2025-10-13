@@ -9,8 +9,11 @@ import messaging from '@react-native-firebase/messaging';
 
 // Set up background handler for FCM (runs when app is in background/quit)
 messaging().setBackgroundMessageHandler(async remoteMessage => {
-  // No-op placeholder; process payload if needed
-  // console.log('Message handled in the background!', remoteMessage);
+  try {
+    console.log('FCM background message:', JSON.stringify(remoteMessage, null, 2));
+  } catch (e) {
+    console.log('FCM background message (raw):', remoteMessage);
+  }
 });
 
 AppRegistry.registerComponent(appName, () => App);
