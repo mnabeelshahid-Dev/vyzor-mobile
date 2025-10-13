@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import * as ReactNative from 'react-native';
 import LogoutIcon from '../../assets/svgs/logout.svg';
@@ -18,6 +19,7 @@ import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
 import ArrowUpIcon from '../../assets/svgs/arrowUpWard.svg';
 import ArrowDownWard from '../../assets/svgs/arrowDownward.svg';
+import CloudIcon from '../../assets/svgs/cloud.svg';
 import Modal from 'react-native-modal';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ArrowDown from '../../assets/svgs/arrowDown.svg';
@@ -35,6 +37,8 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { fetchStatisticsUserDetail } from '../../api/statistics';
 import { fetchDocument } from '../../api/statistics';
 // ActivityIndicator already imported above
+import RNFS from 'react-native-fs';
+import { storage } from '../../services/storage';
 
 function formatDate(dateStrOrObj: string | Date = "", showTime = false): string {
   if (!dateStrOrObj) return '';
@@ -105,14 +109,79 @@ export default function StatisticsScreen({ navigation }) {
     }
   }, [user?.id, branchId]);
   // Memoized TaskCard for FlatList performance
+  const handleDownloadReport = React.useCallback(async (taskItem: any) => {
+    try {
+      const status = (taskItem?.scheduleStatus || taskItem?.status || '').toString().toUpperCase();
+      const fileKey = Array.isArray(taskItem?.file) && taskItem.file.length > 0 ? taskItem.file[0]?.key : null;
+      if (status !== 'COMPLETED' && status !== 'ON_TIME') {
+        Alert.alert('Unavailable', 'Report is only available for completed tasks.');
+        return;
+      }
+      if (!fileKey) {
+        Alert.alert('Not Found', 'No PDF report available for this task.');
+        return;
+      }
+
+      const token = await storage.getSecureString('access_token');
+      if (!token) {
+        Alert.alert('Auth Error', 'You are not authenticated. Please login again.');
+        return;
+      }
+
+      const safeName = `${(taskItem?.documentName || 'report').toString().replace(/[^a-z0-9]+/gi, '_')}_${taskItem?.webId || ''}`;
+      const PlatformAny: any = (ReactNative as any).Platform;
+      const isAndroid = PlatformAny?.OS === 'android';
+      const androidDownloads = (RNFS as any).DownloadDirectoryPath;
+      const baseDir = isAndroid && androidDownloads ? androidDownloads : RNFS.DocumentDirectoryPath;
+      const destPath = `${baseDir}/${safeName}.pdf`;
+      const url = `https://vyzor.app/api/dms/file/download/${fileKey}`;
+
+      const download = RNFS.downloadFile({
+        fromUrl: url,
+        toFile: destPath,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/pdf',
+        },
+      });
+      const result = await download.promise;
+      if (result.statusCode === 200) {
+        // On Android, ask the media scanner to index the file (helps it show up in file managers)
+        try {
+          if (isAndroid && typeof (RNFS as any).scanFile === 'function') {
+            await (RNFS as any).scanFile([{ path: destPath }]);
+          }
+        } catch {}
+
+        // Try to open with system viewer
+        try {
+          const RNLinking: any = (ReactNative as any).Linking;
+          if (RNLinking && typeof RNLinking.openURL === 'function') {
+            await RNLinking.openURL('file://' + destPath);
+            return;
+          }
+        } catch {}
+
+        // Fallback: show saved location
+        Alert.alert('Report Saved', `Saved to: ${destPath}`);
+      } else {
+        throw new Error(`Download failed with status ${result.statusCode}`);
+      }
+    } catch (err: any) {
+      Alert.alert('Download Failed', err?.message || 'Unable to download report');
+    }
+  }, []);
+
   const TaskCard = React.memo(({ item }: { item: any }) => {
     const scheduleStatus = (item?.scheduleStatus || item?.status || '').toString().toUpperCase();
     const borderColor =
       scheduleStatus === 'EXPIRED'
-        ? '#EF4444'
-        : scheduleStatus === 'COMPLETED' || scheduleStatus === 'ON_TIME'
-          ? '#22C55E'
-          : '#ebb748ff';
+        ? '#EF4444' // red
+        : scheduleStatus === 'ON_TIME'
+          ? '#22C55E' // green for on time
+          : scheduleStatus === 'OUTSIDE_PERIOD'
+            ? '#ebb748ff' // yellow for outside period
+            : '#22C55E'; // default completed -> green
     return (
       <View
         style={[
@@ -123,13 +192,22 @@ export default function StatisticsScreen({ navigation }) {
           },
         ]}
       >
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingRight: getResponsive(36) }}>
           <Text style={styles.taskTitle}>{item.documentName}</Text>
           <View style={styles.taskDates}>
             <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Starting:</Text> {formatDate(item.startDate, true)}</Text>
             <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Ending:</Text> {formatDate(item.endDate, true)}</Text>
           </View>
         </View>
+        {(scheduleStatus === 'COMPLETED' || scheduleStatus === 'ON_TIME') && Array.isArray(item?.file) && item.file.length > 0 ? (
+          <TouchableOpacity
+            onPress={() => handleDownloadReport(item)}
+            style={{ position: 'absolute', right: getResponsive(12), top: '80%', marginTop: -getResponsive(14), padding: getResponsive(6) }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <CloudIcon width={22} height={22}  />
+          </TouchableOpacity>
+        ) : null}
       </View>
     );
   });
@@ -328,20 +406,27 @@ export default function StatisticsScreen({ navigation }) {
   const allTasks: any[] = infiniteData?.pages?.flatMap((page: any) => page.data) ?? [];
 
   // Filtering logic
-  // Base business rule: show only expired or completed (COMPLETED/ON_TIME) items
-  // Exclude items where scheduleStatus is SCHEDULE or scheduleType is SCHEDULED
+  // Base business rule: show only expired or completed items (completed includes ON_TIME and OUTSIDE_PERIOD)
+  // Exclude scheduled
   let filteredTasks = allTasks.filter((task) => {
-    const status = (task?.scheduleStatus || task?.status || '').toString().toUpperCase();
+    const scheduleStatus = (task?.scheduleStatus || '').toString().toUpperCase();
+    const status = (task?.status || '').toString().toUpperCase();
     const type = (task?.scheduleType || '').toString().toUpperCase();
     if (type === 'SCHEDULED') return false;
-    if (status === 'SCHEDULE' || status === 'SCHEDULED') return false;
-    return status === 'EXPIRED' || status === 'COMPLETED' || status === 'ON_TIME';
+    if (scheduleStatus === 'SCHEDULE' || scheduleStatus === 'SCHEDULED') return false;
+    const isExpired = scheduleStatus === 'EXPIRED' || status === 'EXPIRED';
+    const isCompleted = status === 'COMPLETED' || scheduleStatus === 'ON_TIME' || scheduleStatus === 'OUTSIDE_PERIOD' || scheduleStatus === 'COMPLETED';
+    return isExpired || isCompleted;
   });
   if (filterStatus) {
     filteredTasks = filteredTasks.filter((task) => {
-      // Use scheduleStatus for filtering if present, fallback to scheduleType/siteStatus/status
-      const s = (task.scheduleStatus || task.scheduleType || task.siteStatus || task.status || '').toString().toLowerCase();
-      return s === filterStatus.toLowerCase();
+      const scheduleStatus = (task?.scheduleStatus || '').toString().toUpperCase();
+      const status = (task?.status || '').toString().toUpperCase();
+      const choice = filterStatus.trim().toLowerCase();
+      if (choice === 'on time') return scheduleStatus === 'ON_TIME';
+      if (choice === 'outside period') return scheduleStatus === 'OUTSIDE_PERIOD';
+      if (choice === 'expired') return scheduleStatus === 'EXPIRED' || status === 'EXPIRED';
+      return true;
     });
   }
   // Removed UI-side filter by exact startDate; now all tasks in the API date range are shown.
