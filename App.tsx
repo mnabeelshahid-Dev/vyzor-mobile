@@ -164,7 +164,18 @@ export default function App() {
       // Show a themed, dismissible top banner
       if (title || body) {
         const bodyText = typeof body === 'string' ? body : body ? JSON.stringify(body) : undefined;
-        showNotificationToast(title, bodyText as string | undefined);
+        const tag = remoteMessage?.data?.tag;
+        showNotificationToast(title, bodyText as string | undefined, () => {
+          try {
+            if (navigationRef.current && tag) {
+              if (tag === 'Tasks') {
+                navigationRef.current.navigate('Main', { screen: 'Task' });
+              } else if (tag === 'Chat') {
+                navigationRef.current.navigate('Main', { screen: 'Chat' });
+              }
+            }
+          } catch {}
+        });
       }
     });
 

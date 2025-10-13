@@ -260,7 +260,11 @@ export const showInfoToast = (title: string, message?: string): void => {
 /**
  * Shows a prominent notification toast that contrasts with a blue header
  */
-export const showNotificationToast = (title: string, message?: string): void => {
+export const showNotificationToast = (
+  title: string,
+  message?: string,
+  onPress?: () => void
+): void => {
   Toast.show({
     type: 'notification',
     text1: title,
@@ -268,6 +272,7 @@ export const showNotificationToast = (title: string, message?: string): void => 
     visibilityTime: 6000,
     autoHide: true,
     position: 'top',
+    onPress,
   });
 };
 
