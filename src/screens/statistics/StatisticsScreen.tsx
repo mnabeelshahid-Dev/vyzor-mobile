@@ -111,9 +111,11 @@ export default function StatisticsScreen({ navigation }) {
   // Memoized TaskCard for FlatList performance
   const handleDownloadReport = React.useCallback(async (taskItem: any) => {
     try {
-      const status = (taskItem?.scheduleStatus || taskItem?.status || '').toString().toUpperCase();
+      const scheduleStatus = (taskItem?.scheduleStatus || '').toString().toUpperCase();
+      const status = (taskItem?.status || '').toString().toUpperCase();
       const fileKey = Array.isArray(taskItem?.file) && taskItem.file.length > 0 ? taskItem.file[0]?.key : null;
-      if (status !== 'COMPLETED' && status !== 'ON_TIME') {
+      const isCompletedForm = status === 'COMPLETED' || scheduleStatus === 'ON_TIME' || scheduleStatus === 'OUTSIDE_PERIOD' || scheduleStatus === 'COMPLETED';
+      if (!isCompletedForm) {
         Alert.alert('Unavailable', 'Report is only available for completed tasks.');
         return;
       }
@@ -199,7 +201,7 @@ export default function StatisticsScreen({ navigation }) {
             <Text style={[styles.taskDate, { fontWeight: '400', color: '#021639' }]}><Text style={{ color: '#363942' }}>Ending:</Text> {formatDate(item.endDate, true)}</Text>
           </View>
         </View>
-        {(scheduleStatus === 'COMPLETED' || scheduleStatus === 'ON_TIME') && Array.isArray(item?.file) && item.file.length > 0 ? (
+        {(scheduleStatus === 'COMPLETED' || scheduleStatus === 'ON_TIME' || scheduleStatus === 'OUTSIDE_PERIOD') && Array.isArray(item?.file) && item.file.length > 0 ? (
           <TouchableOpacity
             onPress={() => handleDownloadReport(item)}
             style={{ position: 'absolute', right: getResponsive(12), top: '80%', marginTop: -getResponsive(14), padding: getResponsive(6) }}
