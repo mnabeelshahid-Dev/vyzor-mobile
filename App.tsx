@@ -7,7 +7,7 @@ import { ThemeProvider } from './src/contexts/ThemeContext';
 import { getToastConfig, showNotificationToast } from './src/components/toast';
 import { logDebuggerStatus, DebugConsole } from './src/utils/debug';
 import { queryClient } from './src/services/queryClient';
-import { Text as RNText, TextProps as RNTextProps, PermissionsAndroid, Alert } from 'react-native';
+import { Text as RNText, TextProps as RNTextProps, Alert } from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import { useAuthStore } from './src/store/authStore';
 
@@ -51,13 +51,17 @@ RNText.render = function (...args) {
   });
 };
 
+// Global navigation ref to navigate from outside React components (e.g., FCM handlers)
+export const navigationRef = React.createRef<any>();
+const NavigationContainerAny: any = NavigationContainer;
+
 // Wrapper component to access theme context for Toast config
 const AppContent = () => {
   return (
     <>
-      <NavigationContainer>
+      <NavigationContainerAny ref={navigationRef}>
         <AppNavigator />
-      </NavigationContainer>
+      </NavigationContainerAny>
       <Toast config={getToastConfig()} />
     </>
   );
@@ -68,7 +72,7 @@ export default function App() {
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  const uuid = user?.pnUuId;
+  const uuid = (user as unknown as { pnUuId?: string })?.pnUuId;
 
 
   useEffect(() => {
@@ -79,10 +83,11 @@ export default function App() {
 
   const requestPermissions = async () => {
     try {
-      const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      const RN: any = require('react-native');
+      const result = await RN.PermissionsAndroid.request(RN.PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
       console.log("result: ", result)
-      console.log("result permissions: ", PermissionsAndroid.RESULTS.GRANTED)
-      if(result === PermissionsAndroid.RESULTS.GRANTED) {
+      console.log("result permissions: ", RN.PermissionsAndroid.RESULTS.GRANTED)
+      if(result === RN.PermissionsAndroid.RESULTS.GRANTED) {
         //request for device permissions
         requestToken();
       } else {
@@ -149,6 +154,7 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = messaging().onMessage(async remoteMessage => {
+      console.log('FCM foreground message:', JSON.stringify(remoteMessage, null, 2));
       const title = remoteMessage.notification?.title || 'Notification';
       const body =
         remoteMessage.notification?.body ||
@@ -157,7 +163,19 @@ export default function App() {
 
       // Show a themed, dismissible top banner
       if (title || body) {
-        showNotificationToast(title, body);
+        const bodyText = typeof body === 'string' ? body : body ? JSON.stringify(body) : undefined;
+        const tag = remoteMessage?.data?.tag;
+        showNotificationToast(title, bodyText as string | undefined, () => {
+          try {
+            if (navigationRef.current && tag) {
+              if (tag === 'Tasks') {
+                navigationRef.current.navigate('Main', { screen: 'Task' });
+              } else if (tag === 'Chat') {
+                navigationRef.current.navigate('Main', { screen: 'Chat' });
+              }
+            }
+          } catch {}
+        });
       }
     });
 
@@ -167,8 +185,17 @@ export default function App() {
   // When the app is in background and opened by a notification
   useEffect(() => {
     const unsubscribe = messaging().onNotificationOpenedApp(remoteMessage => {
-      console.log('Notification caused app to open from background state:', remoteMessage);
-      // TODO: Optionally navigate to chat screen
+      console.log('Notification opened from background state:', JSON.stringify(remoteMessage, null, 2));
+      try {
+        const tag = remoteMessage?.data?.tag;
+        if (navigationRef.current && tag) {
+          if (tag === 'Tasks') {
+            navigationRef.current.navigate('Main', { screen: 'Task' });
+          } else if (tag === 'Chat') {
+            navigationRef.current.navigate('Main', { screen: 'Chat' });
+          }
+        }
+      } catch {}
     });
     return unsubscribe;
   }, []);
@@ -179,8 +206,17 @@ export default function App() {
       .getInitialNotification()
       .then(remoteMessage => {
         if (remoteMessage) {
-          console.log('Notification caused app to open from quit state:', remoteMessage);
-          // TODO: Optionally navigate to specific screen
+          console.log('Notification opened from quit state:', JSON.stringify(remoteMessage, null, 2));
+          try {
+            const tag = remoteMessage?.data?.tag;
+            if (navigationRef.current && tag) {
+              if (tag === 'Tasks') {
+                navigationRef.current.navigate('Main', { screen: 'Task' });
+              } else if (tag === 'Chat') {
+                navigationRef.current.navigate('Main', { screen: 'Chat' });
+              }
+            }
+          } catch {}
         }
       })
       .catch(() => {});
