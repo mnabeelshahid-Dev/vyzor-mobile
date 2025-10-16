@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { fetchDefinitionSections, fetchSectionRows, syncDocument } from '../../api/statistics';
+import { fetchDefinitionSections, fetchSectionRows, syncDocument, fetchLookupOptions } from '../../api/statistics';
 import {
     View,
     Text,
@@ -16,6 +16,7 @@ import {
     TextInput
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import Signiture from '../../assets/svgs/segnitureImage.svg'
@@ -74,6 +75,57 @@ const CameraIcon = () => (
     </View>
 );
 
+const Checkbox = ({ selected }: { selected: boolean }) => (
+    <View
+        style={{
+            width: getResponsive(16),
+            height: getResponsive(16),
+            borderRadius: getResponsive(3),
+            borderWidth: 2,
+            borderColor: selected ? '#0088E7' : '#19233C',
+            backgroundColor: selected ? '#0088E7' : '#fff',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginLeft: getResponsive(4),
+        }}
+    >
+        {selected ? (
+            <Text style={{ color: '#fff', fontSize: getResponsive(10), fontWeight: 'bold' }}>✓</Text>
+        ) : null}
+    </View>
+);
+
+const Switch = ({ value, onValueChange }: { value: boolean; onValueChange: (value: boolean) => void }) => (
+    <TouchableOpacity
+        style={{
+            width: getResponsive(44),
+            height: getResponsive(24),
+            borderRadius: getResponsive(12),
+            backgroundColor: value ? '#0088E7' : '#E5E5E5',
+            justifyContent: 'center',
+            paddingHorizontal: getResponsive(2),
+            marginLeft: getResponsive(4),
+        }}
+        onPress={() => onValueChange(!value)}
+        activeOpacity={0.8}
+    >
+        <View
+            style={{
+                width: getResponsive(20),
+                height: getResponsive(20),
+                borderRadius: getResponsive(10),
+                backgroundColor: '#fff',
+                alignSelf: value ? 'flex-end' : 'flex-start',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+            }}
+        />
+    </TouchableOpacity>
+);
+
 export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Get formDefinitionId, status, and sourceScreen from route params
     const route = useRoute();
@@ -118,7 +170,15 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
     const [rowImages, setRowImages] = useState<{ [rowId: string]: Array<{ uri: string, id: string }> }>({});
     const [textInputs, setTextInputs] = useState<{ [key: string]: string }>({});
+    const [checkboxValues, setCheckboxValues] = useState<{ [key: string]: boolean }>({});
+    const [switchValues, setSwitchValues] = useState<{ [key: string]: boolean }>({});
+    const [textAreaInputs, setTextAreaInputs] = useState<{ [key: string]: string }>({});
+    const [dateValues, setDateValues] = useState<{ [key: string]: string }>({});
+    const [showDatePicker, setShowDatePicker] = useState<{ [key: string]: boolean }>({});
     const [previewUri, setPreviewUri] = useState<string | null>(null);
+    const [ratingValues, setRatingValues] = useState<{ [key: string]: number }>({});
+    const [lookupValues, setLookupValues] = useState<{ [key: string]: string }>({});
+    const [lookupOptions, setLookupOptions] = useState<{ [key: string]: Array<{ value: string; text: string }> }>({});
 
     // const handleAddImages = async (rowId: string) => {
     //     launchImageLibrary(
@@ -217,9 +277,44 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     });
 
 
+    // Fetch lookup options for all LOOKUP controls
+React.useEffect(() => {
+    if (!sectionRowsData?.data) return;
+    
+    const rows = Array.isArray(sectionRowsData.data) ? sectionRowsData.data : [sectionRowsData.data];
+    
+    rows.forEach((row: any) => {
+        row.columns?.forEach((col: any) => {
+            col.components?.forEach((comp: any) => {
+                if (comp.component === 'LOOKUP' && comp.text) {
+                    const lookupName = comp.text;
+                    const rowId = row.webId;
+                    
+                    // Only fetch if we haven't already
+                    if (!lookupOptions[rowId]) {
+                        fetchLookupOptions(lookupName)
+                            .then((response) => {
+                                if (response?.data) {
+                                    setLookupOptions(prev => ({
+                                        ...prev,
+                                        [rowId]: response.data
+                                    }));
+                                }
+                            })
+                            .catch((error) => {
+                                console.error(`Failed to fetch lookup options for ${lookupName}:`, error);
+                            });
+                    }
+                }
+            });
+        });
+    });
+}, [sectionRowsData]);
+
+
 
     const filteredList = (() => {
-        const rows = Array.isArray(sectionRowsData.data) ? sectionRowsData.data : (sectionRowsData?.data || []);
+        const rows = Array.isArray(sectionRowsData?.data) ? sectionRowsData.data : (sectionRowsData?.data || []);
         if (!rows || rows.length === 0) return [];
         return [{
             webId: formSectionIds.id1,
@@ -288,7 +383,91 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
-                    return [...radioData, ...cameraData, ...textData];
+                    // CHECK_BOX answers
+                    const checkboxComp = row.columns.flatMap(col => col.components).find(c => c.component === 'CHECK_BOX');
+                    const checkboxVal = checkboxValues[row.webId] || false;
+                    const checkboxData = checkboxComp
+                        ? [{
+                            value: checkboxVal ? 'true' : 'false',
+                            controlId: checkboxComp.webId,
+                            groupName: checkboxComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    // SWITCH_BUTTON answers
+                    const switchComp = row.columns.flatMap(col => col.components).find(c => c.component === 'SWITCH_BUTTON');
+                    const switchVal = switchValues[row.webId] || false;
+                    const switchData = switchComp
+                        ? [{
+                            value: switchVal ? 'true' : 'false',
+                            controlId: switchComp.webId,
+                            groupName: switchComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    // TEXT_AREA answers
+                    const textAreaComp = row.columns.flatMap(col => col.components).find(c => c.component === 'TEXT_AREA');
+                    const textAreaVal = textAreaInputs[row.webId] || '';
+                    const textAreaData = textAreaComp
+                        ? [{
+                            value: textAreaVal,
+                            controlId: textAreaComp.webId,
+                            groupName: textAreaComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+
+                    // DATE answers
+                    const dateComp = row.columns.flatMap(col => col.components).find(c => c.component === 'DATE');
+                    const dateVal = dateValues[row.webId] || '';
+                    const dateData = dateComp
+                        ? [{
+                            value: dateVal,
+                            controlId: dateComp.webId,
+                            groupName: dateComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    // RATING answers
+                    const ratingComp = row.columns.flatMap(col => col.components).find(c => c.component === 'RATING');
+                    const ratingVal = ratingValues[row.webId] || 0;
+                    const ratingData = ratingComp
+                        ? [{
+                            value: ratingVal.toString(),
+                            controlId: ratingComp.webId,
+                            groupName: ratingComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];   
+                        
+                        
+                        // LOOKUP answers
+                        const lookupComp = row.columns.flatMap(col => col.components).find(c => c.component === 'LOOKUP');
+                        const lookupVal = lookupValues[row.webId] || '';
+                        const lookupData = lookupComp
+                            ? [{
+                                value: lookupVal,
+                                controlId: lookupComp.webId,
+                                groupName: lookupComp.groupName || null,
+                                senserData: null,
+                            }]
+                            : [];
+
+                    console.log("Radio Data:", radioData)
+                    console.log("camera Data:", cameraData)
+                    console.log("text Data:", textData)
+                    console.log("Checkbox Data:", checkboxData)
+                    console.log("Switch Data:", switchData)
+                    console.log("TextArea Data:", textAreaData)
+                    console.log("Date Data:", dateData)
+                    console.log("Rating Data:", ratingData)
+                    console.log("Lookup Data:", lookupData)
+
+                    return [...radioData, ...cameraData, ...textData, ...checkboxData, ...switchData, ...textAreaData, ...dateData, ...ratingData, ...lookupData];
                 }),
             }
         });
@@ -478,6 +657,303 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         placeholder={placeholder}
                                                         placeholderTextColor="#02163980"
                                                     />
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    // CHECK_BOX row
+                                    const hasCheckbox = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'CHECK_BOX')
+                                    );
+                                    if (hasCheckbox) {
+                                        const checkboxComp = row.columns.flatMap(c => c.components).find(c => c.component === 'CHECK_BOX');
+                                        const isChecked = checkboxValues[row.webId] || false;
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    style={styles.radioChoiceRow}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => {
+                                                        setCheckboxValues(prev => ({
+                                                            ...prev,
+                                                            [row.webId]: !isChecked
+                                                        }));
+                                                    }}
+                                                >
+                                                    <Checkbox selected={isChecked} />
+                                                    <Text style={[
+                                                        styles.radioOptionText,
+                                                        isChecked && {
+                                                            color: '#0088E7',
+                                                            fontWeight: 'bold',
+                                                        }
+                                                    ]}>
+                                                        {isChecked ? 'Yes' : 'No'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        );
+                                    }
+
+                                    // SWITCH_BUTTON row
+                                    const hasSwitch = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'SWITCH_BUTTON')
+                                    );
+                                    if (hasSwitch) {
+                                        const switchValue = switchValues[row.webId] || false;
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <View style={styles.radioChoiceRow}>
+                                                    <Switch
+                                                        value={switchValue}
+                                                        onValueChange={(value) => {
+                                                            setSwitchValues(prev => ({
+                                                                ...prev,
+                                                                [row.webId]: value
+                                                            }));
+                                                        }}
+                                                    />
+                                                    <Text style={[
+                                                        styles.radioOptionText,
+                                                        switchValue && {
+                                                            color: '#0088E7',
+                                                            fontWeight: 'bold',
+                                                        }
+                                                    ]}>
+                                                        {switchValue ? 'On' : 'Off'}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    // TEXT_AREA row
+                                    const hasTextArea = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'TEXT_AREA')
+                                    );
+                                    if (hasTextArea) {
+                                        const textAreaComp = row.columns.flatMap(c => c.components).find(c => c.component === 'TEXT_AREA');
+                                        const placeholder = textAreaComp?.placeholder || 'Type your comments...';
+
+                                        return (
+                                            <View key={row.webId} style={styles.notesRow}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                </View>
+                                                <View style={[styles.textFieldBox, { width: '50%' }]}>
+                                                    <TextInput
+                                                        style={[styles.textFieldInput, { minHeight: getResponsive(80) }]}
+                                                        multiline
+                                                        numberOfLines={4}
+                                                        value={textAreaInputs[row.webId] || ''}
+                                                        onChangeText={(v) =>
+                                                            setTextAreaInputs(prev => ({ ...prev, [row.webId]: v }))
+                                                        }
+                                                        placeholder={placeholder}
+                                                        placeholderTextColor="#02163980"
+                                                        textAlignVertical="top"
+                                                    />
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    // DATE row
+                                    const hasDate = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'DATE')
+                                    );
+                                    if (hasDate) {
+                                        const dateValue = dateValues[row.webId] || '';
+                                        const showPicker = showDatePicker[row.webId] || false;
+
+                                        const handleDateChange = (event: any, selectedDate?: Date) => {
+                                            setShowDatePicker(prev => ({ ...prev, [row.webId]: false }));
+                                            if (selectedDate) {
+                                                const formattedDate = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+                                                setDateValues(prev => ({ ...prev, [row.webId]: formattedDate }));
+                                            }
+                                        };
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    style={styles.radioChoiceRow}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => {
+                                                        setShowDatePicker(prev => ({ ...prev, [row.webId]: true }));
+                                                    }}
+                                                >
+                                                    <Text style={[
+                                                        styles.radioOptionText,
+                                                        { 
+                                                            backgroundColor: '#D8ECFA',
+                                                            paddingHorizontal: getResponsive(8),
+                                                            paddingVertical: getResponsive(4),
+                                                            borderRadius: getResponsive(6),
+                                                            minWidth: getResponsive(100),
+                                                            textAlign: 'center'
+                                                        }
+                                                    ]}>
+                                                        {dateValue || 'Select Date'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                {showPicker && (
+                                                    <DateTimePicker
+                                                        value={dateValue ? new Date(dateValue) : new Date()}
+                                                        mode="date"
+                                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                        onChange={handleDateChange}
+                                                    />
+                                                )}
+                                            </View>
+                                        );
+                                    }
+
+                                    const hasRating = row.columns.some(col => 
+                                        col.components.some(comp => comp.component === 'RATING')
+                                    );
+
+
+                                    // RATING row
+                                    if (hasRating) {
+                                        const ratingComp = row.columns.flatMap(c => c.components).find(c => c.component === 'RATING');
+                                        const currentRating = ratingValues[row.webId] || 0;
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <View style={styles.radioChoiceRow}>
+                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                        <TouchableOpacity
+                                                            key={star}
+                                                            onPress={() => {
+                                                                setRatingValues(prev => ({
+                                                                    ...prev,
+                                                                    [row.webId]: star
+                                                                }));
+                                                            }}
+                                                            activeOpacity={0.7}
+                                                            style={{ marginHorizontal: getResponsive(4) }}
+                                                        >
+                                                            <Text style={{ 
+                                                                fontSize: getResponsive(24), 
+                                                                color: star <= currentRating ? '#FFB800' : '#E0E0E0' 
+                                                            }}>
+                                                                ★
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+
+                                    const hasLookup = row.columns.some(col => 
+                                        col.components.some(comp => comp.component === 'LOOKUP')
+                                    );
+
+                                    // LOOKUP row
+                                    if (hasLookup) {
+                                        const lookupComp = row.columns.flatMap(c => c.components).find(c => c.component === 'LOOKUP');
+                                        const options = lookupOptions[row.webId] || [];
+                                        const selectedValue = lookupValues[row.webId] || '';
+                                        const selectedText = options.find(opt => opt.value === selectedValue)?.text || 'Select an option';
+                                        const [showLookupModal, setShowLookupModal] = useState(false);
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={styles.radioLabel}>
+                                                        {row.columns[0]?.components[0]?.text}
+                                                    </Text>
+                                                </View>
+                                                <View style={{ width: '50%' }}>
+                                                    <TouchableOpacity
+                                                        style={[styles.textFieldBox, { 
+                                                            paddingVertical: getResponsive(12),
+                                                            flexDirection: 'row',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center'
+                                                        }]}
+                                                        onPress={() => setShowLookupModal(true)}
+                                                        activeOpacity={0.7}
+                                                    >
+                                                        <Text style={[
+                                                            styles.textFieldInput,
+                                                            !selectedValue && { color: '#02163980' }
+                                                        ]}>
+                                                            {selectedText}
+                                                        </Text>
+                                                        <Text style={{ color: '#021639', fontSize: getResponsive(12) }}>▼</Text>
+                                                    </TouchableOpacity>
+
+                                                    {/* Lookup Modal */}
+                                                    <Modal
+                                                        visible={showLookupModal}
+                                                        transparent
+                                                        animationType="fade"
+                                                        onRequestClose={() => setShowLookupModal(false)}
+                                                    >
+                                                        <View style={styles.lookupModalOverlay}>
+                                                            <View style={styles.lookupModalContent}>
+                                                                <View style={styles.lookupModalHeader}>
+                                                                    <Text style={styles.lookupModalTitle}>
+                                                                        {row.columns[0]?.components[0]?.text}
+                                                                    </Text>
+                                                                    <TouchableOpacity 
+                                                                        onPress={() => setShowLookupModal(false)}
+                                                                        style={styles.lookupModalClose}
+                                                                    >
+                                                                        <Text style={styles.lookupModalCloseText}>✕</Text>
+                                                                    </TouchableOpacity>
+                                                                </View>
+                                                                <ScrollView style={styles.lookupModalScroll}>
+                                                                    {options.map((option) => (
+                                                                        <TouchableOpacity
+                                                                            key={option.value}
+                                                                            style={[
+                                                                                styles.lookupOption,
+                                                                                selectedValue === option.value && styles.lookupOptionSelected
+                                                                            ]}
+                                                                            onPress={() => {
+                                                                                setLookupValues(prev => ({
+                                                                                    ...prev,
+                                                                                    [row.webId]: option.value
+                                                                                }));
+                                                                                setShowLookupModal(false);
+                                                                            }}
+                                                                            activeOpacity={0.7}
+                                                                        >
+                                                                            <Text style={[
+                                                                                styles.lookupOptionText,
+                                                                                selectedValue === option.value && styles.lookupOptionTextSelected
+                                                                            ]}>
+                                                                                {option.text}
+                                                                            </Text>
+                                                                            {selectedValue === option.value && (
+                                                                                <Text style={styles.lookupOptionCheck}>✓</Text>
+                                                                            )}
+                                                                        </TouchableOpacity>
+                                                                    ))}
+                                                                </ScrollView>
+                                                            </View>
+                                                        </View>
+                                                    </Modal>
                                                 </View>
                                             </View>
                                         );
@@ -935,6 +1411,78 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         letterSpacing: 0.8,
     },
+    lookupModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: getResponsive(20),
+},
+lookupModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: getResponsive(16),
+    width: '100%',
+    maxHeight: '70%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+},
+lookupModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: getResponsive(20),
+    paddingVertical: getResponsive(16),
+    borderBottomWidth: 1,
+    borderBottomColor: '#ECECEC',
+},
+lookupModalTitle: {
+    fontSize: getResponsive(16),
+    fontWeight: '600',
+    color: '#19233C',
+    flex: 1,
+},
+lookupModalClose: {
+    padding: getResponsive(4),
+},
+lookupModalCloseText: {
+    fontSize: getResponsive(20),
+    color: '#19233C',
+    fontWeight: '600',
+},
+lookupModalScroll: {
+    maxHeight: getResponsive(400),
+},
+lookupOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: getResponsive(20),
+    paddingVertical: getResponsive(16),
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F2',
+},
+lookupOptionSelected: {
+    backgroundColor: '#E3F2FD',
+},
+lookupOptionText: {
+    fontSize: getResponsive(14),
+    color: '#19233C',
+    fontWeight: '500',
+    flex: 1,
+},
+lookupOptionTextSelected: {
+    color: '#0088E7',
+    fontWeight: '600',
+},
+lookupOptionCheck: {
+    fontSize: getResponsive(18),
+    color: '#0088E7',
+    fontWeight: 'bold',
+    marginLeft: getResponsive(12),
+},
 });
 
 

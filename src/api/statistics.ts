@@ -146,3 +146,11 @@ export async function fetchSectionRows(sectionId: string | number) {
 	const response = await apiService.get(url);
 	return response;
 }
+
+
+// Fetch lookup options by lookup name
+export async function fetchLookupOptions(lookupName: string) {
+	const url = `/api/static-data/filter/LOOKUP_FILTER/filters?filter[lookupName]=${lookupName}`;
+	const response = await apiService.get(url);
+	return response;
+}
