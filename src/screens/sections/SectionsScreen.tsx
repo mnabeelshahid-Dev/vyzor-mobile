@@ -16,6 +16,7 @@ import {
     TextInput
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import Signiture from '../../assets/svgs/segnitureImage.svg'
@@ -94,6 +95,37 @@ const Checkbox = ({ selected }: { selected: boolean }) => (
     </View>
 );
 
+const Switch = ({ value, onValueChange }: { value: boolean; onValueChange: (value: boolean) => void }) => (
+    <TouchableOpacity
+        style={{
+            width: getResponsive(44),
+            height: getResponsive(24),
+            borderRadius: getResponsive(12),
+            backgroundColor: value ? '#0088E7' : '#E5E5E5',
+            justifyContent: 'center',
+            paddingHorizontal: getResponsive(2),
+            marginLeft: getResponsive(4),
+        }}
+        onPress={() => onValueChange(!value)}
+        activeOpacity={0.8}
+    >
+        <View
+            style={{
+                width: getResponsive(20),
+                height: getResponsive(20),
+                borderRadius: getResponsive(10),
+                backgroundColor: '#fff',
+                alignSelf: value ? 'flex-end' : 'flex-start',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+            }}
+        />
+    </TouchableOpacity>
+);
+
 export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Get formDefinitionId, status, and sourceScreen from route params
     const route = useRoute();
@@ -139,6 +171,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [rowImages, setRowImages] = useState<{ [rowId: string]: Array<{ uri: string, id: string }> }>({});
     const [textInputs, setTextInputs] = useState<{ [key: string]: string }>({});
     const [checkboxValues, setCheckboxValues] = useState<{ [key: string]: boolean }>({});
+    const [switchValues, setSwitchValues] = useState<{ [key: string]: boolean }>({});
+    const [textAreaInputs, setTextAreaInputs] = useState<{ [key: string]: string }>({});
+    const [dateValues, setDateValues] = useState<{ [key: string]: string }>({});
+    const [showDatePicker, setShowDatePicker] = useState<{ [key: string]: boolean }>({});
     const [previewUri, setPreviewUri] = useState<string | null>(null);
 
     // const handleAddImages = async (rowId: string) => {
@@ -321,12 +357,51 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
+                    // SWITCH_BUTTON answers
+                    const switchComp = row.columns.flatMap(col => col.components).find(c => c.component === 'SWITCH_BUTTON');
+                    const switchVal = switchValues[row.webId] || false;
+                    const switchData = switchComp
+                        ? [{
+                            value: switchVal ? 'true' : 'false',
+                            controlId: switchComp.webId,
+                            groupName: switchComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    // TEXT_AREA answers
+                    const textAreaComp = row.columns.flatMap(col => col.components).find(c => c.component === 'TEXT_AREA');
+                    const textAreaVal = textAreaInputs[row.webId] || '';
+                    const textAreaData = textAreaComp
+                        ? [{
+                            value: textAreaVal,
+                            controlId: textAreaComp.webId,
+                            groupName: textAreaComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    // DATE answers
+                    const dateComp = row.columns.flatMap(col => col.components).find(c => c.component === 'DATE');
+                    const dateVal = dateValues[row.webId] || '';
+                    const dateData = dateComp
+                        ? [{
+                            value: dateVal,
+                            controlId: dateComp.webId,
+                            groupName: dateComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
                     console.log("Radio Data:", radioData)
                     console.log("camera Data:", cameraData)
                     console.log("text Data:", textData)
                     console.log("Checkbox Data:", checkboxData)
+                    console.log("Switch Data:", switchData)
+                    console.log("TextArea Data:", textAreaData)
+                    console.log("Date Data:", dateData)
 
-                    return [...radioData, ...cameraData, ...textData, ...checkboxData];
+                    return [...radioData, ...cameraData, ...textData, ...checkboxData, ...switchData, ...textAreaData, ...dateData];
                 }),
             }
         });
@@ -555,6 +630,127 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         {isChecked ? 'Yes' : 'No'}
                                                     </Text>
                                                 </TouchableOpacity>
+                                            </View>
+                                        );
+                                    }
+
+                                    // SWITCH_BUTTON row
+                                    const hasSwitch = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'SWITCH_BUTTON')
+                                    );
+                                    if (hasSwitch) {
+                                        const switchValue = switchValues[row.webId] || false;
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <View style={styles.radioChoiceRow}>
+                                                    <Switch
+                                                        value={switchValue}
+                                                        onValueChange={(value) => {
+                                                            setSwitchValues(prev => ({
+                                                                ...prev,
+                                                                [row.webId]: value
+                                                            }));
+                                                        }}
+                                                    />
+                                                    <Text style={[
+                                                        styles.radioOptionText,
+                                                        switchValue && {
+                                                            color: '#0088E7',
+                                                            fontWeight: 'bold',
+                                                        }
+                                                    ]}>
+                                                        {switchValue ? 'On' : 'Off'}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    // TEXT_AREA row
+                                    const hasTextArea = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'TEXT_AREA')
+                                    );
+                                    if (hasTextArea) {
+                                        const textAreaComp = row.columns.flatMap(c => c.components).find(c => c.component === 'TEXT_AREA');
+                                        const placeholder = textAreaComp?.placeholder || 'Type your comments...';
+
+                                        return (
+                                            <View key={row.webId} style={styles.notesRow}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                </View>
+                                                <View style={[styles.textFieldBox, { width: '50%' }]}>
+                                                    <TextInput
+                                                        style={[styles.textFieldInput, { minHeight: getResponsive(80) }]}
+                                                        multiline
+                                                        numberOfLines={4}
+                                                        value={textAreaInputs[row.webId] || ''}
+                                                        onChangeText={(v) =>
+                                                            setTextAreaInputs(prev => ({ ...prev, [row.webId]: v }))
+                                                        }
+                                                        placeholder={placeholder}
+                                                        placeholderTextColor="#02163980"
+                                                        textAlignVertical="top"
+                                                    />
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    // DATE row
+                                    const hasDate = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'DATE')
+                                    );
+                                    if (hasDate) {
+                                        const dateValue = dateValues[row.webId] || '';
+                                        const showPicker = showDatePicker[row.webId] || false;
+
+                                        const handleDateChange = (event: any, selectedDate?: Date) => {
+                                            setShowDatePicker(prev => ({ ...prev, [row.webId]: false }));
+                                            if (selectedDate) {
+                                                const formattedDate = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+                                                setDateValues(prev => ({ ...prev, [row.webId]: formattedDate }));
+                                            }
+                                        };
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    style={styles.radioChoiceRow}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => {
+                                                        setShowDatePicker(prev => ({ ...prev, [row.webId]: true }));
+                                                    }}
+                                                >
+                                                    <Text style={[
+                                                        styles.radioOptionText,
+                                                        { 
+                                                            backgroundColor: '#D8ECFA',
+                                                            paddingHorizontal: getResponsive(8),
+                                                            paddingVertical: getResponsive(4),
+                                                            borderRadius: getResponsive(6),
+                                                            minWidth: getResponsive(100),
+                                                            textAlign: 'center'
+                                                        }
+                                                    ]}>
+                                                        {dateValue || 'Select Date'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                {showPicker && (
+                                                    <DateTimePicker
+                                                        value={dateValue ? new Date(dateValue) : new Date()}
+                                                        mode="date"
+                                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                        onChange={handleDateChange}
+                                                    />
+                                                )}
                                             </View>
                                         );
                                     }
