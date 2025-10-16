@@ -74,6 +74,26 @@ const CameraIcon = () => (
     </View>
 );
 
+const Checkbox = ({ selected }: { selected: boolean }) => (
+    <View
+        style={{
+            width: getResponsive(16),
+            height: getResponsive(16),
+            borderRadius: getResponsive(3),
+            borderWidth: 2,
+            borderColor: selected ? '#0088E7' : '#19233C',
+            backgroundColor: selected ? '#0088E7' : '#fff',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginLeft: getResponsive(4),
+        }}
+    >
+        {selected ? (
+            <Text style={{ color: '#fff', fontSize: getResponsive(10), fontWeight: 'bold' }}>✓</Text>
+        ) : null}
+    </View>
+);
+
 export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Get formDefinitionId, status, and sourceScreen from route params
     const route = useRoute();
@@ -118,6 +138,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
     const [rowImages, setRowImages] = useState<{ [rowId: string]: Array<{ uri: string, id: string }> }>({});
     const [textInputs, setTextInputs] = useState<{ [key: string]: string }>({});
+    const [checkboxValues, setCheckboxValues] = useState<{ [key: string]: boolean }>({});
     const [previewUri, setPreviewUri] = useState<string | null>(null);
 
     // const handleAddImages = async (rowId: string) => {
@@ -219,7 +240,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
 
     const filteredList = (() => {
-        const rows = Array.isArray(sectionRowsData.data) ? sectionRowsData.data : (sectionRowsData?.data || []);
+        const rows = Array.isArray(sectionRowsData?.data) ? sectionRowsData.data : (sectionRowsData?.data || []);
         if (!rows || rows.length === 0) return [];
         return [{
             webId: formSectionIds.id1,
@@ -288,7 +309,24 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
-                    return [...radioData, ...cameraData, ...textData];
+                    // CHECK_BOX answers
+                    const checkboxComp = row.columns.flatMap(col => col.components).find(c => c.component === 'CHECK_BOX');
+                    const checkboxVal = checkboxValues[row.webId] || false;
+                    const checkboxData = checkboxComp
+                        ? [{
+                            value: checkboxVal ? 'true' : 'false',
+                            controlId: checkboxComp.webId,
+                            groupName: checkboxComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    console.log("Radio Data:", radioData)
+                    console.log("camera Data:", cameraData)
+                    console.log("text Data:", textData)
+                    console.log("Checkbox Data:", checkboxData)
+
+                    return [...radioData, ...cameraData, ...textData, ...checkboxData];
                 }),
             }
         });
@@ -479,6 +517,44 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         placeholderTextColor="#02163980"
                                                     />
                                                 </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    // CHECK_BOX row
+                                    const hasCheckbox = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'CHECK_BOX')
+                                    );
+                                    if (hasCheckbox) {
+                                        const checkboxComp = row.columns.flatMap(c => c.components).find(c => c.component === 'CHECK_BOX');
+                                        const isChecked = checkboxValues[row.webId] || false;
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    style={styles.radioChoiceRow}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => {
+                                                        setCheckboxValues(prev => ({
+                                                            ...prev,
+                                                            [row.webId]: !isChecked
+                                                        }));
+                                                    }}
+                                                >
+                                                    <Checkbox selected={isChecked} />
+                                                    <Text style={[
+                                                        styles.radioOptionText,
+                                                        isChecked && {
+                                                            color: '#0088E7',
+                                                            fontWeight: 'bold',
+                                                        }
+                                                    ]}>
+                                                        {isChecked ? 'Yes' : 'No'}
+                                                    </Text>
+                                                </TouchableOpacity>
                                             </View>
                                         );
                                     }
