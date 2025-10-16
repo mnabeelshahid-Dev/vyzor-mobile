@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { fetchDefinitionSections, syncDocument } from '../../api/statistics';
+import { fetchDefinitionSections, fetchSectionRows, syncDocument } from '../../api/statistics';
 import {
     View,
     Text,
@@ -13,6 +13,7 @@ import {
     Dimensions,
     Platform,
     StatusBar,
+    TextInput
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
@@ -20,6 +21,10 @@ import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import Signiture from '../../assets/svgs/segnitureImage.svg'
 import { useRoute } from '@react-navigation/native';
 import { showErrorToast, showSuccessToast } from '../../components';
+import { ApiResponse } from '../../types';
+import { ActionSheetIOS } from 'react-native';
+import { Alert } from 'react-native';
+import { Modal } from 'react-native';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -112,22 +117,85 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     });
 
     const [rowImages, setRowImages] = useState<{ [rowId: string]: Array<{ uri: string, id: string }> }>({});
+    const [textInputs, setTextInputs] = useState<{ [key: string]: string }>({});
+    const [previewUri, setPreviewUri] = useState<string | null>(null);
+
+    // const handleAddImages = async (rowId: string) => {
+    //     launchImageLibrary(
+    //         { selectionLimit: 5, mediaType: 'photo' },
+    //         response => {
+    //             if (response.assets && response.assets.length > 0) {
+    //                 const newImgs = response.assets
+    //                     .filter(a => a.uri)
+    //                     .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
+    //                 setRowImages(prev => ({
+    //                     ...prev,
+    //                     [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5)
+    //                 }));
+    //             }
+    //         }
+    //     );
+    // };
 
     const handleAddImages = async (rowId: string) => {
-        launchImageLibrary(
-            { selectionLimit: 5, mediaType: 'photo' },
-            response => {
-                if (response.assets && response.assets.length > 0) {
-                    const newImgs = response.assets
-                        .filter(a => a.uri)
-                        .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
-                    setRowImages(prev => ({
-                        ...prev,
-                        [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5)
-                    }));
-                }
+        const remaining = Math.max(1, 5 - (rowImages[rowId]?.length || 0));
+
+        const fromCamera = async () => {
+            const res = await launchCamera({
+                mediaType: 'photo',
+                saveToPhotos: true,
+                cameraType: 'back',
+            });
+            if (res.assets?.length) {
+                const newImgs = res.assets
+                    .filter(a => a.uri)
+                    .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
+                setRowImages(prev => ({
+                    ...prev,
+                    [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5),
+                }));
             }
-        );
+        };
+
+        const fromLibrary = async () => {
+            const res = await launchImageLibrary({
+                mediaType: 'photo',
+                selectionLimit: remaining,
+            });
+            if (res.assets?.length) {
+                const newImgs = res.assets
+                    .filter(a => a.uri)
+                    .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
+                setRowImages(prev => ({
+                    ...prev,
+                    [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5),
+                }));
+            }
+        };
+
+        if (Platform.OS === 'ios') {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    options: ['Cancel', 'Take Photo', 'Choose from Library'],
+                    cancelButtonIndex: 0,
+                },
+                (buttonIndex) => {
+                    if (buttonIndex === 1) fromCamera();
+                    if (buttonIndex === 2) fromLibrary();
+                }
+            );
+        } else {
+            Alert.alert(
+                'Add Photo',
+                undefined,
+                [
+                    { text: 'Take Photo', onPress: fromCamera },
+                    { text: 'Choose from Library', onPress: fromLibrary },
+                    { text: 'Cancel', style: 'cancel' },
+                ],
+                { cancelable: true }
+            );
+        }
     };
 
     const handleRemoveImage = (rowId: string, imgId: string) => {
@@ -138,26 +206,26 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     };
 
     const {
-        data: sectionData,
-        isLoading: isSectionsLoading,
-        isError: isSectionsError,
-        refetch: refetchSections,
+        data: sectionRowsData,
+        isLoading: isSectionRowsLoading,
+        isError: isSectionRowsError,
+        refetch: refetchSectionRows,
     } = useQuery({
-        queryKey: ['definitionSections'],
-        queryFn: async () => {
-            const res = await fetchDefinitionSections();
-            return Array.isArray(res) ? res : res.content || [];
-        },
+        queryKey: ['sectionRows', formSectionIds.id1],
+        queryFn: () => formSectionIds.id1 ? fetchSectionRows(formSectionIds.id1) : Promise.resolve([]),
+        enabled: !!formSectionIds.id1,
     });
 
+
+
     const filteredList = (() => {
-        if (!sectionData || sectionData.length === 0) return [];
-        const ids = Object.values(formSectionIds);
-        const filtered = sectionData.filter(section => ids.includes(section.webId));
-        const ordered = ids
-            .map(id => filtered.find(section => section.webId === id))
-            .filter(Boolean);
-        return ordered;
+        const rows = Array.isArray(sectionRowsData.data) ? sectionRowsData.data : (sectionRowsData?.data || []);
+        if (!rows || rows.length === 0) return [];
+        return [{
+            webId: formSectionIds.id1,
+            name: data?.sectionName || formName || 'Section',
+            formSectionRowModels: rows,
+        }];
     })();
 
     // Submission handler
@@ -208,7 +276,19 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
-                    return [...radioData, ...cameraData];
+                    // TEXT_FIELD answers
+                    const textComp = row.columns.flatMap(col => col.components).find(c => c.component === 'TEXT_FIELD');
+                    const textVal = textInputs[row.webId] || '';
+                    const textData = textComp
+                        ? [{
+                            value: textVal,
+                            controlId: textComp.webId,
+                            groupName: textComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    return [...radioData, ...cameraData, ...textData];
                 }),
             }
         });
@@ -371,13 +451,40 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             <View style={{ paddingHorizontal: getResponsive(10), paddingVertical: getResponsive(10) }}>
                                 {currentSection.formSectionRowModels.map((row, rIdx) => {
                                     const isLastRow = rIdx === currentSection.formSectionRowModels.length - 1;
-                                    const isTakePictures = row.columns[0]?.components[0]?.text?.toLowerCase() === 'take pictures';
                                     const hasCamera = row.columns.some(col =>
                                         col.components.some(comp => comp.component === 'CAMERA')
                                     );
+                                    // TEXT_FIELD row
+                                    const hasTextField = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'TEXT_FIELD')
+                                    );
+                                    if (hasTextField) {
+                                        const textComp = row.columns.flatMap(c => c.components).find(c => c.component === 'TEXT_FIELD');
+                                        const placeholder = textComp?.placeholder || 'Type your answer...';
+
+                                        return (
+                                            <View key={row.webId} style={styles.notesRow}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                </View>
+                                                <View style={[styles.textFieldBox, { width: '50%' }]}>
+                                                    <TextInput
+                                                        style={styles.textFieldInput}
+                                                        multiline
+                                                        value={textInputs[row.webId] || ''}
+                                                        onChangeText={(v) =>
+                                                            setTextInputs(prev => ({ ...prev, [row.webId]: v }))
+                                                        }
+                                                        placeholder={placeholder}
+                                                        placeholderTextColor="#02163980"
+                                                    />
+                                                </View>
+                                            </View>
+                                        );
+                                    }
 
                                     // If it's the last row and Take Pictures → render ONLY media row
-                                    if (isLastRow && isTakePictures && hasCamera) {
+                                    if (hasCamera) {
                                         return (
                                             <View
                                                 key={row.webId}
@@ -395,20 +502,14 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 >
                                                     {(rowImages[row.webId] || []).map(img => (
                                                         <View key={img.id} style={styles.multiImgThumbBox}>
-                                                            <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
+                                                            <TouchableOpacity onPress={() => setPreviewUri(img.uri)}>
+                                                                <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
+                                                            </TouchableOpacity>
                                                             <TouchableOpacity
                                                                 style={styles.multiImgRemove}
                                                                 onPress={() => handleRemoveImage(row.webId, img.id)}
                                                             >
-                                                                <Text
-                                                                    style={{
-                                                                        color: '#1292E6',
-                                                                        fontWeight: 'bold',
-                                                                        fontSize: getResponsive(10),
-                                                                    }}
-                                                                >
-                                                                    ✕
-                                                                </Text>
+                                                                <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
                                                             </TouchableOpacity>
                                                         </View>
                                                     ))}
@@ -544,6 +645,17 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     )}
                 </ScrollView>
             </View>
+
+            <Modal visible={!!previewUri} transparent onRequestClose={() => setPreviewUri(null)}>
+                <View style={styles.previewModal}>
+                    <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewUri(null)}>
+                        <Text style={{ color: '#fff', fontSize: getResponsive(16), fontWeight: '700' }}>✕</Text>
+                    </TouchableOpacity>
+                    {previewUri ? (
+                        <Image source={{ uri: previewUri }} style={styles.previewImage} resizeMode="contain" />
+                    ) : null}
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -557,6 +669,38 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'flex-start',
         zIndex: 0,
+    },
+    previewModal: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.98)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    previewImage: {
+        width: '100%',
+        height: '100%',
+    },
+    previewClose: {
+        position: 'absolute',
+        top: getResponsive(40),
+        right: getResponsive(20),
+        zIndex: 2,
+        padding: getResponsive(8),
+    },
+    textFieldBox: {
+        backgroundColor: '#D8ECFA', // light blue like the image
+        borderRadius: getResponsive(10),
+        padding: getResponsive(8),
+        minHeight: getResponsive(50),
+        justifyContent: 'center',
+    },
+    textFieldInput: {
+        color: '#021639',
+        fontSize: getResponsive(12),
+        fontWeight: '500',
+        paddingVertical: getResponsive(4),
+        paddingHorizontal: getResponsive(4),
+        textAlignVertical: 'top',
     },
     headerRow: {
         flexDirection: 'row',
@@ -792,3 +936,5 @@ const styles = StyleSheet.create({
         letterSpacing: 0.8,
     },
 });
+
+
