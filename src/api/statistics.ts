@@ -139,3 +139,10 @@ export async function syncDocument(documentId: string | number, body: {
 		throw error;
 	}
 }
+
+// Fetch section rows by sectionId
+export async function fetchSectionRows(sectionId: string | number) {
+	const url = `/api/forms/sectionRows?sectionId=${sectionId}`;
+	const response = await apiService.get(url);
+	return response;
+}

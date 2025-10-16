@@ -95,6 +95,7 @@ export default function TaskScreen({ navigation }) {
   const [updatedDate, setUpdatedDate] = useState('');
   const [calendarDate, setCalendarDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [searchUser, setSearchUser] = useState('');
+  const [sectionData, setSectionData] = useState<any>([]);
 
 
   const route: any = useRoute();
@@ -396,7 +397,7 @@ export default function TaskScreen({ navigation }) {
           }
         });
       }
-    });    
+    });
     return tempArray;
   }
 
