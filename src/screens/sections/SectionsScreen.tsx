@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { fetchDefinitionSections, fetchSectionRows, syncDocument } from '../../api/statistics';
+import { fetchDefinitionSections, fetchSectionRows, syncDocument, fetchLookupOptions } from '../../api/statistics';
 import {
     View,
     Text,
@@ -177,6 +177,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [showDatePicker, setShowDatePicker] = useState<{ [key: string]: boolean }>({});
     const [previewUri, setPreviewUri] = useState<string | null>(null);
     const [ratingValues, setRatingValues] = useState<{ [key: string]: number }>({});
+    const [lookupValues, setLookupValues] = useState<{ [key: string]: string }>({});
+    const [lookupOptions, setLookupOptions] = useState<{ [key: string]: Array<{ value: string; text: string }> }>({});
 
     // const handleAddImages = async (rowId: string) => {
     //     launchImageLibrary(
@@ -273,6 +275,41 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         queryFn: () => formSectionIds.id1 ? fetchSectionRows(formSectionIds.id1) : Promise.resolve([]),
         enabled: !!formSectionIds.id1,
     });
+
+
+    // Fetch lookup options for all LOOKUP controls
+React.useEffect(() => {
+    if (!sectionRowsData?.data) return;
+    
+    const rows = Array.isArray(sectionRowsData.data) ? sectionRowsData.data : [sectionRowsData.data];
+    
+    rows.forEach((row: any) => {
+        row.columns?.forEach((col: any) => {
+            col.components?.forEach((comp: any) => {
+                if (comp.component === 'LOOKUP' && comp.text) {
+                    const lookupName = comp.text;
+                    const rowId = row.webId;
+                    
+                    // Only fetch if we haven't already
+                    if (!lookupOptions[rowId]) {
+                        fetchLookupOptions(lookupName)
+                            .then((response) => {
+                                if (response?.data) {
+                                    setLookupOptions(prev => ({
+                                        ...prev,
+                                        [rowId]: response.data
+                                    }));
+                                }
+                            })
+                            .catch((error) => {
+                                console.error(`Failed to fetch lookup options for ${lookupName}:`, error);
+                            });
+                    }
+                }
+            });
+        });
+    });
+}, [sectionRowsData]);
 
 
 
@@ -405,7 +442,20 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             groupName: ratingComp.groupName || null,
                             senserData: null,
                         }]
-                        : [];    
+                        : [];   
+                        
+                        
+                        // LOOKUP answers
+                        const lookupComp = row.columns.flatMap(col => col.components).find(c => c.component === 'LOOKUP');
+                        const lookupVal = lookupValues[row.webId] || '';
+                        const lookupData = lookupComp
+                            ? [{
+                                value: lookupVal,
+                                controlId: lookupComp.webId,
+                                groupName: lookupComp.groupName || null,
+                                senserData: null,
+                            }]
+                            : [];
 
                     console.log("Radio Data:", radioData)
                     console.log("camera Data:", cameraData)
@@ -415,8 +465,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     console.log("TextArea Data:", textAreaData)
                     console.log("Date Data:", dateData)
                     console.log("Rating Data:", ratingData)
+                    console.log("Lookup Data:", lookupData)
 
-                    return [...radioData, ...cameraData, ...textData, ...checkboxData, ...switchData, ...textAreaData, ...dateData, ...ratingData];
+                    return [...radioData, ...cameraData, ...textData, ...checkboxData, ...switchData, ...textAreaData, ...dateData, ...ratingData, ...lookupData];
                 }),
             }
         });
@@ -806,6 +857,103 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </Text>
                                                         </TouchableOpacity>
                                                     ))}
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+
+                                    const hasLookup = row.columns.some(col => 
+                                        col.components.some(comp => comp.component === 'LOOKUP')
+                                    );
+
+                                    // LOOKUP row
+                                    if (hasLookup) {
+                                        const lookupComp = row.columns.flatMap(c => c.components).find(c => c.component === 'LOOKUP');
+                                        const options = lookupOptions[row.webId] || [];
+                                        const selectedValue = lookupValues[row.webId] || '';
+                                        const selectedText = options.find(opt => opt.value === selectedValue)?.text || 'Select an option';
+                                        const [showLookupModal, setShowLookupModal] = useState(false);
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={styles.radioLabel}>
+                                                        {row.columns[0]?.components[0]?.text}
+                                                    </Text>
+                                                </View>
+                                                <View style={{ width: '50%' }}>
+                                                    <TouchableOpacity
+                                                        style={[styles.textFieldBox, { 
+                                                            paddingVertical: getResponsive(12),
+                                                            flexDirection: 'row',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center'
+                                                        }]}
+                                                        onPress={() => setShowLookupModal(true)}
+                                                        activeOpacity={0.7}
+                                                    >
+                                                        <Text style={[
+                                                            styles.textFieldInput,
+                                                            !selectedValue && { color: '#02163980' }
+                                                        ]}>
+                                                            {selectedText}
+                                                        </Text>
+                                                        <Text style={{ color: '#021639', fontSize: getResponsive(12) }}>▼</Text>
+                                                    </TouchableOpacity>
+
+                                                    {/* Lookup Modal */}
+                                                    <Modal
+                                                        visible={showLookupModal}
+                                                        transparent
+                                                        animationType="fade"
+                                                        onRequestClose={() => setShowLookupModal(false)}
+                                                    >
+                                                        <View style={styles.lookupModalOverlay}>
+                                                            <View style={styles.lookupModalContent}>
+                                                                <View style={styles.lookupModalHeader}>
+                                                                    <Text style={styles.lookupModalTitle}>
+                                                                        {row.columns[0]?.components[0]?.text}
+                                                                    </Text>
+                                                                    <TouchableOpacity 
+                                                                        onPress={() => setShowLookupModal(false)}
+                                                                        style={styles.lookupModalClose}
+                                                                    >
+                                                                        <Text style={styles.lookupModalCloseText}>✕</Text>
+                                                                    </TouchableOpacity>
+                                                                </View>
+                                                                <ScrollView style={styles.lookupModalScroll}>
+                                                                    {options.map((option) => (
+                                                                        <TouchableOpacity
+                                                                            key={option.value}
+                                                                            style={[
+                                                                                styles.lookupOption,
+                                                                                selectedValue === option.value && styles.lookupOptionSelected
+                                                                            ]}
+                                                                            onPress={() => {
+                                                                                setLookupValues(prev => ({
+                                                                                    ...prev,
+                                                                                    [row.webId]: option.value
+                                                                                }));
+                                                                                setShowLookupModal(false);
+                                                                            }}
+                                                                            activeOpacity={0.7}
+                                                                        >
+                                                                            <Text style={[
+                                                                                styles.lookupOptionText,
+                                                                                selectedValue === option.value && styles.lookupOptionTextSelected
+                                                                            ]}>
+                                                                                {option.text}
+                                                                            </Text>
+                                                                            {selectedValue === option.value && (
+                                                                                <Text style={styles.lookupOptionCheck}>✓</Text>
+                                                                            )}
+                                                                        </TouchableOpacity>
+                                                                    ))}
+                                                                </ScrollView>
+                                                            </View>
+                                                        </View>
+                                                    </Modal>
                                                 </View>
                                             </View>
                                         );
@@ -1263,6 +1411,78 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         letterSpacing: 0.8,
     },
+    lookupModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: getResponsive(20),
+},
+lookupModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: getResponsive(16),
+    width: '100%',
+    maxHeight: '70%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+},
+lookupModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: getResponsive(20),
+    paddingVertical: getResponsive(16),
+    borderBottomWidth: 1,
+    borderBottomColor: '#ECECEC',
+},
+lookupModalTitle: {
+    fontSize: getResponsive(16),
+    fontWeight: '600',
+    color: '#19233C',
+    flex: 1,
+},
+lookupModalClose: {
+    padding: getResponsive(4),
+},
+lookupModalCloseText: {
+    fontSize: getResponsive(20),
+    color: '#19233C',
+    fontWeight: '600',
+},
+lookupModalScroll: {
+    maxHeight: getResponsive(400),
+},
+lookupOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: getResponsive(20),
+    paddingVertical: getResponsive(16),
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F2',
+},
+lookupOptionSelected: {
+    backgroundColor: '#E3F2FD',
+},
+lookupOptionText: {
+    fontSize: getResponsive(14),
+    color: '#19233C',
+    fontWeight: '500',
+    flex: 1,
+},
+lookupOptionTextSelected: {
+    color: '#0088E7',
+    fontWeight: '600',
+},
+lookupOptionCheck: {
+    fontSize: getResponsive(18),
+    color: '#0088E7',
+    fontWeight: 'bold',
+    marginLeft: getResponsive(12),
+},
 });
 
 
