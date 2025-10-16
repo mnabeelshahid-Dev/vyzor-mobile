@@ -176,6 +176,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [dateValues, setDateValues] = useState<{ [key: string]: string }>({});
     const [showDatePicker, setShowDatePicker] = useState<{ [key: string]: boolean }>({});
     const [previewUri, setPreviewUri] = useState<string | null>(null);
+    const [ratingValues, setRatingValues] = useState<{ [key: string]: number }>({});
 
     // const handleAddImages = async (rowId: string) => {
     //     launchImageLibrary(
@@ -381,6 +382,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
+
                     // DATE answers
                     const dateComp = row.columns.flatMap(col => col.components).find(c => c.component === 'DATE');
                     const dateVal = dateValues[row.webId] || '';
@@ -393,6 +395,18 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
+                    // RATING answers
+                    const ratingComp = row.columns.flatMap(col => col.components).find(c => c.component === 'RATING');
+                    const ratingVal = ratingValues[row.webId] || 0;
+                    const ratingData = ratingComp
+                        ? [{
+                            value: ratingVal.toString(),
+                            controlId: ratingComp.webId,
+                            groupName: ratingComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];    
+
                     console.log("Radio Data:", radioData)
                     console.log("camera Data:", cameraData)
                     console.log("text Data:", textData)
@@ -400,8 +414,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     console.log("Switch Data:", switchData)
                     console.log("TextArea Data:", textAreaData)
                     console.log("Date Data:", dateData)
+                    console.log("Rating Data:", ratingData)
 
-                    return [...radioData, ...cameraData, ...textData, ...checkboxData, ...switchData, ...textAreaData, ...dateData];
+                    return [...radioData, ...cameraData, ...textData, ...checkboxData, ...switchData, ...textAreaData, ...dateData, ...ratingData];
                 }),
             }
         });
@@ -751,6 +766,47 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         onChange={handleDateChange}
                                                     />
                                                 )}
+                                            </View>
+                                        );
+                                    }
+
+                                    const hasRating = row.columns.some(col => 
+                                        col.components.some(comp => comp.component === 'RATING')
+                                    );
+
+
+                                    // RATING row
+                                    if (hasRating) {
+                                        const ratingComp = row.columns.flatMap(c => c.components).find(c => c.component === 'RATING');
+                                        const currentRating = ratingValues[row.webId] || 0;
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <View style={styles.radioChoiceRow}>
+                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                        <TouchableOpacity
+                                                            key={star}
+                                                            onPress={() => {
+                                                                setRatingValues(prev => ({
+                                                                    ...prev,
+                                                                    [row.webId]: star
+                                                                }));
+                                                            }}
+                                                            activeOpacity={0.7}
+                                                            style={{ marginHorizontal: getResponsive(4) }}
+                                                        >
+                                                            <Text style={{ 
+                                                                fontSize: getResponsive(24), 
+                                                                color: star <= currentRating ? '#FFB800' : '#E0E0E0' 
+                                                            }}>
+                                                                ★
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
                                             </View>
                                         );
                                     }
