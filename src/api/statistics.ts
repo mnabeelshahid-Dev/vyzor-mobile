@@ -86,60 +86,74 @@ export async function fetchStatisticsUserDetail(params: {
 	return apiService.get(url);
 }
 
-// Sync document by documentId
-export async function syncDocument(documentId: string | number, body: {
-	formDefinitionId: number;
-	status: string;
-	userAccountId: number;
-	clientId: number;
-	siteId: number;
-	flow: number;
-	deleted: boolean;
-	completedDate: string;
-	key: string | null;
-	sectionModels: Array<{
-		startDate: string;
-		endDate: string;
-		key: string;
-		formConfigurationSectionId: number;
-		documentId: number;
-		userId: number;
-		data: Array<{
-			value: string | string[];
-			controlId: string;
-			groupName: string | null;
-			senserData: any;
-		}>;
-	}>;
-}) {
-	const url = `/api/document/sync/${documentId}`;
-	const requestOptions = {
-		method: 'PUT',
-		url,
-		data: body,
-	};
-	console.log('[API] syncDocument network request:', requestOptions);
-	try {
-		const response = await apiService.put(url, body);
-		console.log('[API] Base URL:', apiService);
-		console.log('[API] Full URL:', url);
+type ControlValue = string | number | boolean | string[] | number[] | boolean[] | null;
 
-		console.log('[API] syncDocument response 200:', response);
-		console.log('[API] syncDocument actual response data:', response?.data);
-		return response;
-	} catch (error: any) {
-		console.log('[API] syncDocument error name:', error.name);
-		console.log('[API] syncDocument error message:', error.message);
-		console.log('[API] syncDocument error config:', error.config);
-		if (error?.response) {
-			console.log(`[API] syncDocument response ${error.response.status}:`, error.response.data);
-		} else {
-			console.log('[API] syncDocument error:', error);
-		}
-		throw error;
-	}
+// Helper: normalize axios/fetch-like errors
+function normalizeHttpError(err: any, url?: string) {
+  const status = err?.response?.status ?? err?.status ?? 0;
+  const data = err?.response?.data ?? err?.data;
+  const message =
+    (typeof data === 'string' && data) ||
+    data?.message ||
+    err?.message ||
+    'Request failed';
+  const finalUrl = err?.config?.url ?? url ?? '';
+  return { status, data, message, url: finalUrl };
 }
 
+export async function syncDocument(
+  documentId: string | number,
+  body: {
+    formDefinitionId: number;
+    status: string;
+    userAccountId: number;
+    clientId: number;
+    siteId: number;
+    flow: number;
+    deleted: boolean;
+    completedDate: string;
+    key?: string | null;
+    sectionModels: Array<{
+      startDate: string;
+      endDate: string;
+      key: string | number;
+      formConfigurationSectionId: number;
+      documentId: number | string;
+      userId: number | string;
+      data: Array<{
+        value: ControlValue;
+        controlId: string | number;
+        groupName: string | null;
+        senserData: any;
+      }>;
+    }>;
+  }
+) {
+	 const url = `/api/document/sync/${documentId}`;
+  try {
+    console.log('[API] syncDocument network request:', {
+      method: 'PUT',
+      url: `/api/document/sync/${documentId}`,
+      data: body,
+    });
+    const res = await apiService.put(`/api/document/sync/${documentId}`, body);
+    return res.data;
+  } catch (err: any) {
+     const n = normalizeHttpError(err, url);
+    console.error(`[API] syncDocument error [HTTP ${n.status || 'n/a'}] ${n.url}`);
+    if (n.data) console.error('[API] error body:', n.data);
+    console.error('[API] error message:', n.message);
+    throw Object.assign(new Error(n.message), { status: n.status, data: n.data, url: n.url });
+  }
+}
+const c = console;
+(globalThis as any).Debugconsole = (globalThis as any).Debugconsole ?? {
+  log: c.log.bind(c),
+  info: c.info.bind(c),
+  warn: c.warn.bind(c),
+  error: c.error.bind(c),
+  debug: c.debug.bind(c),
+};
 // Fetch section rows by sectionId
 export async function fetchSectionRows(sectionId: string | number) {
 	const url = `/api/forms/sectionRows?sectionId=${sectionId}`;

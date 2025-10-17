@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { fetchDefinitionSections, fetchSectionRows, syncDocument, fetchLookupOptions } from '../../api/statistics';
+import { fetchSectionRows, syncDocument, fetchLookupOptions } from '../../api/statistics';
+import Signature from 'react-native-signature-canvas';
 import {
     View,
     Text,
@@ -13,19 +14,19 @@ import {
     Dimensions,
     Platform,
     StatusBar,
-    TextInput
+    TextInput,
+    Alert,
+    Modal,
+    ActionSheetIOS
+
 } from 'react-native';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
-import Signiture from '../../assets/svgs/segnitureImage.svg'
+import RefreshSignatureIcon from '../../assets/svgs/RefreshSignature.svg';
 import { useRoute } from '@react-navigation/native';
 import { showErrorToast, showSuccessToast } from '../../components';
-import { ApiResponse } from '../../types';
-import { ActionSheetIOS } from 'react-native';
-import { Alert } from 'react-native';
-import { Modal } from 'react-native';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -131,7 +132,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const route = useRoute();
     const {
         formSectionIds = {},
-        data
+        data,
+        formConfigurationSectionIds = {},
     }: any = route.params || {};
     const {
         formName = "",
@@ -142,30 +144,30 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         assignUserId = "",
         clientId = "",
         siteId = ""
-    } = data
+    } = data || {};
 
 
     console.log("formSectionIds", formSectionIds);
+    console.log("formConfigurationSectionIds", formConfigurationSectionIds);
+    
 
 
     // Mutation for document sync
     const syncMutation = useMutation({
-        mutationFn: async (body: any) => {
-            return syncDocument(documentId, body);
-        },
+        mutationFn: async (body: any) => syncDocument(documentId, body),
         onSuccess: () => {
             showSuccessToast('Document synced successfully!', 'Your document has been saved.');
         },
         onError: (error: any) => {
-            console.log('[SectionsScreen] Document sync failed');
-            console.log('Error:', error);
-            if (error instanceof Error) {
-                console.log('Error message:', error.message);
-                showErrorToast('Failed to sync document.', error.message);
-            } else {
-                showErrorToast('Failed to sync document.', 'Please try again.');
-            }
-        }
+            const status = error?.response?.status ?? error?.status ?? 'n/a';
+            const message =
+                error?.response?.data?.message ||
+                (typeof error?.response?.data === 'string' ? error.response.data : null) ||
+                error?.message ||
+                'Request failed';
+            console.log('[SectionsScreen] Document sync failed:', { status, message, data: error?.response?.data });
+            showErrorToast(`Sync failed (HTTP ${status})`, message);
+        },
     });
 
     const [rowImages, setRowImages] = useState<{ [rowId: string]: Array<{ uri: string, id: string }> }>({});
@@ -179,6 +181,12 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [ratingValues, setRatingValues] = useState<{ [key: string]: number }>({});
     const [lookupValues, setLookupValues] = useState<{ [key: string]: string }>({});
     const [lookupOptions, setLookupOptions] = useState<{ [key: string]: Array<{ value: string; text: string }> }>({});
+    const [signatureValues, setSignatureValues] = useState<{ [rowId: string]: { encoded?: string; pathName?: string } }>({});
+    // replace single ref with a map of refs and helpers
+    const signatureRefs = useRef<{ [rowId: string]: any }>({});
+    const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
+    const signatureSaveTimers = useRef<{ [rowId: string]: any }>({});
+    const signatureRowIdsRef = useRef<Set<string>>(new Set());
 
     // const handleAddImages = async (rowId: string) => {
     //     launchImageLibrary(
@@ -196,6 +204,25 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     //         }
     //     );
     // };
+
+    async function ensureAllSignaturesSaved() {
+        const rowIds = Array.from(signatureRowIdsRef.current);
+        const toCapture = rowIds.filter(id => !signatureValues[id]?.encoded);
+        if (toCapture.length === 0) return;
+
+        await Promise.all(
+            toCapture.map(
+                (rowId) =>
+                    new Promise<void>((resolve) => {
+                        const ref = signatureRefs.current[rowId];
+                        if (!ref) return resolve();
+                        signatureWaiters.current[rowId] = () => resolve();
+                        // react-native-signature-canvas → triggers onOK
+                        ref.readSignature();
+                    })
+            )
+        );
+    }
 
     const handleAddImages = async (rowId: string) => {
         const remaining = Math.max(1, 5 - (rowImages[rowId]?.length || 0));
@@ -278,38 +305,38 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
 
     // Fetch lookup options for all LOOKUP controls
-React.useEffect(() => {
-    if (!sectionRowsData?.data) return;
-    
-    const rows = Array.isArray(sectionRowsData.data) ? sectionRowsData.data : [sectionRowsData.data];
-    
-    rows.forEach((row: any) => {
-        row.columns?.forEach((col: any) => {
-            col.components?.forEach((comp: any) => {
-                if (comp.component === 'LOOKUP' && comp.text) {
-                    const lookupName = comp.text;
-                    const rowId = row.webId;
-                    
-                    // Only fetch if we haven't already
-                    if (!lookupOptions[rowId]) {
-                        fetchLookupOptions(lookupName)
-                            .then((response) => {
-                                if (response?.data) {
-                                    setLookupOptions(prev => ({
-                                        ...prev,
-                                        [rowId]: response.data
-                                    }));
-                                }
-                            })
-                            .catch((error) => {
-                                console.error(`Failed to fetch lookup options for ${lookupName}:`, error);
-                            });
+    React.useEffect(() => {
+        if (!sectionRowsData?.data) return;
+
+        const rows = Array.isArray(sectionRowsData.data) ? sectionRowsData.data : [sectionRowsData.data];
+
+        rows.forEach((row: any) => {
+            row.columns?.forEach((col: any) => {
+                col.components?.forEach((comp: any) => {
+                    if (comp.component === 'LOOKUP' && comp.text) {
+                        const lookupName = comp.text;
+                        const rowId = row.webId;
+
+                        // Only fetch if we haven't already
+                        if (!lookupOptions[rowId]) {
+                            fetchLookupOptions(lookupName)
+                                .then((response) => {
+                                    if (response?.data) {
+                                        setLookupOptions(prev => ({
+                                            ...prev,
+                                            [rowId]: response.data
+                                        }));
+                                    }
+                                })
+                                .catch((error) => {
+                                    console.error(`Failed to fetch lookup options for ${lookupName}:`, error);
+                                });
+                        }
                     }
-                }
+                });
             });
         });
-    });
-}, [sectionRowsData]);
+    }, [sectionRowsData]);
 
 
 
@@ -322,6 +349,10 @@ React.useEffect(() => {
             formSectionRowModels: rows,
         }];
     })();
+
+    console.log('====================================');
+    console.log('Rendering SectionsScreen with data:', { filteredList });
+    console.log('====================================');
 
     // Submission handler
 
@@ -340,39 +371,57 @@ React.useEffect(() => {
         return date.toISOString().split('.')[0] + 'Z';
     }
 
-    const handleSubmit = () => {
-        const sectionModels = filteredList.map(section => {
+    const handleSubmit = async () => {
+        await ensureAllSignaturesSaved();
+
+        const sectionModels = filteredList.map((section: any) => {
             return {
                 startDate: formatDateTimeUTC(startDate || new Date()),
                 endDate: formatDateTimeUTC(endDate || new Date()),
                 key: section.key || section.webId || '',
-                formConfigurationSectionId: section?.webId || 0,
+                formConfigurationSectionId: formConfigurationSectionIds.id1 || 0,
                 documentId: documentId,
                 userId: assignUserId,
-                data: (section.formSectionRowModels || []).flatMap(row => {
-                    // RADIO_BUTTON answers
-                    const answer = answers[section.webId]?.[row.webId];
-                    const radioData = row.columns[1]?.components
-                        .filter(comp => comp.component === 'RADIO_BUTTON')
-                        .map(comp => ({
-                            value: answer === comp.text ? comp.text : '', // Only set value if selected
-                            controlId: comp.webId,
-                            groupName: comp.groupName || null,
-                            senserData: null,
-                        }))?.filter(item => item.value) || [];
+                data: (section.formSectionRowModels || []).flatMap((row: any) => {
+                    const comps = row.columns?.flatMap((col: any) => col.components || []) || [];
 
-                    // CAMERA answers (images)
-                    const cameraData = row.columns.some(col => col.components.some(comp => comp.component === 'CAMERA'))
+                    // RADIO_BUTTON (only include the selected one)
+                    const answer = answers[section.webId]?.[row.webId];
+                    const radioData =
+                        comps
+                            .filter((c: any) => c.component === 'RADIO_BUTTON')
+                            .map((c: any) => ({
+                                value: answer === c.text ? c.text : '',
+                                controlId: c.webId,
+                                groupName: c.groupName || null,
+                                senserData: null,
+                            }))
+                            .filter((i: any) => i.value) || [];
+
+                    // CAMERA (array of IDs)
+                    const cameraComp = comps.find((c: any) => c.component === 'CAMERA');
+                    const cameraData = cameraComp
                         ? [{
                             value: (rowImages[row.webId] || []).map(img => img.id),
-                            controlId: row.columns[1]?.components.find(comp => comp.component === 'CAMERA')?.webId || '',
-                            groupName: null,
+                            controlId: cameraComp.webId || '',
+                            groupName: cameraComp.groupName || null,
                             senserData: null,
                         }]
                         : [];
 
-                    // TEXT_FIELD answers
-                    const textComp = row.columns.flatMap(col => col.components).find(c => c.component === 'TEXT_FIELD');
+                    // ATTACHEMENTS (array of IDs, same source as camera in this UI)
+                    const attachComp = comps.find((c: any) => c.component === 'ATTACHEMENTS');
+                    const attachmentsData = attachComp
+                        ? [{
+                            value: (rowImages[row.webId] || []).map(img => img.id),
+                            controlId: attachComp.webId || '',
+                            groupName: attachComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    // TEXT_FIELD
+                    const textComp = comps.find((c: any) => c.component === 'TEXT_FIELD');
                     const textVal = textInputs[row.webId] || '';
                     const textData = textComp
                         ? [{
@@ -383,32 +432,32 @@ React.useEffect(() => {
                         }]
                         : [];
 
-                    // CHECK_BOX answers
-                    const checkboxComp = row.columns.flatMap(col => col.components).find(c => c.component === 'CHECK_BOX');
-                    const checkboxVal = checkboxValues[row.webId] || false;
+                    // CHECK_BOX (boolean)
+                    const checkboxComp = comps.find((c: any) => c.component === 'CHECK_BOX');
+                    const checkboxVal = checkboxValues[row.webId] ?? false;
                     const checkboxData = checkboxComp
                         ? [{
-                            value: checkboxVal ? 'true' : 'false',
+                            value: checkboxVal,
                             controlId: checkboxComp.webId,
                             groupName: checkboxComp.groupName || null,
                             senserData: null,
                         }]
                         : [];
 
-                    // SWITCH_BUTTON answers
-                    const switchComp = row.columns.flatMap(col => col.components).find(c => c.component === 'SWITCH_BUTTON');
-                    const switchVal = switchValues[row.webId] || false;
+                    // SWITCH_BUTTON (boolean)
+                    const switchComp = comps.find((c: any) => c.component === 'SWITCH_BUTTON');
+                    const switchVal = switchValues[row.webId] ?? false;
                     const switchData = switchComp
                         ? [{
-                            value: switchVal ? 'true' : 'false',
+                            value: switchVal,
                             controlId: switchComp.webId,
                             groupName: switchComp.groupName || null,
                             senserData: null,
                         }]
                         : [];
 
-                    // TEXT_AREA answers
-                    const textAreaComp = row.columns.flatMap(col => col.components).find(c => c.component === 'TEXT_AREA');
+                    // TEXT_AREA
+                    const textAreaComp = comps.find((c: any) => c.component === 'TEXT_AREA');
                     const textAreaVal = textAreaInputs[row.webId] || '';
                     const textAreaData = textAreaComp
                         ? [{
@@ -419,9 +468,8 @@ React.useEffect(() => {
                         }]
                         : [];
 
-
-                    // DATE answers
-                    const dateComp = row.columns.flatMap(col => col.components).find(c => c.component === 'DATE');
+                    // DATE (YYYY-MM-DD)
+                    const dateComp = comps.find((c: any) => c.component === 'DATE');
                     const dateVal = dateValues[row.webId] || '';
                     const dateData = dateComp
                         ? [{
@@ -432,44 +480,57 @@ React.useEffect(() => {
                         }]
                         : [];
 
-                    // RATING answers
-                    const ratingComp = row.columns.flatMap(col => col.components).find(c => c.component === 'RATING');
-                    const ratingVal = ratingValues[row.webId] || 0;
+                    // RATING (number)
+                    const ratingComp = comps.find((c: any) => c.component === 'RATING');
+                    const ratingVal = ratingValues[row.webId] ?? 0;
                     const ratingData = ratingComp
                         ? [{
-                            value: ratingVal.toString(),
+                            value: Number(ratingVal),
                             controlId: ratingComp.webId,
                             groupName: ratingComp.groupName || null,
                             senserData: null,
                         }]
-                        : [];   
-                        
-                        
-                        // LOOKUP answers
-                        const lookupComp = row.columns.flatMap(col => col.components).find(c => c.component === 'LOOKUP');
-                        const lookupVal = lookupValues[row.webId] || '';
-                        const lookupData = lookupComp
-                            ? [{
-                                value: lookupVal,
-                                controlId: lookupComp.webId,
-                                groupName: lookupComp.groupName || null,
-                                senserData: null,
-                            }]
-                            : [];
+                        : [];
 
-                    console.log("Radio Data:", radioData)
-                    console.log("camera Data:", cameraData)
-                    console.log("text Data:", textData)
-                    console.log("Checkbox Data:", checkboxData)
-                    console.log("Switch Data:", switchData)
-                    console.log("TextArea Data:", textAreaData)
-                    console.log("Date Data:", dateData)
-                    console.log("Rating Data:", ratingData)
-                    console.log("Lookup Data:", lookupData)
+                    // LOOKUP
+                    const lookupComp = comps.find((c: any) => c.component === 'LOOKUP');
+                    const lookupVal = lookupValues[row.webId] || '';
+                    const lookupData = lookupComp
+                        ? [{
+                            value: lookupVal,
+                            controlId: lookupComp.webId,
+                            groupName: lookupComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
 
-                    return [...radioData, ...cameraData, ...textData, ...checkboxData, ...switchData, ...textAreaData, ...dateData, ...ratingData, ...lookupData];
+                    // SIGNATURE (base64 without data: prefix)
+                    const signatureComp = comps.find((c: any) => c.component === 'SIGNATURE');
+                    const signatureVal = signatureValues[row.webId]?.encoded || '';
+                    const signatureData = signatureComp
+                        ? [{
+                            value: signatureVal,
+                            controlId: signatureComp.webId,
+                            groupName: signatureComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    return [
+                        ...radioData,
+                        ...attachmentsData,
+                        ...cameraData,
+                        ...textData,
+                        ...checkboxData,
+                        ...switchData,
+                        ...textAreaData,
+                        ...dateData,
+                        ...ratingData,
+                        ...lookupData,
+                        ...signatureData,
+                    ];
                 }),
-            }
+            };
         });
 
         const body = {
@@ -478,42 +539,28 @@ React.useEffect(() => {
             userAccountId: assignUserId,
             clientId,
             siteId,
-            flow: 1,
+            flow: 0,
             deleted: false,
             completedDate: formatToUTC(new Date()),
             sectionModels,
         };
 
-        // Log the full request body before sending
         console.log('[SectionsScreen] Submitting body:', JSON.stringify(body, null, 2));
 
         syncMutation.mutate(body, {
-            onSuccess: (data: any, variables, context) => {
-                // Log the full response from backend
-                () => showSuccessToast('Document synced successfully!', 'Your document has been saved.');
+            onSuccess: (data: any) => {
+                showSuccessToast('Document synced successfully!', 'Your document has been saved.');
                 navigation.goBack();
                 console.log('[SectionsScreen] Backend full response:', data);
-                if (data?.status) {
-                    console.log(`[SectionsScreen] Backend responded with status: ${data.status}`);
-                } else if (data?.response?.status) {
-                    console.log(`[SectionsScreen] Backend responded with status: ${data.response.status}`);
-                }
             },
             onError: (error: any) => {
-                // Log the full error object
                 console.log('[SectionsScreen] Backend error (full):', error);
                 if (error?.response) {
-                    // If axios-like error, log response data
                     console.log('[SectionsScreen] Backend error response data:', error.response.data);
                     console.log('[SectionsScreen] Backend error response status:', error.response.status);
                     console.log('[SectionsScreen] Backend error response headers:', error.response.headers);
                 }
-                if (error?.response?.status) {
-                    console.log(`[SectionsScreen] Backend error status: ${error.response.status}`);
-                } else if (error?.status) {
-                    console.log(`[SectionsScreen] Backend error status: ${error.status}`);
-                }
-            }
+            },
         });
     };
 
@@ -637,6 +684,10 @@ React.useEffect(() => {
                                     const hasTextField = row.columns.some(col =>
                                         col.components.some(comp => comp.component === 'TEXT_FIELD')
                                     );
+                                    const hasSignature = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'SIGNATURE')
+                                    );
+
                                     if (hasTextField) {
                                         const textComp = row.columns.flatMap(c => c.components).find(c => c.component === 'TEXT_FIELD');
                                         const placeholder = textComp?.placeholder || 'Type your answer...';
@@ -797,7 +848,7 @@ React.useEffect(() => {
                                                 >
                                                     <Text style={[
                                                         styles.radioOptionText,
-                                                        { 
+                                                        {
                                                             backgroundColor: '#D8ECFA',
                                                             paddingHorizontal: getResponsive(8),
                                                             paddingVertical: getResponsive(4),
@@ -821,7 +872,7 @@ React.useEffect(() => {
                                         );
                                     }
 
-                                    const hasRating = row.columns.some(col => 
+                                    const hasRating = row.columns.some(col =>
                                         col.components.some(comp => comp.component === 'RATING')
                                     );
 
@@ -849,9 +900,9 @@ React.useEffect(() => {
                                                             activeOpacity={0.7}
                                                             style={{ marginHorizontal: getResponsive(4) }}
                                                         >
-                                                            <Text style={{ 
-                                                                fontSize: getResponsive(24), 
-                                                                color: star <= currentRating ? '#FFB800' : '#E0E0E0' 
+                                                            <Text style={{
+                                                                fontSize: getResponsive(24),
+                                                                color: star <= currentRating ? '#FFB800' : '#E0E0E0'
                                                             }}>
                                                                 ★
                                                             </Text>
@@ -863,7 +914,7 @@ React.useEffect(() => {
                                     }
 
 
-                                    const hasLookup = row.columns.some(col => 
+                                    const hasLookup = row.columns.some(col =>
                                         col.components.some(comp => comp.component === 'LOOKUP')
                                     );
 
@@ -884,7 +935,7 @@ React.useEffect(() => {
                                                 </View>
                                                 <View style={{ width: '50%' }}>
                                                     <TouchableOpacity
-                                                        style={[styles.textFieldBox, { 
+                                                        style={[styles.textFieldBox, {
                                                             paddingVertical: getResponsive(12),
                                                             flexDirection: 'row',
                                                             justifyContent: 'space-between',
@@ -915,7 +966,7 @@ React.useEffect(() => {
                                                                     <Text style={styles.lookupModalTitle}>
                                                                         {row.columns[0]?.components[0]?.text}
                                                                     </Text>
-                                                                    <TouchableOpacity 
+                                                                    <TouchableOpacity
                                                                         onPress={() => setShowLookupModal(false)}
                                                                         style={styles.lookupModalClose}
                                                                     >
@@ -997,6 +1048,69 @@ React.useEffect(() => {
                                                     >
                                                         <CameraIcon />
                                                     </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    if (hasSignature) {
+                                        signatureRowIdsRef.current.add(row.webId);
+
+                                        return (
+                                            <View key={row.webId} style={styles.signatureRow}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10), justifyContent: 'center' }}>
+                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text || 'Signature'}</Text>
+                                                </View>
+
+                                                <View style={{ width: '50%', alignItems: 'flex-end', paddingRight: getResponsive(8) }}>
+                                                    <View style={[styles.signatureBox, { width: '100%', overflow: 'hidden', height: getResponsive(90) }]}>
+                                                        {/* Inline signature canvas using react-native-signature-canvas */}
+                                                        <Signature
+                                                            ref={(r) => { if (r) signatureRefs.current[row.webId] = r; }}
+                                                            onOK={(base64: string) => {
+                                                                const encoded = (base64 || '').replace(/^data:image\/\w+;base64,/, '');
+                                                                setSignatureValues(prev => ({
+                                                                    ...prev,
+                                                                    [row.webId]: { encoded, pathName: undefined }
+                                                                }));
+                                                                if (signatureWaiters.current[row.webId]) {
+                                                                    signatureWaiters.current[row.webId]!({ pathName: '', encoded });
+                                                                    delete signatureWaiters.current[row.webId];
+                                                                }
+                                                            }}
+                                                            onEnd={() => {
+                                                                // Auto-save after pen up
+                                                                signatureRefs.current[row.webId]?.readSignature();
+                                                            }}
+                                                            webStyle={`
+                                                                            .m-signature-pad--footer { display:none; }
+                                                                            body,html { background: transparent; }
+                                                                            .m-signature-pad { box-shadow:none; border:0; background: transparent; }
+                                                                            canvas { background-color: transparent; }
+                                                                    `}
+                                                            backgroundColor="#31AAFF33"
+                                                            penColor="#000"
+                                                            descriptionText=""
+                                                            clearText=""
+                                                            confirmText=""
+                                                            autoClear={false}
+                                                        />
+
+                                                        {/* Clear (↻) icon top-right, like the screenshot */}
+                                                        <TouchableOpacity
+                                                            onPress={() => {
+                                                                signatureRefs.current[row.webId]?.clearSignature();
+                                                                setSignatureValues(prev => {
+                                                                    const { [row.webId]: _, ...rest } = prev;
+                                                                    return rest;
+                                                                });
+                                                            }}
+                                                            style={styles.signatureOverlay}
+                                                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                                                        >
+                                                            <RefreshSignatureIcon width={getResponsive(16)} height={getResponsive(16)} />
+                                                        </TouchableOpacity>
+                                                    </View>
                                                 </View>
                                             </View>
                                         );
@@ -1248,7 +1362,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     radioRow: {
-        backgroundColor: '#fcf7f9ff',
+        backgroundColor: '#F2F2F2',
         borderRadius: getResponsive(12),
         marginBottom: getResponsive(14),
         paddingHorizontal: getResponsive(10),
@@ -1262,7 +1376,6 @@ const styles = StyleSheet.create({
         color: '#19233C',
         fontSize: getResponsive(12),
         lineHeight: getResponsive(16),
-        backgroundColor: '#F7F9FC',
         width: '60%',
 
     },
@@ -1285,7 +1398,7 @@ const styles = StyleSheet.create({
         marginHorizontal: getResponsive(2),
     },
     mediaRow: {
-        backgroundColor: '#F7F9FC',
+        backgroundColor: '#F2F2F2',
         borderRadius: getResponsive(12),
         marginBottom: getResponsive(14),
         padding: getResponsive(16),
@@ -1360,14 +1473,13 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     signatureRow: {
-        backgroundColor: '#F7F9FC',
+        backgroundColor: '#F2F2F2',
         borderRadius: getResponsive(12),
         marginBottom: getResponsive(10),
         padding: getResponsive(16),
         flexDirection: 'row',
     },
     signatureBox: {
-        backgroundColor: '#0088E733',
         borderRadius: getResponsive(10),
         marginTop: getResponsive(10),
         padding: getResponsive(5),
@@ -1384,8 +1496,11 @@ const styles = StyleSheet.create({
     },
     signatureOverlay: {
         position: 'absolute',
-        top: 4,
-        right: 8,
+        top: 10,
+        right: 12,
+        backgroundColor: '#0088E7',
+        padding: getResponsive(4),
+        borderRadius: getResponsive(12),
     },
     submitBar: {
         backgroundColor: '#fff',
@@ -1412,77 +1527,120 @@ const styles = StyleSheet.create({
         letterSpacing: 0.8,
     },
     lookupModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: getResponsive(20),
-},
-lookupModalContent: {
-    backgroundColor: '#fff',
-    borderRadius: getResponsive(16),
-    width: '100%',
-    maxHeight: '70%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-},
-lookupModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: getResponsive(20),
-    paddingVertical: getResponsive(16),
-    borderBottomWidth: 1,
-    borderBottomColor: '#ECECEC',
-},
-lookupModalTitle: {
-    fontSize: getResponsive(16),
-    fontWeight: '600',
-    color: '#19233C',
-    flex: 1,
-},
-lookupModalClose: {
-    padding: getResponsive(4),
-},
-lookupModalCloseText: {
-    fontSize: getResponsive(20),
-    color: '#19233C',
-    fontWeight: '600',
-},
-lookupModalScroll: {
-    maxHeight: getResponsive(400),
-},
-lookupOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: getResponsive(20),
-    paddingVertical: getResponsive(16),
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F2',
-},
-lookupOptionSelected: {
-    backgroundColor: '#E3F2FD',
-},
-lookupOptionText: {
-    fontSize: getResponsive(14),
-    color: '#19233C',
-    fontWeight: '500',
-    flex: 1,
-},
-lookupOptionTextSelected: {
-    color: '#0088E7',
-    fontWeight: '600',
-},
-lookupOptionCheck: {
-    fontSize: getResponsive(18),
-    color: '#0088E7',
-    fontWeight: 'bold',
-    marginLeft: getResponsive(12),
-},
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: getResponsive(20),
+    },
+    lookupModalContent: {
+        backgroundColor: '#fff',
+        borderRadius: getResponsive(16),
+        width: '100%',
+        maxHeight: '70%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    lookupModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: getResponsive(20),
+        paddingVertical: getResponsive(16),
+        borderBottomWidth: 1,
+        borderBottomColor: '#ECECEC',
+    },
+    lookupModalTitle: {
+        fontSize: getResponsive(16),
+        fontWeight: '600',
+        color: '#19233C',
+        flex: 1,
+    },
+    lookupModalClose: {
+        padding: getResponsive(4),
+    },
+    lookupModalCloseText: {
+        fontSize: getResponsive(20),
+        color: '#19233C',
+        fontWeight: '600',
+    },
+    lookupModalScroll: {
+        maxHeight: getResponsive(400),
+    },
+    lookupOption: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: getResponsive(20),
+        paddingVertical: getResponsive(16),
+        borderBottomWidth: 1,
+        borderBottomColor: '#F2F2F2',
+    },
+    lookupOptionSelected: {
+        backgroundColor: '#E3F2FD',
+    },
+    lookupOptionText: {
+        fontSize: getResponsive(14),
+        color: '#19233C',
+        fontWeight: '500',
+        flex: 1,
+    },
+    lookupOptionTextSelected: {
+        color: '#0088E7',
+        fontWeight: '600',
+    },
+    lookupOptionCheck: {
+        fontSize: getResponsive(18),
+        color: '#0088E7',
+        fontWeight: 'bold',
+        marginLeft: getResponsive(12),
+    },
+    // ...existing code...
+    // Add below existing styles:
+    signatureModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: getResponsive(20),
+    },
+    signatureModalContent: {
+        backgroundColor: '#fff',
+        borderRadius: getResponsive(16),
+        width: '100%',
+        maxWidth: 520,
+        paddingVertical: getResponsive(12),
+        paddingHorizontal: getResponsive(12),
+    },
+    signatureModalTitle: {
+        fontSize: getResponsive(16),
+        fontWeight: '600',
+        color: '#19233C',
+        textAlign: 'center',
+        marginBottom: getResponsive(8),
+    },
+    signatureModalCanvas: {
+        height: getResponsive(220),
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderRadius: getResponsive(10),
+        overflow: 'hidden',
+    },
+    signatureModalBtns: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: getResponsive(12),
+    },
+    signatureBtn: {
+        flex: 1,
+        paddingVertical: getResponsive(10),
+        borderRadius: getResponsive(8),
+        alignItems: 'center',
+        marginHorizontal: getResponsive(6),
+    },
 });
 
 

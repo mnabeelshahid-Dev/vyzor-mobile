@@ -413,7 +413,7 @@ export default function TaskScreen({ navigation }) {
         });
       }
     });
-    const formSectionIDs = {};
+    const formSectionIDs: Record<string, any> = {};
     let id = 1;
     tempArray.forEach((model: FormDefinitionSectionModel) => {
       if (model.formSectionId) {
@@ -421,6 +421,29 @@ export default function TaskScreen({ navigation }) {
       }
     });
     return formSectionIDs;
+  }
+
+  // Similar helper that returns webId values mapped as { id1: webId1, id2: webId2, ... }
+  function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Record<string, any> {
+    if (!sectionsData?.data?.content) return {};
+    let tempArray: any = [];
+    sectionsData.data.content.forEach((section: Section) => {
+      if (Array.isArray(section.formDefinitionSectionModels)) {
+        section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel & { webId?: any }) => {
+          if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
+            tempArray.push(model);
+          }
+        });
+      }
+    });
+    const webIds: Record<string, any> = {};
+    let id = 1;
+    tempArray.forEach((model: { webId?: any }) => {
+      if (model.webId !== undefined && model.webId !== null) {
+        webIds[`id${id++}`] = model.webId;
+      }
+    });
+    return webIds;
   }
 
   function formatTaskDateRange(startDate: any, endDate: any) {
@@ -527,7 +550,7 @@ export default function TaskScreen({ navigation }) {
           return (
             <TouchableOpacity
               disabled={!isEnabled}
-              onPress={() => navigation.navigate('Section', { formSectionIds: getSectionModelsForSectionIds(item?.formDefinitionId), data: item })}
+              onPress={() => navigation.navigate('Section', { formSectionIds: getSectionModelsForSectionIds(item?.formDefinitionId), formConfigurationSectionIds: getSectionWebIdsForSectionIds(item?.formDefinitionId), data: item })}
               style={{
                 backgroundColor: isEnabled ? '#1292E6' : '#bac0cdff',
                 borderRadius: 8,
