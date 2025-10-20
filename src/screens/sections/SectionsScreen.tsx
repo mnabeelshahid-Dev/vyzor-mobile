@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Camera } from 'react-native-camera-kit';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import RefreshSignatureIcon from '../../assets/svgs/RefreshSignature.svg';
@@ -182,6 +183,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [lookupValues, setLookupValues] = useState<{ [key: string]: string }>({});
     const [lookupOptions, setLookupOptions] = useState<{ [key: string]: Array<{ value: string; text: string }> }>({});
     const [signatureValues, setSignatureValues] = useState<{ [rowId: string]: { encoded?: string; pathName?: string } }>({});
+    const [qrCodeValues, setQrCodeValues] = useState<{ [key: string]: string }>({});
+    const [showQrScanner, setShowQrScanner] = useState<{ [key: string]: boolean }>({});
     // replace single ref with a map of refs and helpers
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
     const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
@@ -516,6 +519,18 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
+                    // QR_CODE (scanned value)
+                    const qrCodeComp = comps.find((c: any) => c.component === 'QR_CODE');
+                    const qrCodeVal = qrCodeValues[row.webId] || '';
+                    const qrCodeData = qrCodeComp
+                        ? [{
+                            value: qrCodeVal,
+                            controlId: qrCodeComp.webId,
+                            groupName: qrCodeComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
                     return [
                         ...radioData,
                         ...attachmentsData,
@@ -528,6 +543,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         ...ratingData,
                         ...lookupData,
                         ...signatureData,
+                        ...qrCodeData,
                     ];
                 }),
             };
@@ -1116,6 +1132,78 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         );
                                     }
 
+                                    // QR_CODE row
+                                    const hasQrCode = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'QR_CODE')
+                                    );
+                                    if (hasQrCode) {
+                                        const qrCodeValue = qrCodeValues[row.webId] || '';
+                                        const showScanner = showQrScanner[row.webId] || false;
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    style={styles.radioChoiceRow}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => {
+                                                        setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                    }}
+                                                >
+                                                    <Text style={[
+                                                        styles.radioOptionText,
+                                                        {
+                                                            backgroundColor: '#D8ECFA',
+                                                            paddingHorizontal: getResponsive(8),
+                                                            paddingVertical: getResponsive(4),
+                                                            borderRadius: getResponsive(6),
+                                                            minWidth: getResponsive(100),
+                                                            textAlign: 'center'
+                                                        }
+                                                    ]}>
+                                                        {qrCodeValue || 'Scan QR Code'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                
+                                                {/* QR Code Scanner Modal */}
+                                                <Modal
+                                                    visible={showScanner}
+                                                    transparent={false}
+                                                    animationType="slide"
+                                                    onRequestClose={() => setShowQrScanner(prev => ({ ...prev, [row.webId]: false }))}
+                                                >
+                                                    <View style={styles.qrScannerContainer}>
+                                                        <View style={styles.qrScannerHeader}>
+                                                            <TouchableOpacity
+                                                                onPress={() => setShowQrScanner(prev => ({ ...prev, [row.webId]: false }))}
+                                                                style={styles.qrScannerClose}
+                                                            >
+                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
+                                                            </TouchableOpacity>
+                                                            <Text style={styles.qrScannerTitle}>Scan QR Code</Text>
+                                                        </View>
+                                                        
+                                                        <Camera
+                                                            onReadCode={(event: any) => {
+                                                                const scannedValue = event.nativeEvent.codeStringValue;
+                                                                setQrCodeValues(prev => ({ ...prev, [row.webId]: scannedValue }));
+                                                                setShowQrScanner(prev => ({ ...prev, [row.webId]: false }));
+                                                                showSuccessToast('QR Code Scanned', `Value: ${scannedValue}`);
+                                                            }}
+                                                            scanBarcode={true}
+                                                            showFrame={true}
+                                                            laserColor="red"
+                                                            frameColor="white"
+                                                            style={styles.qrScannerCamera}
+                                                        />
+                                                    </View>
+                                                </Modal>
+                                            </View>
+                                        );
+                                    }
+
                                     // Otherwise → render the normal label + radio buttons
                                     return (
                                         <View key={row.webId} style={[styles.radioRow]}>
@@ -1640,6 +1728,38 @@ const styles = StyleSheet.create({
         borderRadius: getResponsive(8),
         alignItems: 'center',
         marginHorizontal: getResponsive(6),
+    },
+    qrScannerContainer: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    qrScannerHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingTop: Platform.OS === 'ios' ? getResponsive(50) : getResponsive(20),
+        paddingHorizontal: getResponsive(20),
+        paddingBottom: getResponsive(10),
+        backgroundColor: '#000',
+    },
+    qrScannerClose: {
+        padding: getResponsive(8),
+    },
+    qrScannerCloseText: {
+        color: '#fff',
+        fontSize: getResponsive(20),
+        fontWeight: '600',
+    },
+    qrScannerTitle: {
+        color: '#fff',
+        fontSize: getResponsive(18),
+        fontWeight: '600',
+        flex: 1,
+        textAlign: 'center',
+        marginRight: getResponsive(36), // To center the title (accounting for close button)
+    },
+    qrScannerCamera: {
+        flex: 1,
     },
 });
 
