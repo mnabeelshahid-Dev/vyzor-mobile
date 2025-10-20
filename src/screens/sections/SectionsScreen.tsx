@@ -28,6 +28,7 @@ import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import RefreshSignatureIcon from '../../assets/svgs/RefreshSignature.svg';
 import { useRoute } from '@react-navigation/native';
 import { showErrorToast, showSuccessToast } from '../../components';
+import { apiService } from '../../services/api';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -193,6 +194,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [barcodeValidatorValues, setBarcodeValidatorValues] = useState<{ [key: string]: string }>({});
     const [barcodeValidatorStatus, setBarcodeValidatorStatus] = useState<{ [key: string]: 'pending' | 'valid' | 'invalid' }>({});
     const [showBarcodeValidatorScanner, setShowBarcodeValidatorScanner] = useState<{ [key: string]: boolean }>({});
+    const [attachmentsByRow, setAttachmentsByRow] = useState<{ [rowId: string]: Array<{ id: string; name: string; uri?: string }> }>({});
+    const [isUploadingAttachment, setIsUploadingAttachment] = useState<{ [rowId: string]: boolean }>({});
     // replace single ref with a map of refs and helpers
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
     const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
@@ -301,6 +304,98 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             ...prev,
             [rowId]: (prev[rowId] || []).filter(img => img.id !== imgId)
         }));
+    };
+
+    const handleRemoveAttachment = (rowId: string, fileId: string) => {
+        setAttachmentsByRow(prev => ({
+            ...prev,
+            [rowId]: (prev[rowId] || []).filter(f => f.id !== fileId)
+        }));
+    };
+
+    const uploadAttachment = async (rowId: string, asset: any) => {
+        try {
+            const fileName = asset.fileName || asset.name || 'attachment';
+            const fileUri = asset.uri;
+            const type = asset.type || 'application/octet-stream';
+
+            if (!fileUri) {
+                showErrorToast('Attachment failed', 'No file URI returned');
+                return;
+            }
+
+            setIsUploadingAttachment(prev => ({ ...prev, [rowId]: true }));
+
+            const formData = new FormData();
+            // @ts-ignore RN FormData file
+            formData.append('file', { uri: fileUri, name: fileName, type });
+
+            const generatedId = `${Date.now().toString()}${Math.random().toString(36).substr(2, 9)}`;
+            const jsonMeta = encodeURIComponent(JSON.stringify({
+                id: generatedId,
+                ownerWebId: assignUserId,
+                name: fileName,
+            }));
+
+            const res = await apiService.postFormData<any>(`/api/dms/file?json=${jsonMeta}`, formData);
+            if (!res.success || !res.data) {
+                throw new Error(res.message || 'Upload failed');
+            }
+
+            const fileId = (res.data as any).id;
+            const returnedName = (res.data as any).name || fileName;
+            if (!fileId) {
+                throw new Error('No file id returned');
+            }
+
+            setAttachmentsByRow(prev => ({
+                ...prev,
+                [rowId]: [...(prev[rowId] || []), { id: fileId, name: returnedName, uri: fileUri }],
+            }));
+            showSuccessToast('Attachment uploaded', returnedName);
+        } catch (e: any) {
+            showErrorToast('Attachment failed', e?.message || 'Upload error');
+        } finally {
+            setIsUploadingAttachment(prev => ({ ...prev, [rowId]: false }));
+        }
+    };
+
+    const handleAddAttachments = async (rowId: string) => {
+        const remaining = Math.max(1, 5 - (attachmentsByRow[rowId]?.length || 0));
+
+        const fromLibrary = async () => {
+            const res = await launchImageLibrary({
+                mediaType: 'mixed',
+                selectionLimit: remaining,
+            });
+            if (res.assets?.length) {
+                for (const asset of res.assets) {
+                    await uploadAttachment(rowId, asset);
+                }
+            }
+        };
+
+        if (Platform.OS === 'ios') {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    options: ['Cancel', 'Choose from Library'],
+                    cancelButtonIndex: 0,
+                },
+                (buttonIndex) => {
+                    if (buttonIndex === 1) fromLibrary();
+                }
+            );
+        } else {
+            Alert.alert(
+                'Add Attachment',
+                undefined,
+                [
+                    { text: 'Choose from Library', onPress: fromLibrary },
+                    { text: 'Cancel', style: 'cancel' },
+                ],
+                { cancelable: true }
+            );
+        }
     };
 
     const {
@@ -424,7 +519,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const attachComp = comps.find((c: any) => c.component === 'ATTACHEMENTS');
                     const attachmentsData = attachComp
                         ? [{
-                            value: (rowImages[row.webId] || []).map(img => img.id),
+                            value: (attachmentsByRow[row.webId] || []).map(f => f.id),
                             controlId: attachComp.webId || '',
                             groupName: attachComp.groupName || null,
                             senserData: null,
@@ -1111,6 +1206,57 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     >
                                                         <CameraIcon />
                                                     </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    // ATTACHEMENTS row (file uploads producing file IDs)
+                                    const hasAttachments = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'ATTACHEMENTS')
+                                    );
+                                    if (hasAttachments) {
+                                        const files = attachmentsByRow[row.webId] || [];
+                                        const uploading = isUploadingAttachment[row.webId] || false;
+
+                                        return (
+                                            <View key={row.webId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
+                                            >
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>Attachments</Text>
+                                                </View>
+
+                                                <View
+                                                    style={[
+                                                        styles.multiImgBox,
+                                                        { width: '50%', marginTop: 0, marginRight: getResponsive(8) },
+                                                    ]}
+                                                >
+                                                    {files.map(file => (
+                                                        <View key={file.id} style={styles.multiImgThumbBox}>
+                                                            <TouchableOpacity onPress={() => file.uri && setPreviewUri(file.uri)}>
+                                                                <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                                    <Text numberOfLines={1} style={styles.attachmentName}>{file.name || file.id}</Text>
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity
+                                                                style={styles.multiImgRemove}
+                                                                onPress={() => handleRemoveAttachment(row.webId, file.id)}
+                                                            >
+                                                                <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ))}
+
+                                                    <TouchableOpacity
+                                                        style={styles.multiImgAddBtn}
+                                                        onPress={() => handleAddAttachments(row.webId)}
+                                                        activeOpacity={0.7}
+                                                        disabled={uploading}
+                                                    >
+                                                        <CameraIcon />
+                                                    </TouchableOpacity>
+                                                    {uploading ? <ActivityIndicator size="small" color="#1292E6" style={{ marginLeft: 6 }} /> : null}
                                                 </View>
                                             </View>
                                         );
@@ -1849,6 +1995,20 @@ const styles = StyleSheet.create({
         borderRadius: getResponsive(10),
         backgroundColor: '#bbb',
         marginBottom: getResponsive(4),
+    },
+    attachmentThumb: {
+        width: getResponsive(90),
+        height: getResponsive(50),
+        borderRadius: getResponsive(10),
+        backgroundColor: '#E8F4FF',
+        paddingHorizontal: getResponsive(6),
+    },
+    attachmentName: {
+        color: '#021639',
+        fontSize: getResponsive(9),
+        fontWeight: '600',
+        textAlign: 'center',
+        paddingHorizontal: getResponsive(4),
     },
     multiImgRemove: {
         position: 'absolute',
