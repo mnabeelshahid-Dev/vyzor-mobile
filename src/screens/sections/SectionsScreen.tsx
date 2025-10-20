@@ -188,6 +188,11 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [qrValidatorValues, setQrValidatorValues] = useState<{ [key: string]: string }>({});
     const [qrValidatorStatus, setQrValidatorStatus] = useState<{ [key: string]: 'pending' | 'valid' | 'invalid' }>({});
     const [showQrValidatorScanner, setShowQrValidatorScanner] = useState<{ [key: string]: boolean }>({});
+    const [barcodeValues, setBarcodeValues] = useState<{ [key: string]: string }>({});
+    const [showBarcodeScanner, setShowBarcodeScanner] = useState<{ [key: string]: boolean }>({});
+    const [barcodeValidatorValues, setBarcodeValidatorValues] = useState<{ [key: string]: string }>({});
+    const [barcodeValidatorStatus, setBarcodeValidatorStatus] = useState<{ [key: string]: 'pending' | 'valid' | 'invalid' }>({});
+    const [showBarcodeValidatorScanner, setShowBarcodeValidatorScanner] = useState<{ [key: string]: boolean }>({});
     // replace single ref with a map of refs and helpers
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
     const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
@@ -546,6 +551,30 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
+                    // BAR_CODE (scanned barcode value)
+                    const barcodeComp = comps.find((c: any) => c.component === 'BAR_CODE');
+                    const barcodeVal = barcodeValues[row.webId] || '';
+                    const barcodeData = barcodeComp
+                        ? [{
+                            value: barcodeVal,
+                            controlId: barcodeComp.webId,
+                            groupName: barcodeComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
+                    // BAR_VALIDATOR (scanned barcode value with validation status)
+                    const barcodeValidatorComp = comps.find((c: any) => c.component === 'BAR_VALIDATOR');
+                    const barcodeValidatorVal = barcodeValidatorValues[row.webId] || '';
+                    const barcodeValidatorData = barcodeValidatorComp
+                        ? [{
+                            value: barcodeValidatorVal,
+                            controlId: barcodeValidatorComp.webId,
+                            groupName: barcodeValidatorComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
                     return [
                         ...radioData,
                         ...attachmentsData,
@@ -560,6 +589,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         ...signatureData,
                         ...qrCodeData,
                         ...qrValidatorData,
+                        ...barcodeData,
+                        ...barcodeValidatorData,
                     ];
                 }),
             };
@@ -1313,6 +1344,185 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                     showSuccessToast('QR Code Validated', `Value matches: ${scannedValue}`);
                                                                 } else {
                                                                     showErrorToast('QR Code Invalid', `Expected: ${expectedValue}, Got: ${scannedValue}`);
+                                                                }
+                                                            }}
+                                                            scanBarcode={true}
+                                                            showFrame={true}
+                                                            laserColor="red"
+                                                            frameColor="white"
+                                                            style={styles.qrScannerCamera}
+                                                        />
+                                                    </View>
+                                                </Modal>
+                                            </View>
+                                        );
+                                    }
+
+                                    // BAR_CODE row
+                                    const hasBarcode = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'BAR_CODE')
+                                    );
+                                    if (hasBarcode) {
+                                        const barcodeValue = barcodeValues[row.webId] || '';
+                                        const showScanner = showBarcodeScanner[row.webId] || false;
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    style={styles.radioChoiceRow}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => {
+                                                        setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                    }}
+                                                >
+                                                    <Text style={[
+                                                        styles.radioOptionText,
+                                                        {
+                                                            backgroundColor: '#D8ECFA',
+                                                            paddingHorizontal: getResponsive(8),
+                                                            paddingVertical: getResponsive(4),
+                                                            borderRadius: getResponsive(6),
+                                                            minWidth: getResponsive(100),
+                                                            textAlign: 'center'
+                                                        }
+                                                    ]}>
+                                                        {barcodeValue || 'Scan Barcode'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                
+                                                {/* Barcode Scanner Modal */}
+                                                <Modal
+                                                    visible={showScanner}
+                                                    transparent={false}
+                                                    animationType="slide"
+                                                    onRequestClose={() => setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }))}
+                                                >
+                                                    <View style={styles.qrScannerContainer}>
+                                                        <View style={styles.qrScannerHeader}>
+                                                            <TouchableOpacity
+                                                                onPress={() => setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }))}
+                                                                style={styles.qrScannerClose}
+                                                            >
+                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
+                                                            </TouchableOpacity>
+                                                            <Text style={styles.qrScannerTitle}>Scan Barcode</Text>
+                                                        </View>
+                                                        
+                                                        <Camera
+                                                            onReadCode={(event: any) => {
+                                                                const scannedValue = event.nativeEvent.codeStringValue;
+                                                                setBarcodeValues(prev => ({ ...prev, [row.webId]: scannedValue }));
+                                                                setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }));
+                                                                showSuccessToast('Barcode Scanned', `Value: ${scannedValue}`);
+                                                            }}
+                                                            scanBarcode={true}
+                                                            showFrame={true}
+                                                            laserColor="red"
+                                                            frameColor="white"
+                                                            style={styles.qrScannerCamera}
+                                                        />
+                                                    </View>
+                                                </Modal>
+                                            </View>
+                                        );
+                                    }
+
+                                    // BAR_VALIDATOR row
+                                    const hasBarcodeValidator = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'BAR_VALIDATOR')
+                                    );
+                                    if (hasBarcodeValidator) {
+                                        const barcodeValidatorComp = row.columns.flatMap(c => c.components).find(c => c.component === 'BAR_VALIDATOR');
+                                        const expectedValue = barcodeValidatorComp?.defaultValue || barcodeValidatorComp?.text || '';
+                                        const scannedValue = barcodeValidatorValues[row.webId] || '';
+                                        const validationStatus = barcodeValidatorStatus[row.webId] || 'pending';
+                                        const showValidatorScanner = showBarcodeValidatorScanner[row.webId] || false;
+
+                                        const getStatusColor = () => {
+                                            switch (validationStatus) {
+                                                case 'valid': return '#28B446';
+                                                case 'invalid': return '#F44336';
+                                                default: return '#D8ECFA';
+                                            }
+                                        };
+
+                                        const getStatusText = () => {
+                                            switch (validationStatus) {
+                                                case 'valid': return '✓ Validated';
+                                                case 'invalid': return '✗ Invalid';
+                                                default: return 'Validate Barcode';
+                                            }
+                                        };
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    style={styles.radioChoiceRow}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => {
+                                                        setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                    }}
+                                                >
+                                                    <Text style={[
+                                                        styles.radioOptionText,
+                                                        {
+                                                            backgroundColor: getStatusColor(),
+                                                            paddingHorizontal: getResponsive(8),
+                                                            paddingVertical: getResponsive(4),
+                                                            borderRadius: getResponsive(6),
+                                                            minWidth: getResponsive(120),
+                                                            textAlign: 'center',
+                                                            color: validationStatus === 'pending' ? '#021639' : '#fff',
+                                                            fontWeight: validationStatus !== 'pending' ? 'bold' : 'normal'
+                                                        }
+                                                    ]}>
+                                                        {getStatusText()}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                
+                                                {/* Barcode Validator Scanner Modal */}
+                                                <Modal
+                                                    visible={showValidatorScanner}
+                                                    transparent={false}
+                                                    animationType="slide"
+                                                    onRequestClose={() => setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: false }))}
+                                                >
+                                                    <View style={styles.qrScannerContainer}>
+                                                        <View style={styles.qrScannerHeader}>
+                                                            <TouchableOpacity
+                                                                onPress={() => setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: false }))}
+                                                                style={styles.qrScannerClose}
+                                                            >
+                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
+                                                            </TouchableOpacity>
+                                                            <Text style={styles.qrScannerTitle}>Validate Barcode</Text>
+                                                        </View>
+                                                        
+                                                        <View style={styles.qrValidatorInfo}>
+                                                            <Text style={styles.qrValidatorInfoText}>
+                                                                Expected Value: <Text style={styles.qrValidatorExpectedValue}>{expectedValue}</Text>
+                                                            </Text>
+                                                        </View>
+                                                        
+                                                        <Camera
+                                                            onReadCode={(event: any) => {
+                                                                const scannedValue = event.nativeEvent.codeStringValue;
+                                                                const isValid = scannedValue === expectedValue;
+                                                                
+                                                                setBarcodeValidatorValues(prev => ({ ...prev, [row.webId]: scannedValue }));
+                                                                setBarcodeValidatorStatus(prev => ({ ...prev, [row.webId]: isValid ? 'valid' : 'invalid' }));
+                                                                setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: false }));
+                                                                
+                                                                if (isValid) {
+                                                                    showSuccessToast('Barcode Validated', `Value matches: ${scannedValue}`);
+                                                                } else {
+                                                                    showErrorToast('Barcode Invalid', `Expected: ${expectedValue}, Got: ${scannedValue}`);
                                                                 }
                                                             }}
                                                             scanBarcode={true}
