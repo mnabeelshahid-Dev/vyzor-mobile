@@ -194,8 +194,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [barcodeValidatorValues, setBarcodeValidatorValues] = useState<{ [key: string]: string }>({});
     const [barcodeValidatorStatus, setBarcodeValidatorStatus] = useState<{ [key: string]: 'pending' | 'valid' | 'invalid' }>({});
     const [showBarcodeValidatorScanner, setShowBarcodeValidatorScanner] = useState<{ [key: string]: boolean }>({});
-    const [attachmentsByRow, setAttachmentsByRow] = useState<{ [rowId: string]: Array<{ id: string; name: string; uri?: string }> }>({});
+    const [attachmentsByRow, setAttachmentsByRow] = useState<{ [rowId: string]: Array<{ id: string; name: string; uri?: string; type?: string; size?: number }> }>({});
     const [isUploadingAttachment, setIsUploadingAttachment] = useState<{ [rowId: string]: boolean }>({});
+    const [showAttachmentModal, setShowAttachmentModal] = useState<{ [rowId: string]: boolean }>({});
     // replace single ref with a map of refs and helpers
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
     const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
@@ -317,7 +318,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         try {
             const fileName = asset.fileName || asset.name || 'attachment';
             const fileUri = asset.uri;
-            const type = asset.type || 'application/octet-stream';
+            const type = asset.type || asset.mimeType || 'application/octet-stream';
+            const fileSize = asset.size;
 
             if (!fileUri) {
                 showErrorToast('Attachment failed', 'No file URI returned');
@@ -350,7 +352,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
             setAttachmentsByRow(prev => ({
                 ...prev,
-                [rowId]: [...(prev[rowId] || []), { id: fileId, name: returnedName, uri: fileUri }],
+                [rowId]: [...(prev[rowId] || []), { 
+                    id: fileId, 
+                    name: returnedName, 
+                    uri: fileUri,
+                    type: type,
+                    size: fileSize
+                }],
             }));
             showSuccessToast('Attachment uploaded', returnedName);
         } catch (e: any) {
@@ -374,6 +382,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 }
             }
         };
+
 
         if (Platform.OS === 'ios') {
             ActionSheetIOS.showActionSheetWithOptions(
@@ -1218,12 +1227,15 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     if (hasAttachments) {
                                         const files = attachmentsByRow[row.webId] || [];
                                         const uploading = isUploadingAttachment[row.webId] || false;
+                                        const showModal = showAttachmentModal[row.webId] || false;
 
                                         return (
                                             <View key={row.webId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
                                             >
                                                 <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>Attachments</Text>
+                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
+                                                        {row.columns[0]?.components[0]?.text || 'Attachments'}
+                                                    </Text>
                                                 </View>
 
                                                 <View
@@ -1250,7 +1262,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                                     <TouchableOpacity
                                                         style={styles.multiImgAddBtn}
-                                                        onPress={() => handleAddAttachments(row.webId)}
+                                                        onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: true }))}
                                                         activeOpacity={0.7}
                                                         disabled={uploading}
                                                     >
@@ -1258,6 +1270,83 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     </TouchableOpacity>
                                                     {uploading ? <ActivityIndicator size="small" color="#1292E6" style={{ marginLeft: 6 }} /> : null}
                                                 </View>
+
+                                                {/* Attachment Detail Modal */}
+                                                <Modal
+                                                    visible={showModal}
+                                                    transparent={false}
+                                                    animationType="slide"
+                                                    onRequestClose={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: false }))}
+                                                >
+                                                    <View style={styles.attachmentModalContainer}>
+                                                        <View style={styles.attachmentModalHeader}>
+                                                            <TouchableOpacity
+                                                                onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: false }))}
+                                                                style={styles.attachmentModalClose}
+                                                            >
+                                                                <Text style={styles.attachmentModalCloseText}>✕</Text>
+                                                            </TouchableOpacity>
+                                                            <Text style={styles.attachmentModalTitle}>Upload</Text>
+                                                        </View>
+                                                        
+                                                        <View style={styles.attachmentModalContent}>
+                                                            <View style={styles.attachmentDropZone}>
+                                                                <Text style={styles.attachmentDropIcon}>☁️</Text>
+                                                                <TouchableOpacity
+                                                                    style={styles.attachmentBrowseBtn}
+                                                                    onPress={() => handleAddAttachments(row.webId)}
+                                                                    disabled={uploading}
+                                                                >
+                                                                    <Text style={styles.attachmentBrowseBtnText}>Browse Files</Text>
+                                                                </TouchableOpacity>
+                                                                <Text style={styles.attachmentDropText}>
+                                                                    {files.length === 0 ? 'No files added.' : `${files.length} file(s) added.`}
+                                                                </Text>
+                                                            </View>
+
+                                                            {files.length > 0 && (
+                                                                <View style={styles.attachmentFileList}>
+                                                                    {files.map((file, index) => (
+                                                                        <View key={file.id} style={styles.attachmentFileItem}>
+                                                                            <View style={styles.attachmentFileInfo}>
+                                                                                <Text style={styles.attachmentFileName} numberOfLines={1}>
+                                                                                    {file.name}
+                                                                                </Text>
+                                                                                {file.size && (
+                                                                                    <Text style={styles.attachmentFileSize}>
+                                                                                        {(file.size / 1024).toFixed(1)} KB
+                                                                                    </Text>
+                                                                                )}
+                                                                            </View>
+                                                                            <TouchableOpacity
+                                                                                style={styles.attachmentFileDelete}
+                                                                                onPress={() => handleRemoveAttachment(row.webId, file.id)}
+                                                                            >
+                                                                                <Text style={styles.attachmentFileDeleteText}>✕</Text>
+                                                                            </TouchableOpacity>
+                                                                        </View>
+                                                                    ))}
+                                                                </View>
+                                                            )}
+
+                                                            {uploading && (
+                                                                <View style={styles.attachmentUploading}>
+                                                                    <ActivityIndicator size="small" color="#0088E7" />
+                                                                    <Text style={styles.attachmentUploadingText}>Uploading...</Text>
+                                                                </View>
+                                                            )}
+                                                        </View>
+
+                                                        <View style={styles.attachmentModalFooter}>
+                                                            <TouchableOpacity
+                                                                style={styles.attachmentUploadBtn}
+                                                                onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: false }))}
+                                                            >
+                                                                <Text style={styles.attachmentUploadBtnText}>Upload</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    </View>
+                                                </Modal>
                                             </View>
                                         );
                                     }
@@ -2269,6 +2358,141 @@ const styles = StyleSheet.create({
     qrValidatorExpectedValue: {
         color: '#4CAF50',
         fontWeight: 'bold',
+    },
+    // Attachment Modal Styles
+    attachmentModalContainer: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    attachmentModalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: getResponsive(20),
+        paddingVertical: getResponsive(15),
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+    },
+    attachmentModalClose: {
+        width: getResponsive(30),
+        height: getResponsive(30),
+        borderRadius: getResponsive(15),
+        backgroundColor: '#f5f5f5',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    attachmentModalCloseText: {
+        fontSize: getResponsive(16),
+        color: '#666',
+        fontWeight: 'bold',
+    },
+    attachmentModalTitle: {
+        fontSize: getResponsive(18),
+        fontWeight: 'bold',
+        color: '#19233C',
+    },
+    attachmentModalContent: {
+        flex: 1,
+        padding: getResponsive(20),
+    },
+    attachmentDropZone: {
+        borderWidth: 2,
+        borderColor: '#e0e0e0',
+        borderStyle: 'dashed',
+        borderRadius: getResponsive(12),
+        padding: getResponsive(40),
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fafafa',
+        marginBottom: getResponsive(20),
+    },
+    attachmentDropIcon: {
+        fontSize: getResponsive(48),
+        marginBottom: getResponsive(16),
+    },
+    attachmentBrowseBtn: {
+        backgroundColor: '#0088E7',
+        paddingHorizontal: getResponsive(24),
+        paddingVertical: getResponsive(12),
+        borderRadius: getResponsive(8),
+        marginBottom: getResponsive(8),
+    },
+    attachmentBrowseBtnText: {
+        color: '#fff',
+        fontSize: getResponsive(16),
+        fontWeight: '600',
+    },
+    attachmentDropText: {
+        fontSize: getResponsive(14),
+        color: '#666',
+        textAlign: 'center',
+    },
+    attachmentFileList: {
+        marginTop: getResponsive(10),
+    },
+    attachmentFileItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: getResponsive(12),
+        paddingHorizontal: getResponsive(16),
+        backgroundColor: '#f8f9fa',
+        borderRadius: getResponsive(8),
+        marginBottom: getResponsive(8),
+    },
+    attachmentFileInfo: {
+        flex: 1,
+        marginRight: getResponsive(12),
+    },
+    attachmentFileName: {
+        fontSize: getResponsive(14),
+        color: '#19233C',
+        fontWeight: '500',
+    },
+    attachmentFileSize: {
+        fontSize: getResponsive(12),
+        color: '#666',
+        marginTop: getResponsive(2),
+    },
+    attachmentFileDelete: {
+        width: getResponsive(24),
+        height: getResponsive(24),
+        borderRadius: getResponsive(12),
+        backgroundColor: '#ff4757',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    attachmentFileDeleteText: {
+        color: '#fff',
+        fontSize: getResponsive(12),
+        fontWeight: 'bold',
+    },
+    attachmentUploading: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: getResponsive(16),
+    },
+    attachmentUploadingText: {
+        marginLeft: getResponsive(8),
+        fontSize: getResponsive(14),
+        color: '#0088E7',
+    },
+    attachmentModalFooter: {
+        padding: getResponsive(20),
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+    },
+    attachmentUploadBtn: {
+        backgroundColor: '#0088E7',
+        paddingVertical: getResponsive(16),
+        borderRadius: getResponsive(8),
+        alignItems: 'center',
+    },
+    attachmentUploadBtnText: {
+        color: '#fff',
+        fontSize: getResponsive(16),
+        fontWeight: '600',
     },
 });
 
