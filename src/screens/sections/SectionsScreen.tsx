@@ -185,6 +185,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [signatureValues, setSignatureValues] = useState<{ [rowId: string]: { encoded?: string; pathName?: string } }>({});
     const [qrCodeValues, setQrCodeValues] = useState<{ [key: string]: string }>({});
     const [showQrScanner, setShowQrScanner] = useState<{ [key: string]: boolean }>({});
+    const [qrValidatorValues, setQrValidatorValues] = useState<{ [key: string]: string }>({});
+    const [qrValidatorStatus, setQrValidatorStatus] = useState<{ [key: string]: 'pending' | 'valid' | 'invalid' }>({});
+    const [showQrValidatorScanner, setShowQrValidatorScanner] = useState<{ [key: string]: boolean }>({});
     // replace single ref with a map of refs and helpers
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
     const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
@@ -531,6 +534,18 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
+                    // QR_VALIDATOR (scanned value with validation status)
+                    const qrValidatorComp = comps.find((c: any) => c.component === 'QR_VALIDATOR');
+                    const qrValidatorVal = qrValidatorValues[row.webId] || '';
+                    const qrValidatorData = qrValidatorComp
+                        ? [{
+                            value: qrValidatorVal,
+                            controlId: qrValidatorComp.webId,
+                            groupName: qrValidatorComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
                     return [
                         ...radioData,
                         ...attachmentsData,
@@ -544,6 +559,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         ...lookupData,
                         ...signatureData,
                         ...qrCodeData,
+                        ...qrValidatorData,
                     ];
                 }),
             };
@@ -1204,6 +1220,113 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         );
                                     }
 
+                                    // QR_VALIDATOR row
+                                    const hasQrValidator = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'QR_VALIDATOR')
+                                    );
+                                    if (hasQrValidator) {
+                                        const qrValidatorComp = row.columns.flatMap(c => c.components).find(c => c.component === 'QR_VALIDATOR');
+                                        const expectedValue = qrValidatorComp?.defaultValue || qrValidatorComp?.text || '';
+                                        const scannedValue = qrValidatorValues[row.webId] || '';
+                                        const validationStatus = qrValidatorStatus[row.webId] || 'pending';
+                                        const showValidatorScanner = showQrValidatorScanner[row.webId] || false;
+
+                                        const getStatusColor = () => {
+                                            switch (validationStatus) {
+                                                case 'valid': return '#28B446';
+                                                case 'invalid': return '#F44336';
+                                                default: return '#D8ECFA';
+                                            }
+                                        };
+
+                                        const getStatusText = () => {
+                                            switch (validationStatus) {
+                                                case 'valid': return '✓ Validated';
+                                                case 'invalid': return '✗ Invalid';
+                                                default: return 'Validate QR Code';
+                                            }
+                                        };
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    style={styles.radioChoiceRow}
+                                                    activeOpacity={0.8}
+                                                    onPress={() => {
+                                                        setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                    }}
+                                                >
+                                                    <Text style={[
+                                                        styles.radioOptionText,
+                                                        {
+                                                            backgroundColor: getStatusColor(),
+                                                            paddingHorizontal: getResponsive(8),
+                                                            paddingVertical: getResponsive(4),
+                                                            borderRadius: getResponsive(6),
+                                                            minWidth: getResponsive(120),
+                                                            textAlign: 'center',
+                                                            color: validationStatus === 'pending' ? '#021639' : '#fff',
+                                                            fontWeight: validationStatus !== 'pending' ? 'bold' : 'normal'
+                                                        }
+                                                    ]}>
+                                                        {getStatusText()}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                
+                                                {/* QR Validator Scanner Modal */}
+                                                <Modal
+                                                    visible={showValidatorScanner}
+                                                    transparent={false}
+                                                    animationType="slide"
+                                                    onRequestClose={() => setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: false }))}
+                                                >
+                                                    <View style={styles.qrScannerContainer}>
+                                                        <View style={styles.qrScannerHeader}>
+                                                            <TouchableOpacity
+                                                                onPress={() => setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: false }))}
+                                                                style={styles.qrScannerClose}
+                                                            >
+                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
+                                                            </TouchableOpacity>
+                                                            <Text style={styles.qrScannerTitle}>Validate QR Code</Text>
+                                                        </View>
+                                                        
+                                                        <View style={styles.qrValidatorInfo}>
+                                                            <Text style={styles.qrValidatorInfoText}>
+                                                                Expected Value: <Text style={styles.qrValidatorExpectedValue}>{expectedValue}</Text>
+                                                            </Text>
+                                                        </View>
+                                                        
+                                                        <Camera
+                                                            onReadCode={(event: any) => {
+                                                                const scannedValue = event.nativeEvent.codeStringValue;
+                                                                const isValid = scannedValue === expectedValue;
+                                                                
+                                                                setQrValidatorValues(prev => ({ ...prev, [row.webId]: scannedValue }));
+                                                                setQrValidatorStatus(prev => ({ ...prev, [row.webId]: isValid ? 'valid' : 'invalid' }));
+                                                                setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: false }));
+                                                                
+                                                                if (isValid) {
+                                                                    showSuccessToast('QR Code Validated', `Value matches: ${scannedValue}`);
+                                                                } else {
+                                                                    showErrorToast('QR Code Invalid', `Expected: ${expectedValue}, Got: ${scannedValue}`);
+                                                                }
+                                                            }}
+                                                            scanBarcode={true}
+                                                            showFrame={true}
+                                                            laserColor="red"
+                                                            frameColor="white"
+                                                            style={styles.qrScannerCamera}
+                                                        />
+                                                    </View>
+                                                </Modal>
+                                            </View>
+                                        );
+                                    }
+
                                     // Otherwise → render the normal label + radio buttons
                                     return (
                                         <View key={row.webId} style={[styles.radioRow]}>
@@ -1760,6 +1883,22 @@ const styles = StyleSheet.create({
     },
     qrScannerCamera: {
         flex: 1,
+    },
+    qrValidatorInfo: {
+        backgroundColor: '#1a1a1a',
+        paddingHorizontal: getResponsive(20),
+        paddingVertical: getResponsive(12),
+        borderBottomWidth: 1,
+        borderBottomColor: '#333',
+    },
+    qrValidatorInfoText: {
+        color: '#fff',
+        fontSize: getResponsive(14),
+        textAlign: 'center',
+    },
+    qrValidatorExpectedValue: {
+        color: '#4CAF50',
+        fontWeight: 'bold',
     },
 });
 
