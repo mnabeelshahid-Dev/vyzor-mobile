@@ -168,3 +168,53 @@ export async function fetchLookupOptions(lookupName: string) {
 	const response = await apiService.get(url);
 	return response;
 }
+
+// Fetch file URL by fileId
+export async function fetchFileUrl(fileId: string) {
+	const url = `/api/dms/file/url/${fileId}`;
+	
+	try {
+		// Get auth token
+		const { storage } = await import('../services/storage');
+		let token: string | null = null;
+		try {
+			token = await storage.getSecureString('access_token');
+		} catch (error) {
+			console.warn('Failed to retrieve auth token', error);
+		}
+
+		// Make direct fetch request to avoid JSON parsing issues
+		const headers: Record<string, string> = {
+			'Content-Type': 'application/json',
+			Accept: 'text/plain, */*', // Accept text responses
+		};
+
+		if (token) {
+			headers.Authorization = `Bearer ${token}`;
+		}
+
+		const response = await fetch(`https://vyzor.app${url}`, {
+			method: 'GET',
+			headers,
+		});
+
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+		}
+
+		// Always get text response to avoid JSON parsing issues
+		const textData = await response.text();
+		
+		// Extract redirect URL from the response
+		const redirectMatch = textData.match(/redirect:([^\s]+)/);
+		if (redirectMatch) {
+			return { data: { redirect: redirectMatch[1] } };
+		}
+
+		// If no redirect found, return the text as is
+		return { data: { redirect: textData } };
+	} catch (error) {
+		console.error('Error fetching file URL:', error);
+		throw error;
+	}
+}

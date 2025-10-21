@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { fetchSectionRows, syncDocument, fetchLookupOptions } from '../../api/statistics';
+import { fetchSectionRows, syncDocument, fetchLookupOptions, fetchFileUrl } from '../../api/statistics';
 import Signature from 'react-native-signature-canvas';
 import {
     View,
@@ -17,12 +17,14 @@ import {
     TextInput,
     Alert,
     Modal,
-    ActionSheetIOS
+    ActionSheetIOS,
+    Linking
 
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Camera } from 'react-native-camera-kit';
+import { WebView } from 'react-native-webview';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import RefreshSignatureIcon from '../../assets/svgs/RefreshSignature.svg';
@@ -332,6 +334,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [timerRunning, setTimerRunning] = useState<{ [key: string]: boolean }>({});
     const [timerStartTime, setTimerStartTime] = useState<{ [key: string]: number }>({});
     const [timerElapsedTime, setTimerElapsedTime] = useState<{ [key: string]: number }>({});
+    const [fileUrls, setFileUrls] = useState<{ [key: string]: string }>({});
     // replace single ref with a map of refs and helpers
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
     const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
@@ -2018,6 +2021,80 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     }]}>
                                                         {paragraphText}
                                                     </Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    // FILE row
+                                    const hasFile = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'FILE')
+                                    );
+                                    if (hasFile) {
+                                        const fileComp = row.columns.flatMap(c => c.components).find(c => c.component === 'FILE');
+                                        const fileId = fileComp?.defaultValue || fileComp?.attrs?.find(attr => attr.key === 'imageId')?.value || '';
+                                        const fileUrl = fileUrls[row.webId] || '';
+
+                                        const handleFilePress = async () => {
+                                            if (!fileUrl && fileId) {
+                                                try {
+                                                    const response = await fetchFileUrl(fileId);
+                                                    const url = (response as any)?.data?.redirect || (response as any)?.data?.url || '';
+                                                    setFileUrls(prev => ({ ...prev, [row.webId]: url }));
+                                                    
+                                                    // Open the file URL in external browser
+                                                    if (url) {
+                                                        const canOpen = await Linking.canOpenURL(url);
+                                                        if (canOpen) {
+                                                            await Linking.openURL(url);
+                                                        } else {
+                                                            showErrorToast('Error', 'Cannot open file URL');
+                                                        }
+                                                    }
+                                                } catch (error) {
+                                                    console.error('Error fetching file URL:', error);
+                                                    showErrorToast('Error', 'Failed to load file');
+                                                }
+                                            } else if (fileUrl) {
+                                                // Open the cached file URL in external browser
+                                                try {
+                                                    const canOpen = await Linking.canOpenURL(fileUrl);
+                                                    if (canOpen) {
+                                                        await Linking.openURL(fileUrl);
+                                                    } else {
+                                                        showErrorToast('Error', 'Cannot open file URL');
+                                                    }
+                                                } catch (error) {
+                                                    console.error('Error opening file URL:', error);
+                                                    showErrorToast('Error', 'Failed to open file');
+                                                }
+                                            }
+                                        };
+
+                                        return (
+                                            <View key={row.webId} style={styles.notesRow}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                </View>
+                                                <View style={[styles.textFieldBox, { width: '50%' }]}>
+                                                    <TouchableOpacity
+                                                        style={[styles.textFieldInput, { 
+                                                            justifyContent: 'center',
+                                                            alignItems: 'center',
+                                                            backgroundColor: '#0088E7',
+                                                            paddingVertical: getResponsive(12)
+                                                        }]}
+                                                        onPress={handleFilePress}
+                                                        activeOpacity={0.8}
+                                                    >
+                                                        <Text style={{ 
+                                                            color: '#fff',
+                                                            fontSize: getResponsive(14),
+                                                            fontWeight: '600'
+                                                        }}>
+                                                            View File
+                                                        </Text>
+                                                    </TouchableOpacity>
                                                 </View>
                                             </View>
                                         );
