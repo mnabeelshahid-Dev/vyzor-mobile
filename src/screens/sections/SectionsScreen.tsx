@@ -129,6 +129,137 @@ const Switch = ({ value, onValueChange }: { value: boolean; onValueChange: (valu
     </TouchableOpacity>
 );
 
+const Timer = ({ 
+    value, 
+    isRunning, 
+    onStart, 
+    onPause, 
+    onReset 
+}: { 
+    value: string; 
+    isRunning: boolean; 
+    onStart: () => void; 
+    onPause: () => void; 
+    onReset: () => void; 
+}) => (
+    <View style={{
+        backgroundColor: '#fff',
+        borderRadius: getResponsive(12),
+        padding: getResponsive(4),
+        marginLeft: getResponsive(4),
+        minWidth: getResponsive(120),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    }}>
+        {/* Timer Display */}
+        <View style={{
+            alignItems: 'center',
+            marginBottom: getResponsive(16),
+        }}>
+            <Text style={{
+                fontSize: getResponsive(12),
+                color: '#19233C',
+                fontFamily: 'monospace',
+                letterSpacing: 1,
+            }}>
+                {value}
+            </Text>
+        </View>
+        
+        {/* Control Buttons */}
+        <View style={{ 
+            flexDirection: 'row', 
+            justifyContent: 'center',
+            gap: getResponsive(12),
+        }}>
+            {/* Start/Resume Button */}
+            <TouchableOpacity
+                style={{
+                    width: getResponsive(32),
+                    height: getResponsive(32),
+                    borderRadius: getResponsive(24),
+                    backgroundColor: '#28B446',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 3,
+                    elevation: 4,
+                }}
+                onPress={onStart}
+                activeOpacity={0.8}
+            >
+                <Text style={{
+                    color: '#fff',
+                    fontSize: getResponsive(18),
+                    fontWeight: 'bold',
+                }}>
+                    ▶
+                </Text>
+            </TouchableOpacity>
+
+            {/* Pause Button */}
+            <TouchableOpacity
+                style={{
+                    width: getResponsive(32),
+                    height: getResponsive(32),
+                    borderRadius: getResponsive(24),
+                    backgroundColor: '#FF6B6B',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 3,
+                    elevation: 4,
+                }}
+                onPress={onPause}
+                activeOpacity={0.8}
+            >
+                <Text style={{
+                    color: '#fff',
+                    backgroundColor: '#FF6B6B',
+                    fontSize: getResponsive(16),
+                    fontWeight: 'bold',
+                }}>
+                    ⏸
+                </Text>
+            </TouchableOpacity>
+
+            {/* Reset Button */}
+            <TouchableOpacity
+                style={{
+                    width: getResponsive(32),
+                    height: getResponsive(32),
+                    borderRadius: getResponsive(24),
+                    backgroundColor: '#4A90E2',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 3,
+                    elevation: 4,
+                }}
+                onPress={onReset}
+                activeOpacity={0.8}
+            >
+                <Text style={{
+                    color: '#fff',
+                    fontSize: getResponsive(18),
+                    fontWeight: 'bold',
+                }}>
+                    ⟲
+                </Text>
+            </TouchableOpacity>
+        </View>
+    </View>
+);
+
 export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Get formDefinitionId, status, and sourceScreen from route params
     const route = useRoute();
@@ -197,6 +328,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [attachmentsByRow, setAttachmentsByRow] = useState<{ [rowId: string]: Array<{ id: string; name: string; uri?: string; type?: string; size?: number }> }>({});
     const [isUploadingAttachment, setIsUploadingAttachment] = useState<{ [rowId: string]: boolean }>({});
     const [showAttachmentModal, setShowAttachmentModal] = useState<{ [rowId: string]: boolean }>({});
+    const [timerValues, setTimerValues] = useState<{ [key: string]: string }>({});
+    const [timerRunning, setTimerRunning] = useState<{ [key: string]: boolean }>({});
+    const [timerStartTime, setTimerStartTime] = useState<{ [key: string]: number }>({});
+    const [timerElapsedTime, setTimerElapsedTime] = useState<{ [key: string]: number }>({});
     // replace single ref with a map of refs and helpers
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
     const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
@@ -453,7 +588,34 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         });
     }, [sectionRowsData]);
 
+    // Timer effect to update display
+    React.useEffect(() => {
+        const interval = setInterval(() => {
+            const now = Date.now();
+            Object.keys(timerRunning).forEach(rowId => {
+                if (timerRunning[rowId] && timerStartTime[rowId]) {
+                    // Calculate total elapsed time including previous paused time
+                    const currentSessionTime = now - timerStartTime[rowId];
+                    const totalElapsed = (timerElapsedTime[rowId] || 0) + currentSessionTime;
+                    
+                    const totalSeconds = Math.floor(totalElapsed / 1000);
+                    const milliseconds = Math.floor((totalElapsed % 1000) / 10); // Get centiseconds
+                    const hours = Math.floor(totalSeconds / 3600);
+                    const minutes = Math.floor((totalSeconds % 3600) / 60);
+                    const seconds = totalSeconds % 60;
+                    
+                    const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}0000`;
+                    
+                    setTimerValues(prev => ({
+                        ...prev,
+                        [rowId]: formattedTime
+                    }));
+                }
+            });
+        }, 10); // Update every 10ms for smooth display
 
+        return () => clearInterval(interval);
+    }, [timerRunning, timerStartTime, timerElapsedTime]);
 
     const filteredList = (() => {
         const rows = Array.isArray(sectionRowsData?.data) ? sectionRowsData.data : (sectionRowsData?.data || []);
@@ -679,6 +841,18 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
+                    // TIMER (time value in HH:MM:SS.mmmmmmm format)
+                    const timerComp = comps.find((c: any) => c.component === 'TIMER');
+                    const timerVal = timerValues[row.webId] || '00:00:00.0000000';
+                    const timerData = timerComp
+                        ? [{
+                            value: timerVal,
+                            controlId: timerComp.webId,
+                            groupName: timerComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
                     return [
                         ...radioData,
                         ...attachmentsData,
@@ -695,6 +869,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         ...qrValidatorData,
                         ...barcodeData,
                         ...barcodeValidatorData,
+                        ...timerData,
                     ];
                 }),
             };
@@ -1768,6 +1943,82 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         />
                                                     </View>
                                                 </Modal>
+                                            </View>
+                                        );
+                                    }
+
+                                    // TIMER row
+                                    const hasTimer = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'TIMER')
+                                    );
+                                    if (hasTimer) {
+                                        const timerValue = timerValues[row.webId] || '00:00:00.0000000';
+                                        const isRunning = timerRunning[row.webId] || false;
+
+                                        const handleTimerStart = () => {
+                                            const now = Date.now();
+                                            setTimerStartTime(prev => ({ ...prev, [row.webId]: now }));
+                                            setTimerRunning(prev => ({ ...prev, [row.webId]: true }));
+                                        };
+
+                                        const handleTimerPause = () => {
+                                            if (isRunning) {
+                                                // Calculate elapsed time and store it
+                                                const now = Date.now();
+                                                const currentSessionTime = now - (timerStartTime[row.webId] || now);
+                                                const totalElapsed = (timerElapsedTime[row.webId] || 0) + currentSessionTime;
+                                                
+                                                setTimerElapsedTime(prev => ({ ...prev, [row.webId]: totalElapsed }));
+                                                setTimerRunning(prev => ({ ...prev, [row.webId]: false }));
+                                            }
+                                        };
+
+                                        const handleTimerReset = () => {
+                                            setTimerRunning(prev => ({ ...prev, [row.webId]: false }));
+                                            setTimerStartTime(prev => ({ ...prev, [row.webId]: 0 }));
+                                            setTimerElapsedTime(prev => ({ ...prev, [row.webId]: 0 }));
+                                            setTimerValues(prev => ({ ...prev, [row.webId]: '00:00:00.0000000' }));
+                                        };
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <Timer
+                                                    value={timerValue}
+                                                    isRunning={isRunning}
+                                                    onStart={handleTimerStart}
+                                                    onPause={handleTimerPause}
+                                                    onReset={handleTimerReset}
+                                                />
+                                            </View>
+                                        );
+                                    }
+
+                                    // PARAGRAPH row
+                                    const hasParagraph = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'PARAGRAPH')
+                                    );
+                                    if (hasParagraph) {
+                                        const paragraphComp = row.columns.flatMap(c => c.components).find(c => c.component === 'PARAGRAPH');
+                                        const paragraphText = paragraphComp?.defaultValue || paragraphComp?.text || '';
+
+                                        return (
+                                            <View key={row.webId} style={styles.notesRow}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                </View>
+                                                <View style={[styles.textFieldBox, { width: '50%' }]}>
+                                                    <Text style={[styles.textFieldInput, { 
+                                                        color: '#19233C',
+                                                        fontSize: getResponsive(14),
+                                                        lineHeight: getResponsive(20),
+                                                        fontWeight: '400'
+                                                    }]}>
+                                                        {paragraphText}
+                                                    </Text>
+                                                </View>
                                             </View>
                                         );
                                     }
