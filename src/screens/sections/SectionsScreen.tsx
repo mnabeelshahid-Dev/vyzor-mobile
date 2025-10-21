@@ -28,6 +28,7 @@ import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import RefreshSignatureIcon from '../../assets/svgs/RefreshSignature.svg';
 import { useRoute } from '@react-navigation/native';
 import { showErrorToast, showSuccessToast } from '../../components';
+import { apiService } from '../../services/api';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -128,6 +129,137 @@ const Switch = ({ value, onValueChange }: { value: boolean; onValueChange: (valu
     </TouchableOpacity>
 );
 
+const Timer = ({ 
+    value, 
+    isRunning, 
+    onStart, 
+    onPause, 
+    onReset 
+}: { 
+    value: string; 
+    isRunning: boolean; 
+    onStart: () => void; 
+    onPause: () => void; 
+    onReset: () => void; 
+}) => (
+    <View style={{
+        backgroundColor: '#fff',
+        borderRadius: getResponsive(12),
+        padding: getResponsive(4),
+        marginLeft: getResponsive(4),
+        minWidth: getResponsive(120),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    }}>
+        {/* Timer Display */}
+        <View style={{
+            alignItems: 'center',
+            marginBottom: getResponsive(16),
+        }}>
+            <Text style={{
+                fontSize: getResponsive(12),
+                color: '#19233C',
+                fontFamily: 'monospace',
+                letterSpacing: 1,
+            }}>
+                {value}
+            </Text>
+        </View>
+        
+        {/* Control Buttons */}
+        <View style={{ 
+            flexDirection: 'row', 
+            justifyContent: 'center',
+            gap: getResponsive(12),
+        }}>
+            {/* Start/Resume Button */}
+            <TouchableOpacity
+                style={{
+                    width: getResponsive(32),
+                    height: getResponsive(32),
+                    borderRadius: getResponsive(24),
+                    backgroundColor: '#28B446',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 3,
+                    elevation: 4,
+                }}
+                onPress={onStart}
+                activeOpacity={0.8}
+            >
+                <Text style={{
+                    color: '#fff',
+                    fontSize: getResponsive(18),
+                    fontWeight: 'bold',
+                }}>
+                    ▶
+                </Text>
+            </TouchableOpacity>
+
+            {/* Pause Button */}
+            <TouchableOpacity
+                style={{
+                    width: getResponsive(32),
+                    height: getResponsive(32),
+                    borderRadius: getResponsive(24),
+                    backgroundColor: '#FF6B6B',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 3,
+                    elevation: 4,
+                }}
+                onPress={onPause}
+                activeOpacity={0.8}
+            >
+                <Text style={{
+                    color: '#fff',
+                    backgroundColor: '#FF6B6B',
+                    fontSize: getResponsive(16),
+                    fontWeight: 'bold',
+                }}>
+                    ⏸
+                </Text>
+            </TouchableOpacity>
+
+            {/* Reset Button */}
+            <TouchableOpacity
+                style={{
+                    width: getResponsive(32),
+                    height: getResponsive(32),
+                    borderRadius: getResponsive(24),
+                    backgroundColor: '#4A90E2',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 3,
+                    elevation: 4,
+                }}
+                onPress={onReset}
+                activeOpacity={0.8}
+            >
+                <Text style={{
+                    color: '#fff',
+                    fontSize: getResponsive(18),
+                    fontWeight: 'bold',
+                }}>
+                    ⟲
+                </Text>
+            </TouchableOpacity>
+        </View>
+    </View>
+);
+
 export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Get formDefinitionId, status, and sourceScreen from route params
     const route = useRoute();
@@ -193,6 +325,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [barcodeValidatorValues, setBarcodeValidatorValues] = useState<{ [key: string]: string }>({});
     const [barcodeValidatorStatus, setBarcodeValidatorStatus] = useState<{ [key: string]: 'pending' | 'valid' | 'invalid' }>({});
     const [showBarcodeValidatorScanner, setShowBarcodeValidatorScanner] = useState<{ [key: string]: boolean }>({});
+    const [attachmentsByRow, setAttachmentsByRow] = useState<{ [rowId: string]: Array<{ id: string; name: string; uri?: string; type?: string; size?: number }> }>({});
+    const [isUploadingAttachment, setIsUploadingAttachment] = useState<{ [rowId: string]: boolean }>({});
+    const [showAttachmentModal, setShowAttachmentModal] = useState<{ [rowId: string]: boolean }>({});
+    const [timerValues, setTimerValues] = useState<{ [key: string]: string }>({});
+    const [timerRunning, setTimerRunning] = useState<{ [key: string]: boolean }>({});
+    const [timerStartTime, setTimerStartTime] = useState<{ [key: string]: number }>({});
+    const [timerElapsedTime, setTimerElapsedTime] = useState<{ [key: string]: number }>({});
     // replace single ref with a map of refs and helpers
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
     const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
@@ -303,6 +442,106 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         }));
     };
 
+    const handleRemoveAttachment = (rowId: string, fileId: string) => {
+        setAttachmentsByRow(prev => ({
+            ...prev,
+            [rowId]: (prev[rowId] || []).filter(f => f.id !== fileId)
+        }));
+    };
+
+    const uploadAttachment = async (rowId: string, asset: any) => {
+        try {
+            const fileName = asset.fileName || asset.name || 'attachment';
+            const fileUri = asset.uri;
+            const type = asset.type || asset.mimeType || 'application/octet-stream';
+            const fileSize = asset.size;
+
+            if (!fileUri) {
+                showErrorToast('Attachment failed', 'No file URI returned');
+                return;
+            }
+
+            setIsUploadingAttachment(prev => ({ ...prev, [rowId]: true }));
+
+            const formData = new FormData();
+            // @ts-ignore RN FormData file
+            formData.append('file', { uri: fileUri, name: fileName, type });
+
+            const generatedId = `${Date.now().toString()}${Math.random().toString(36).substr(2, 9)}`;
+            const jsonMeta = encodeURIComponent(JSON.stringify({
+                id: generatedId,
+                ownerWebId: assignUserId,
+                name: fileName,
+            }));
+
+            const res = await apiService.postFormData<any>(`/api/dms/file?json=${jsonMeta}`, formData);
+            if (!res.success || !res.data) {
+                throw new Error(res.message || 'Upload failed');
+            }
+
+            const fileId = (res.data as any).id;
+            const returnedName = (res.data as any).name || fileName;
+            if (!fileId) {
+                throw new Error('No file id returned');
+            }
+
+            setAttachmentsByRow(prev => ({
+                ...prev,
+                [rowId]: [...(prev[rowId] || []), { 
+                    id: fileId, 
+                    name: returnedName, 
+                    uri: fileUri,
+                    type: type,
+                    size: fileSize
+                }],
+            }));
+            showSuccessToast('Attachment uploaded', returnedName);
+        } catch (e: any) {
+            showErrorToast('Attachment failed', e?.message || 'Upload error');
+        } finally {
+            setIsUploadingAttachment(prev => ({ ...prev, [rowId]: false }));
+        }
+    };
+
+    const handleAddAttachments = async (rowId: string) => {
+        const remaining = Math.max(1, 5 - (attachmentsByRow[rowId]?.length || 0));
+
+        const fromLibrary = async () => {
+            const res = await launchImageLibrary({
+                mediaType: 'mixed',
+                selectionLimit: remaining,
+            });
+            if (res.assets?.length) {
+                for (const asset of res.assets) {
+                    await uploadAttachment(rowId, asset);
+                }
+            }
+        };
+
+
+        if (Platform.OS === 'ios') {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    options: ['Cancel', 'Choose from Library'],
+                    cancelButtonIndex: 0,
+                },
+                (buttonIndex) => {
+                    if (buttonIndex === 1) fromLibrary();
+                }
+            );
+        } else {
+            Alert.alert(
+                'Add Attachment',
+                undefined,
+                [
+                    { text: 'Choose from Library', onPress: fromLibrary },
+                    { text: 'Cancel', style: 'cancel' },
+                ],
+                { cancelable: true }
+            );
+        }
+    };
+
     const {
         data: sectionRowsData,
         isLoading: isSectionRowsLoading,
@@ -349,7 +588,34 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         });
     }, [sectionRowsData]);
 
+    // Timer effect to update display
+    React.useEffect(() => {
+        const interval = setInterval(() => {
+            const now = Date.now();
+            Object.keys(timerRunning).forEach(rowId => {
+                if (timerRunning[rowId] && timerStartTime[rowId]) {
+                    // Calculate total elapsed time including previous paused time
+                    const currentSessionTime = now - timerStartTime[rowId];
+                    const totalElapsed = (timerElapsedTime[rowId] || 0) + currentSessionTime;
+                    
+                    const totalSeconds = Math.floor(totalElapsed / 1000);
+                    const milliseconds = Math.floor((totalElapsed % 1000) / 10); // Get centiseconds
+                    const hours = Math.floor(totalSeconds / 3600);
+                    const minutes = Math.floor((totalSeconds % 3600) / 60);
+                    const seconds = totalSeconds % 60;
+                    
+                    const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}0000`;
+                    
+                    setTimerValues(prev => ({
+                        ...prev,
+                        [rowId]: formattedTime
+                    }));
+                }
+            });
+        }, 10); // Update every 10ms for smooth display
 
+        return () => clearInterval(interval);
+    }, [timerRunning, timerStartTime, timerElapsedTime]);
 
     const filteredList = (() => {
         const rows = Array.isArray(sectionRowsData?.data) ? sectionRowsData.data : (sectionRowsData?.data || []);
@@ -424,7 +690,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const attachComp = comps.find((c: any) => c.component === 'ATTACHEMENTS');
                     const attachmentsData = attachComp
                         ? [{
-                            value: (rowImages[row.webId] || []).map(img => img.id),
+                            value: (attachmentsByRow[row.webId] || []).map(f => f.id),
                             controlId: attachComp.webId || '',
                             groupName: attachComp.groupName || null,
                             senserData: null,
@@ -575,6 +841,18 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
+                    // TIMER (time value in HH:MM:SS.mmmmmmm format)
+                    const timerComp = comps.find((c: any) => c.component === 'TIMER');
+                    const timerVal = timerValues[row.webId] || '00:00:00.0000000';
+                    const timerData = timerComp
+                        ? [{
+                            value: timerVal,
+                            controlId: timerComp.webId,
+                            groupName: timerComp.groupName || null,
+                            senserData: null,
+                        }]
+                        : [];
+
                     return [
                         ...radioData,
                         ...attachmentsData,
@@ -591,6 +869,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         ...qrValidatorData,
                         ...barcodeData,
                         ...barcodeValidatorData,
+                        ...timerData,
                     ];
                 }),
             };
@@ -1116,6 +1395,137 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         );
                                     }
 
+                                    // ATTACHEMENTS row (file uploads producing file IDs)
+                                    const hasAttachments = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'ATTACHEMENTS')
+                                    );
+                                    if (hasAttachments) {
+                                        const files = attachmentsByRow[row.webId] || [];
+                                        const uploading = isUploadingAttachment[row.webId] || false;
+                                        const showModal = showAttachmentModal[row.webId] || false;
+
+                                        return (
+                                            <View key={row.webId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
+                                            >
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
+                                                        {row.columns[0]?.components[0]?.text || 'Attachments'}
+                                                    </Text>
+                                                </View>
+
+                                                <View
+                                                    style={[
+                                                        styles.multiImgBox,
+                                                        { width: '50%', marginTop: 0, marginRight: getResponsive(8) },
+                                                    ]}
+                                                >
+                                                    {files.map(file => (
+                                                        <View key={file.id} style={styles.multiImgThumbBox}>
+                                                            <TouchableOpacity onPress={() => file.uri && setPreviewUri(file.uri)}>
+                                                                <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                                    <Text numberOfLines={1} style={styles.attachmentName}>{file.name || file.id}</Text>
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                            <TouchableOpacity
+                                                                style={styles.multiImgRemove}
+                                                                onPress={() => handleRemoveAttachment(row.webId, file.id)}
+                                                            >
+                                                                <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    ))}
+
+                                                    <TouchableOpacity
+                                                        style={styles.multiImgAddBtn}
+                                                        onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: true }))}
+                                                        activeOpacity={0.7}
+                                                        disabled={uploading}
+                                                    >
+                                                        <CameraIcon />
+                                                    </TouchableOpacity>
+                                                    {uploading ? <ActivityIndicator size="small" color="#1292E6" style={{ marginLeft: 6 }} /> : null}
+                                                </View>
+
+                                                {/* Attachment Detail Modal */}
+                                                <Modal
+                                                    visible={showModal}
+                                                    transparent={false}
+                                                    animationType="slide"
+                                                    onRequestClose={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: false }))}
+                                                >
+                                                    <View style={styles.attachmentModalContainer}>
+                                                        <View style={styles.attachmentModalHeader}>
+                                                            <TouchableOpacity
+                                                                onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: false }))}
+                                                                style={styles.attachmentModalClose}
+                                                            >
+                                                                <Text style={styles.attachmentModalCloseText}>✕</Text>
+                                                            </TouchableOpacity>
+                                                            <Text style={styles.attachmentModalTitle}>Upload</Text>
+                                                        </View>
+                                                        
+                                                        <View style={styles.attachmentModalContent}>
+                                                            <View style={styles.attachmentDropZone}>
+                                                                <Text style={styles.attachmentDropIcon}>☁️</Text>
+                                                                <TouchableOpacity
+                                                                    style={styles.attachmentBrowseBtn}
+                                                                    onPress={() => handleAddAttachments(row.webId)}
+                                                                    disabled={uploading}
+                                                                >
+                                                                    <Text style={styles.attachmentBrowseBtnText}>Browse Files</Text>
+                                                                </TouchableOpacity>
+                                                                <Text style={styles.attachmentDropText}>
+                                                                    {files.length === 0 ? 'No files added.' : `${files.length} file(s) added.`}
+                                                                </Text>
+                                                            </View>
+
+                                                            {files.length > 0 && (
+                                                                <View style={styles.attachmentFileList}>
+                                                                    {files.map((file, index) => (
+                                                                        <View key={file.id} style={styles.attachmentFileItem}>
+                                                                            <View style={styles.attachmentFileInfo}>
+                                                                                <Text style={styles.attachmentFileName} numberOfLines={1}>
+                                                                                    {file.name}
+                                                                                </Text>
+                                                                                {file.size && (
+                                                                                    <Text style={styles.attachmentFileSize}>
+                                                                                        {(file.size / 1024).toFixed(1)} KB
+                                                                                    </Text>
+                                                                                )}
+                                                                            </View>
+                                                                            <TouchableOpacity
+                                                                                style={styles.attachmentFileDelete}
+                                                                                onPress={() => handleRemoveAttachment(row.webId, file.id)}
+                                                                            >
+                                                                                <Text style={styles.attachmentFileDeleteText}>✕</Text>
+                                                                            </TouchableOpacity>
+                                                                        </View>
+                                                                    ))}
+                                                                </View>
+                                                            )}
+
+                                                            {uploading && (
+                                                                <View style={styles.attachmentUploading}>
+                                                                    <ActivityIndicator size="small" color="#0088E7" />
+                                                                    <Text style={styles.attachmentUploadingText}>Uploading...</Text>
+                                                                </View>
+                                                            )}
+                                                        </View>
+
+                                                        <View style={styles.attachmentModalFooter}>
+                                                            <TouchableOpacity
+                                                                style={styles.attachmentUploadBtn}
+                                                                onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: false }))}
+                                                            >
+                                                                <Text style={styles.attachmentUploadBtnText}>Upload</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    </View>
+                                                </Modal>
+                                            </View>
+                                        );
+                                    }
+
                                     if (hasSignature) {
                                         signatureRowIdsRef.current.add(row.webId);
 
@@ -1537,6 +1947,82 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         );
                                     }
 
+                                    // TIMER row
+                                    const hasTimer = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'TIMER')
+                                    );
+                                    if (hasTimer) {
+                                        const timerValue = timerValues[row.webId] || '00:00:00.0000000';
+                                        const isRunning = timerRunning[row.webId] || false;
+
+                                        const handleTimerStart = () => {
+                                            const now = Date.now();
+                                            setTimerStartTime(prev => ({ ...prev, [row.webId]: now }));
+                                            setTimerRunning(prev => ({ ...prev, [row.webId]: true }));
+                                        };
+
+                                        const handleTimerPause = () => {
+                                            if (isRunning) {
+                                                // Calculate elapsed time and store it
+                                                const now = Date.now();
+                                                const currentSessionTime = now - (timerStartTime[row.webId] || now);
+                                                const totalElapsed = (timerElapsedTime[row.webId] || 0) + currentSessionTime;
+                                                
+                                                setTimerElapsedTime(prev => ({ ...prev, [row.webId]: totalElapsed }));
+                                                setTimerRunning(prev => ({ ...prev, [row.webId]: false }));
+                                            }
+                                        };
+
+                                        const handleTimerReset = () => {
+                                            setTimerRunning(prev => ({ ...prev, [row.webId]: false }));
+                                            setTimerStartTime(prev => ({ ...prev, [row.webId]: 0 }));
+                                            setTimerElapsedTime(prev => ({ ...prev, [row.webId]: 0 }));
+                                            setTimerValues(prev => ({ ...prev, [row.webId]: '00:00:00.0000000' }));
+                                        };
+
+                                        return (
+                                            <View key={row.webId} style={styles.radioRow}>
+                                                <Text style={styles.radioLabel}>
+                                                    {row.columns[0]?.components[0]?.text}
+                                                </Text>
+                                                <Timer
+                                                    value={timerValue}
+                                                    isRunning={isRunning}
+                                                    onStart={handleTimerStart}
+                                                    onPause={handleTimerPause}
+                                                    onReset={handleTimerReset}
+                                                />
+                                            </View>
+                                        );
+                                    }
+
+                                    // PARAGRAPH row
+                                    const hasParagraph = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'PARAGRAPH')
+                                    );
+                                    if (hasParagraph) {
+                                        const paragraphComp = row.columns.flatMap(c => c.components).find(c => c.component === 'PARAGRAPH');
+                                        const paragraphText = paragraphComp?.defaultValue || paragraphComp?.text || '';
+
+                                        return (
+                                            <View key={row.webId} style={styles.notesRow}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                </View>
+                                                <View style={[styles.textFieldBox, { width: '50%' }]}>
+                                                    <Text style={[styles.textFieldInput, { 
+                                                        color: '#19233C',
+                                                        fontSize: getResponsive(14),
+                                                        lineHeight: getResponsive(20),
+                                                        fontWeight: '400'
+                                                    }]}>
+                                                        {paragraphText}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
                                     // Otherwise → render the normal label + radio buttons
                                     return (
                                         <View key={row.webId} style={[styles.radioRow]}>
@@ -1850,6 +2336,20 @@ const styles = StyleSheet.create({
         backgroundColor: '#bbb',
         marginBottom: getResponsive(4),
     },
+    attachmentThumb: {
+        width: getResponsive(90),
+        height: getResponsive(50),
+        borderRadius: getResponsive(10),
+        backgroundColor: '#E8F4FF',
+        paddingHorizontal: getResponsive(6),
+    },
+    attachmentName: {
+        color: '#021639',
+        fontSize: getResponsive(9),
+        fontWeight: '600',
+        textAlign: 'center',
+        paddingHorizontal: getResponsive(4),
+    },
     multiImgRemove: {
         position: 'absolute',
         top: -7,
@@ -2109,6 +2609,141 @@ const styles = StyleSheet.create({
     qrValidatorExpectedValue: {
         color: '#4CAF50',
         fontWeight: 'bold',
+    },
+    // Attachment Modal Styles
+    attachmentModalContainer: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    attachmentModalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: getResponsive(20),
+        paddingVertical: getResponsive(15),
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+    },
+    attachmentModalClose: {
+        width: getResponsive(30),
+        height: getResponsive(30),
+        borderRadius: getResponsive(15),
+        backgroundColor: '#f5f5f5',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    attachmentModalCloseText: {
+        fontSize: getResponsive(16),
+        color: '#666',
+        fontWeight: 'bold',
+    },
+    attachmentModalTitle: {
+        fontSize: getResponsive(18),
+        fontWeight: 'bold',
+        color: '#19233C',
+    },
+    attachmentModalContent: {
+        flex: 1,
+        padding: getResponsive(20),
+    },
+    attachmentDropZone: {
+        borderWidth: 2,
+        borderColor: '#e0e0e0',
+        borderStyle: 'dashed',
+        borderRadius: getResponsive(12),
+        padding: getResponsive(40),
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fafafa',
+        marginBottom: getResponsive(20),
+    },
+    attachmentDropIcon: {
+        fontSize: getResponsive(48),
+        marginBottom: getResponsive(16),
+    },
+    attachmentBrowseBtn: {
+        backgroundColor: '#0088E7',
+        paddingHorizontal: getResponsive(24),
+        paddingVertical: getResponsive(12),
+        borderRadius: getResponsive(8),
+        marginBottom: getResponsive(8),
+    },
+    attachmentBrowseBtnText: {
+        color: '#fff',
+        fontSize: getResponsive(16),
+        fontWeight: '600',
+    },
+    attachmentDropText: {
+        fontSize: getResponsive(14),
+        color: '#666',
+        textAlign: 'center',
+    },
+    attachmentFileList: {
+        marginTop: getResponsive(10),
+    },
+    attachmentFileItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: getResponsive(12),
+        paddingHorizontal: getResponsive(16),
+        backgroundColor: '#f8f9fa',
+        borderRadius: getResponsive(8),
+        marginBottom: getResponsive(8),
+    },
+    attachmentFileInfo: {
+        flex: 1,
+        marginRight: getResponsive(12),
+    },
+    attachmentFileName: {
+        fontSize: getResponsive(14),
+        color: '#19233C',
+        fontWeight: '500',
+    },
+    attachmentFileSize: {
+        fontSize: getResponsive(12),
+        color: '#666',
+        marginTop: getResponsive(2),
+    },
+    attachmentFileDelete: {
+        width: getResponsive(24),
+        height: getResponsive(24),
+        borderRadius: getResponsive(12),
+        backgroundColor: '#ff4757',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    attachmentFileDeleteText: {
+        color: '#fff',
+        fontSize: getResponsive(12),
+        fontWeight: 'bold',
+    },
+    attachmentUploading: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: getResponsive(16),
+    },
+    attachmentUploadingText: {
+        marginLeft: getResponsive(8),
+        fontSize: getResponsive(14),
+        color: '#0088E7',
+    },
+    attachmentModalFooter: {
+        padding: getResponsive(20),
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+    },
+    attachmentUploadBtn: {
+        backgroundColor: '#0088E7',
+        paddingVertical: getResponsive(16),
+        borderRadius: getResponsive(8),
+        alignItems: 'center',
+    },
+    attachmentUploadBtnText: {
+        color: '#fff',
+        fontSize: getResponsive(16),
+        fontWeight: '600',
     },
 });
 
