@@ -335,6 +335,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [timerStartTime, setTimerStartTime] = useState<{ [key: string]: number }>({});
     const [timerElapsedTime, setTimerElapsedTime] = useState<{ [key: string]: number }>({});
     const [fileUrls, setFileUrls] = useState<{ [key: string]: string }>({});
+    const [showLookupModal, setShowLookupModal] = useState<{ [rowId: string]: boolean }>({});
+    const [answers, setAnswers] = useState<{ [sectionId: string]: { [rowId: string]: string } }>({});
+    const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
     // replace single ref with a map of refs and helpers
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
     const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
@@ -932,8 +935,6 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         return `${month}/${day}/${year} ${hours}:${minutesStr}${ampm}`;
     }
 
-    const [answers, setAnswers] = useState<{ [sectionId: string]: { [rowId: string]: string } }>({});
-    const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
     const currentSection = filteredList[currentSectionIdx] || null;
 
     return (
@@ -1269,7 +1270,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         const options = lookupOptions[row.webId] || [];
                                         const selectedValue = lookupValues[row.webId] || '';
                                         const selectedText = options.find(opt => opt.value === selectedValue)?.text || 'Select an option';
-                                        const [showLookupModal, setShowLookupModal] = useState(false);
+                                        const showModal = showLookupModal[row.webId] || false;
 
                                         return (
                                             <View key={row.webId} style={styles.radioRow}>
@@ -1286,7 +1287,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             justifyContent: 'space-between',
                                                             alignItems: 'center'
                                                         }]}
-                                                        onPress={() => setShowLookupModal(true)}
+                                                        onPress={() => setShowLookupModal(prev => ({ ...prev, [row.webId]: true }))}
                                                         activeOpacity={0.7}
                                                     >
                                                         <Text style={[
@@ -1300,10 +1301,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                                     {/* Lookup Modal */}
                                                     <Modal
-                                                        visible={showLookupModal}
+                                                        visible={showModal}
                                                         transparent
                                                         animationType="fade"
-                                                        onRequestClose={() => setShowLookupModal(false)}
+                                                        onRequestClose={() => setShowLookupModal(prev => ({ ...prev, [row.webId]: false }))}
                                                     >
                                                         <View style={styles.lookupModalOverlay}>
                                                             <View style={styles.lookupModalContent}>
@@ -1312,7 +1313,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                         {row.columns[0]?.components[0]?.text}
                                                                     </Text>
                                                                     <TouchableOpacity
-                                                                        onPress={() => setShowLookupModal(false)}
+                                                                        onPress={() => setShowLookupModal(prev => ({ ...prev, [row.webId]: false }))}
                                                                         style={styles.lookupModalClose}
                                                                     >
                                                                         <Text style={styles.lookupModalCloseText}>✕</Text>
@@ -1331,7 +1332,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                                     ...prev,
                                                                                     [row.webId]: option.value
                                                                                 }));
-                                                                                setShowLookupModal(false);
+                                                                                setShowLookupModal(prev => ({ ...prev, [row.webId]: false }));
                                                                             }}
                                                                             activeOpacity={0.7}
                                                                         >
