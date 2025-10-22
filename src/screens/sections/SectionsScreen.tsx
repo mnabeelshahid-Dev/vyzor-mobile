@@ -28,6 +28,10 @@ import { WebView } from 'react-native-webview';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import RefreshSignatureIcon from '../../assets/svgs/RefreshSignature.svg';
+import QRCodeScannerIcon from '../../assets/svgs/qrcodescanner.svg';
+import QRCodeValidatorIcon from '../../assets/svgs/qrcodevalidator.svg';
+import BarCodeScannerIcon from '../../assets/svgs/barcodescannernew.svg';
+import BarCodeValidatorIcon from '../../assets/svgs/barcodesvalidator.svg';
 import { useRoute } from '@react-navigation/native';
 import { showErrorToast, showSuccessToast } from '../../components';
 import { apiService } from '../../services/api';
@@ -1606,27 +1610,38 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 <Text style={styles.radioLabel}>
                                                     {row.columns[0]?.components[0]?.text}
                                                 </Text>
-                                                <TouchableOpacity
-                                                    style={styles.radioChoiceRow}
-                                                    activeOpacity={0.8}
-                                                    onPress={() => {
-                                                        setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                    }}
-                                                >
-                                                    <Text style={[
-                                                        styles.radioOptionText,
-                                                        {
-                                                            backgroundColor: '#D8ECFA',
-                                                            paddingHorizontal: getResponsive(8),
-                                                            paddingVertical: getResponsive(4),
-                                                            borderRadius: getResponsive(6),
-                                                            minWidth: getResponsive(100),
-                                                            textAlign: 'center'
-                                                        }
-                                                    ]}>
-                                                        {qrCodeValue || 'Scan QR Code'}
-                                                    </Text>
-                                                </TouchableOpacity>
+                                                <View style={styles.radioChoiceRow}>
+                                                    {qrCodeValue ? (
+                                                        // After scanning - show input field with value
+                                                        <View style={styles.inputFieldContainer}>
+                                                            <TextInput
+                                                                style={styles.inputField}
+                                                                value={qrCodeValue}
+                                                                editable={false}
+                                                                placeholder="Scanned QR Code"
+                                                            />
+                                                        </View>
+                                                    ) : (
+                                                        // Initially - show icon and text
+                                                        <View style={styles.qrCodeContainer}>
+                                                            <View style={styles.qrCodeIconContainer}>
+                                                                <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                            </View>
+                                                            <Text style={styles.qrCodeText}>
+                                                                
+                                                            </Text>
+                                                        </View>
+                                                    )}
+                                                    <TouchableOpacity
+                                                        style={styles.scanButton}
+                                                        activeOpacity={0.8}
+                                                        onPress={() => {
+                                                            setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                        }}
+                                                    >
+                                                        <Text style={styles.scanButtonText}>Scan</Text>
+                                                    </TouchableOpacity>
+                                                </View>
                                                 
                                                 {/* QR Code Scanner Modal */}
                                                 <Modal
@@ -1697,29 +1712,35 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 <Text style={styles.radioLabel}>
                                                     {row.columns[0]?.components[0]?.text}
                                                 </Text>
-                                                <TouchableOpacity
-                                                    style={styles.radioChoiceRow}
-                                                    activeOpacity={0.8}
-                                                    onPress={() => {
-                                                        setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                    }}
-                                                >
-                                                    <Text style={[
-                                                        styles.radioOptionText,
-                                                        {
-                                                            backgroundColor: getStatusColor(),
-                                                            paddingHorizontal: getResponsive(8),
-                                                            paddingVertical: getResponsive(4),
-                                                            borderRadius: getResponsive(6),
-                                                            minWidth: getResponsive(120),
-                                                            textAlign: 'center',
-                                                            color: validationStatus === 'pending' ? '#021639' : '#fff',
-                                                            fontWeight: validationStatus !== 'pending' ? 'bold' : 'normal'
-                                                        }
-                                                    ]}>
-                                                        {getStatusText()}
-                                                    </Text>
-                                                </TouchableOpacity>
+                                                <View style={styles.radioChoiceRow}>
+                                                    {validationStatus !== 'pending' ? (
+                                                        // After scanning - show validation message
+                                                        <View style={styles.validationMessageContainer}>
+                                                            <Text style={[styles.validationMessage, { color: validationStatus === 'valid' ? '#28B446' : '#F44336' }]}>
+                                                                {getStatusText()}
+                                                            </Text>
+                                                        </View>
+                                                    ) : (
+                                                        // Initially - show icon and text
+                                                        <View style={styles.qrCodeContainer}>
+                                                            <View style={styles.qrCodeIconContainer}>
+                                                                <QRCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                            </View>
+                                                            <Text style={styles.qrCodeText}>
+                                                                
+                                                            </Text>
+                                                        </View>
+                                                    )}
+                                                    <TouchableOpacity
+                                                        style={[styles.scanButton, { backgroundColor: getStatusColor() }]}
+                                                        activeOpacity={0.8}
+                                                        onPress={() => {
+                                                            setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                        }}
+                                                    >
+                                                        <Text style={[styles.scanButtonText, { color: validationStatus === 'pending' ? '#021639' : '#fff' }]}>Scan</Text>
+                                                    </TouchableOpacity>
+                                                </View>
                                                 
                                                 {/* QR Validator Scanner Modal */}
                                                 <Modal
@@ -1785,27 +1806,38 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 <Text style={styles.radioLabel}>
                                                     {row.columns[0]?.components[0]?.text}
                                                 </Text>
-                                                <TouchableOpacity
-                                                    style={styles.radioChoiceRow}
-                                                    activeOpacity={0.8}
-                                                    onPress={() => {
-                                                        setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                    }}
-                                                >
-                                                    <Text style={[
-                                                        styles.radioOptionText,
-                                                        {
-                                                            backgroundColor: '#D8ECFA',
-                                                            paddingHorizontal: getResponsive(8),
-                                                            paddingVertical: getResponsive(4),
-                                                            borderRadius: getResponsive(6),
-                                                            minWidth: getResponsive(100),
-                                                            textAlign: 'center'
-                                                        }
-                                                    ]}>
-                                                        {barcodeValue || 'Scan Barcode'}
-                                                    </Text>
-                                                </TouchableOpacity>
+                                                <View style={styles.radioChoiceRow}>
+                                                    {barcodeValue ? (
+                                                        // After scanning - show input field with value
+                                                        <View style={styles.inputFieldContainer}>
+                                                            <TextInput
+                                                                style={styles.inputField}
+                                                                value={barcodeValue}
+                                                                editable={false}
+                                                                placeholder="Scanned Barcode"
+                                                            />
+                                                        </View>
+                                                    ) : (
+                                                        // Initially - show icon and text
+                                                        <View style={styles.barcodeContainer}>
+                                                            <View style={styles.barcodeIconContainer}>
+                                                                <BarCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                            </View>
+                                                            <Text style={styles.barcodeText}>
+                                                                
+                                                            </Text>
+                                                        </View>
+                                                    )}
+                                                    <TouchableOpacity
+                                                        style={styles.scanButton}
+                                                        activeOpacity={0.8}
+                                                        onPress={() => {
+                                                            setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                        }}
+                                                    >
+                                                        <Text style={styles.scanButtonText}>Scan</Text>
+                                                    </TouchableOpacity>
+                                                </View>
                                                 
                                                 {/* Barcode Scanner Modal */}
                                                 <Modal
@@ -1876,29 +1908,35 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 <Text style={styles.radioLabel}>
                                                     {row.columns[0]?.components[0]?.text}
                                                 </Text>
-                                                <TouchableOpacity
-                                                    style={styles.radioChoiceRow}
-                                                    activeOpacity={0.8}
-                                                    onPress={() => {
-                                                        setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                    }}
-                                                >
-                                                    <Text style={[
-                                                        styles.radioOptionText,
-                                                        {
-                                                            backgroundColor: getStatusColor(),
-                                                            paddingHorizontal: getResponsive(8),
-                                                            paddingVertical: getResponsive(4),
-                                                            borderRadius: getResponsive(6),
-                                                            minWidth: getResponsive(120),
-                                                            textAlign: 'center',
-                                                            color: validationStatus === 'pending' ? '#021639' : '#fff',
-                                                            fontWeight: validationStatus !== 'pending' ? 'bold' : 'normal'
-                                                        }
-                                                    ]}>
-                                                        {getStatusText()}
-                                                    </Text>
-                                                </TouchableOpacity>
+                                                <View style={styles.radioChoiceRow}>
+                                                    {validationStatus !== 'pending' ? (
+                                                        // After scanning - show validation message
+                                                        <View style={styles.validationMessageContainer}>
+                                                            <Text style={[styles.validationMessage, { color: validationStatus === 'valid' ? '#28B446' : '#F44336' }]}>
+                                                                {getStatusText()}
+                                                            </Text>
+                                                        </View>
+                                                    ) : (
+                                                        // Initially - show icon and text
+                                                        <View style={styles.barcodeContainer}>
+                                                            <View style={styles.barcodeIconContainer}>
+                                                                <BarCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                            </View>
+                                                            <Text style={styles.barcodeText}>
+                                                                
+                                                            </Text>
+                                                        </View>
+                                                    )}
+                                                    <TouchableOpacity
+                                                        style={[styles.scanButton, { backgroundColor: getStatusColor() }]}
+                                                        activeOpacity={0.8}
+                                                        onPress={() => {
+                                                            setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                        }}
+                                                    >
+                                                        <Text style={[styles.scanButtonText, { color: validationStatus === 'pending' ? '#021639' : '#fff' }]}>Scan</Text>
+                                                    </TouchableOpacity>
+                                                </View>
                                                 
                                                 {/* Barcode Validator Scanner Modal */}
                                                 <Modal
@@ -2822,6 +2860,94 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: getResponsive(16),
         fontWeight: '600',
+    },
+    // New styles for QR Code and Barcode controls
+    qrCodeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F5F5F5',
+        paddingHorizontal: getResponsive(12),
+        paddingVertical: getResponsive(8),
+        borderRadius: getResponsive(8),
+        flex: 1,
+        marginRight: getResponsive(8),
+    },
+    qrCodeIconContainer: {
+        width: getResponsive(32),
+        height: getResponsive(32),
+        borderRadius: getResponsive(16),
+        // backgroundColor: '#0088E7',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: getResponsive(8),
+    },
+    qrCodeText: {
+        fontSize: getResponsive(14),
+        color: '#021639',
+        fontWeight: '500',
+    },
+    barcodeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F5F5F5',
+        paddingHorizontal: getResponsive(12),
+        paddingVertical: getResponsive(8),
+        borderRadius: getResponsive(8),
+        flex: 1,
+        marginRight: getResponsive(8),
+    },
+    barcodeIconContainer: {
+        width: getResponsive(32),
+        height: getResponsive(32),
+        borderRadius: getResponsive(16),
+        // backgroundColor: '#0088E7',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: getResponsive(8),
+    },
+    barcodeText: {
+        fontSize: getResponsive(14),
+        color: '#021639',
+        fontWeight: '500',
+    },
+    scanButton: {
+        backgroundColor: '#0088E7',
+        paddingHorizontal: getResponsive(16),
+        paddingVertical: getResponsive(8),
+        borderRadius: getResponsive(6),
+        justifyContent: 'center',
+        alignItems: 'center',
+        minWidth: getResponsive(60),
+    },
+    scanButtonText: {
+        color: '#fff',
+        fontSize: getResponsive(14),
+        fontWeight: '600',
+    },
+    // New styles for input field and validation message
+    inputFieldContainer: {
+        flex: 1,
+        marginRight: getResponsive(8),
+    },
+    inputField: {
+        backgroundColor: '#F5F5F5',
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: getResponsive(8),
+        paddingHorizontal: getResponsive(12),
+        paddingVertical: getResponsive(8),
+        fontSize: getResponsive(14),
+        color: '#021639',
+    },
+    validationMessageContainer: {
+        flex: 1,
+        marginRight: getResponsive(8),
+        justifyContent: 'center',
+    },
+    validationMessage: {
+        fontSize: getResponsive(14),
+        fontWeight: '600',
+        textAlign: 'center',
     },
 });
 
