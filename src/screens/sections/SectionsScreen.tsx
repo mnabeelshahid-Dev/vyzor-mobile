@@ -32,6 +32,7 @@ import QRCodeScannerIcon from '../../assets/svgs/qrcodescanner.svg';
 import QRCodeValidatorIcon from '../../assets/svgs/qrcodevalidator.svg';
 import BarCodeScannerIcon from '../../assets/svgs/barcodescannernew.svg';
 import BarCodeValidatorIcon from '../../assets/svgs/barcodesvalidator.svg';
+import CalendarIcon from '../../assets/svgs/calendar.svg';
 import { useRoute } from '@react-navigation/native';
 import { showErrorToast, showSuccessToast } from '../../components';
 import { apiService } from '../../services/api';
@@ -1189,27 +1190,29 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 <Text style={styles.radioLabel}>
                                                     {row.columns[0]?.components[0]?.text}
                                                 </Text>
-                                                <TouchableOpacity
-                                                    style={styles.radioChoiceRow}
-                                                    activeOpacity={0.8}
-                                                    onPress={() => {
-                                                        setShowDatePicker(prev => ({ ...prev, [row.webId]: true }));
-                                                    }}
-                                                >
-                                                    <Text style={[
-                                                        styles.radioOptionText,
-                                                        {
-                                                            backgroundColor: '#D8ECFA',
-                                                            paddingHorizontal: getResponsive(8),
-                                                            paddingVertical: getResponsive(4),
-                                                            borderRadius: getResponsive(6),
-                                                            minWidth: getResponsive(100),
-                                                            textAlign: 'center'
-                                                        }
-                                                    ]}>
-                                                        {dateValue || 'Select Date'}
-                                                    </Text>
-                                                </TouchableOpacity>
+                                                <View style={styles.radioChoiceRow}>
+                                                    <TouchableOpacity
+                                                        style={styles.dateInputContainer}
+                                                        activeOpacity={0.8}
+                                                        onPress={() => {
+                                                            setShowDatePicker(prev => ({ ...prev, [row.webId]: true }));
+                                                        }}
+                                                    >
+                                                        <View style={styles.dateInputField}>
+                                                            <Text style={styles.dateInputText}>
+                                                                {dateValue ? new Date(dateValue).toLocaleDateString('en-US', { 
+                                                                    month: 'numeric', 
+                                                                    day: 'numeric', 
+                                                                    year: 'numeric' 
+                                                                }) : 'Select Date'}
+                                                            </Text>
+                                                            <View style={styles.dateInputSeparator} />
+                                                            <View style={styles.calendarIconContainer}>
+                                                                <CalendarIcon width={getResponsive(20)} height={getResponsive(20)} />
+                                                            </View>
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                </View>
                                                 {showPicker && (
                                                     <DateTimePicker
                                                         value={dateValue ? new Date(dateValue) : new Date()}
@@ -2948,6 +2951,42 @@ const styles = StyleSheet.create({
         fontSize: getResponsive(14),
         fontWeight: '600',
         textAlign: 'center',
+    },
+    // Date control styles
+    dateInputContainer: {
+        flex: 1,
+    },
+    dateInputField: {
+        backgroundColor: '#F5F5F5',
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: getResponsive(8),
+        width: getResponsive(140),
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: getResponsive(4),
+        paddingVertical: getResponsive(8),
+    },
+    dateInputText: {
+        flex: 1,
+        fontSize: getResponsive(14),
+        color: '#021639',
+    },
+    dateInputSeparator: {
+        width: 1,
+        height: getResponsive(20),
+        backgroundColor: '#E0E0E0',
+        marginHorizontal: getResponsive(8),
+    },
+    calendarIconContainer: {
+        width: getResponsive(32),
+        height: getResponsive(32),
+        backgroundColor: '#F5F5F5',
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: getResponsive(6),
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });
 
