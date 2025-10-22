@@ -2951,14 +2951,13 @@ const styles = StyleSheet.create({
     // Attachment Modal Styles
     attachmentModalContainer: {
         flex: 1,
-        // height: '50%',
+        // height: '80%',
         backgroundColor: '#fff',
-        marginTop: 'auto',
+        // marginTop: 'auto',
         borderTopLeftRadius: getResponsive(20),
         borderTopRightRadius: getResponsive(20),
     },
     attachmentModalHeader: {
-        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: getResponsive(20),
