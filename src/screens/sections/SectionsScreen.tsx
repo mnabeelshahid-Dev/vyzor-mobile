@@ -25,6 +25,8 @@ import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Camera } from 'react-native-camera-kit';
 import { WebView } from 'react-native-webview';
+import { pick, types } from '@react-native-documents/picker';
+import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import RefreshSignatureIcon from '../../assets/svgs/RefreshSignature.svg';
@@ -515,6 +517,48 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         }
     };
 
+    const checkAndRequestPermissions = async () => {
+        if (Platform.OS === 'android') {
+            try {
+                // For Android 13+ (API 33+), we need READ_MEDIA_IMAGES permission
+                // For older versions, we need READ_EXTERNAL_STORAGE
+                const androidVersion = Platform.Version;
+                console.log('Android version:', androidVersion);
+                
+                let permission;
+                if (androidVersion >= 33) {
+                    permission = PERMISSIONS.ANDROID.READ_MEDIA_IMAGES;
+                } else {
+                    permission = PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
+                }
+                
+                console.log('Requesting permission:', permission);
+                const result = await request(permission);
+                console.log('Permission result:', result);
+                
+                if (result === RESULTS.GRANTED) {
+                    return true;
+                } else if (result === RESULTS.DENIED) {
+                    // Show a more helpful message
+                    showErrorToast('Permission required', 'Storage permission is required to select files. Please grant permission when prompted.');
+                    return false;
+                } else if (result === RESULTS.NEVER_ASK_AGAIN) {
+                    showErrorToast('Permission denied', 'Please enable storage permission in app settings');
+                    return false;
+                } else {
+                    showErrorToast('Permission error', 'Unable to get storage permission');
+                    return false;
+                }
+                
+            } catch (error) {
+                console.log('Permission error:', error);
+                showErrorToast('Permission error', 'Unable to request storage permission');
+                return false;
+            }
+        }
+        return true; // iOS doesn't need explicit permission for document picker
+    };
+
     const handleAddAttachments = async (rowId: string) => {
         const remaining = Math.max(1, 5 - (attachmentsByRow[rowId]?.length || 0));
 
@@ -530,15 +574,61 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             }
         };
 
+        const fromFileManager = async () => {
+            try {
+                console.log('Opening document picker...');
+                const res = await pick({
+                    type: [types.allFiles],
+                    allowMultiSelection: true,
+                });
+                console.log('Document picker result:', res);
+                
+                if (res?.length) {
+                    for (const doc of res) {
+                        console.log('Uploading document:', doc);
+                        await uploadAttachment(rowId, doc);
+                    }
+                }
+            } catch (err) {
+                console.log('Document picker error:', err);
+                if (err?.code === 'DOCUMENT_PICKER_CANCELED') {
+                    // User cancelled the picker
+                    console.log('User cancelled document picker');
+                } else if (err?.message?.includes('permission') || err?.message?.includes('Permission')) {
+                    // If it's a permission error, try requesting permissions first
+                    console.log('Permission error detected, requesting permissions...');
+                    const hasPermission = await checkAndRequestPermissions();
+                    if (hasPermission) {
+                        // Retry the document picker
+                        try {
+                            const retryRes = await pick({
+                                type: [types.allFiles],
+                                allowMultiSelection: true,
+                            });
+                            if (retryRes?.length) {
+                                for (const doc of retryRes) {
+                                    await uploadAttachment(rowId, doc);
+                                }
+                            }
+                        } catch (retryErr) {
+                            showErrorToast('File selection failed', `Unable to select files: ${retryErr?.message || 'Unknown error'}`);
+                        }
+                    }
+                } else {
+                    showErrorToast('File selection failed', `Unable to select files: ${err?.message || 'Unknown error'}`);
+                }
+            }
+        };
 
         if (Platform.OS === 'ios') {
             ActionSheetIOS.showActionSheetWithOptions(
                 {
-                    options: ['Cancel', 'Choose from Library'],
+                    options: ['Cancel', 'Choose from Library', 'Choose from Files'],
                     cancelButtonIndex: 0,
                 },
                 (buttonIndex) => {
                     if (buttonIndex === 1) fromLibrary();
+                    if (buttonIndex === 2) fromFileManager();
                 }
             );
         } else {
@@ -547,6 +637,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 undefined,
                 [
                     { text: 'Choose from Library', onPress: fromLibrary },
+                    { text: 'Choose from Files', onPress: fromFileManager },
                     { text: 'Cancel', style: 'cancel' },
                 ],
                 { cancelable: true }
@@ -2860,7 +2951,11 @@ const styles = StyleSheet.create({
     // Attachment Modal Styles
     attachmentModalContainer: {
         flex: 1,
+        // height: '50%',
         backgroundColor: '#fff',
+        marginTop: 'auto',
+        borderTopLeftRadius: getResponsive(20),
+        borderTopRightRadius: getResponsive(20),
     },
     attachmentModalHeader: {
         flexDirection: 'row',
