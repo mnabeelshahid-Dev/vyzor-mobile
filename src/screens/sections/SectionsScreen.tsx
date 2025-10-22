@@ -25,6 +25,8 @@ import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Camera } from 'react-native-camera-kit';
 import { WebView } from 'react-native-webview';
+import { pick, types } from '@react-native-documents/picker';
+import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import RefreshSignatureIcon from '../../assets/svgs/RefreshSignature.svg';
@@ -515,6 +517,48 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         }
     };
 
+    const checkAndRequestPermissions = async () => {
+        if (Platform.OS === 'android') {
+            try {
+                // For Android 13+ (API 33+), we need READ_MEDIA_IMAGES permission
+                // For older versions, we need READ_EXTERNAL_STORAGE
+                const androidVersion = Platform.Version;
+                console.log('Android version:', androidVersion);
+                
+                let permission;
+                if (androidVersion >= 33) {
+                    permission = PERMISSIONS.ANDROID.READ_MEDIA_IMAGES;
+                } else {
+                    permission = PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
+                }
+                
+                console.log('Requesting permission:', permission);
+                const result = await request(permission);
+                console.log('Permission result:', result);
+                
+                if (result === RESULTS.GRANTED) {
+                    return true;
+                } else if (result === RESULTS.DENIED) {
+                    // Show a more helpful message
+                    showErrorToast('Permission required', 'Storage permission is required to select files. Please grant permission when prompted.');
+                    return false;
+                } else if (result === RESULTS.NEVER_ASK_AGAIN) {
+                    showErrorToast('Permission denied', 'Please enable storage permission in app settings');
+                    return false;
+                } else {
+                    showErrorToast('Permission error', 'Unable to get storage permission');
+                    return false;
+                }
+                
+            } catch (error) {
+                console.log('Permission error:', error);
+                showErrorToast('Permission error', 'Unable to request storage permission');
+                return false;
+            }
+        }
+        return true; // iOS doesn't need explicit permission for document picker
+    };
+
     const handleAddAttachments = async (rowId: string) => {
         const remaining = Math.max(1, 5 - (attachmentsByRow[rowId]?.length || 0));
 
@@ -530,15 +574,61 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             }
         };
 
+        const fromFileManager = async () => {
+            try {
+                console.log('Opening document picker...');
+                const res = await pick({
+                    type: [types.allFiles],
+                    allowMultiSelection: true,
+                });
+                console.log('Document picker result:', res);
+                
+                if (res?.length) {
+                    for (const doc of res) {
+                        console.log('Uploading document:', doc);
+                        await uploadAttachment(rowId, doc);
+                    }
+                }
+            } catch (err) {
+                console.log('Document picker error:', err);
+                if (err?.code === 'DOCUMENT_PICKER_CANCELED') {
+                    // User cancelled the picker
+                    console.log('User cancelled document picker');
+                } else if (err?.message?.includes('permission') || err?.message?.includes('Permission')) {
+                    // If it's a permission error, try requesting permissions first
+                    console.log('Permission error detected, requesting permissions...');
+                    const hasPermission = await checkAndRequestPermissions();
+                    if (hasPermission) {
+                        // Retry the document picker
+                        try {
+                            const retryRes = await pick({
+                                type: [types.allFiles],
+                                allowMultiSelection: true,
+                            });
+                            if (retryRes?.length) {
+                                for (const doc of retryRes) {
+                                    await uploadAttachment(rowId, doc);
+                                }
+                            }
+                        } catch (retryErr) {
+                            showErrorToast('File selection failed', `Unable to select files: ${retryErr?.message || 'Unknown error'}`);
+                        }
+                    }
+                } else {
+                    showErrorToast('File selection failed', `Unable to select files: ${err?.message || 'Unknown error'}`);
+                }
+            }
+        };
 
         if (Platform.OS === 'ios') {
             ActionSheetIOS.showActionSheetWithOptions(
                 {
-                    options: ['Cancel', 'Choose from Library'],
+                    options: ['Cancel', 'Choose from Library', 'Choose from Files'],
                     cancelButtonIndex: 0,
                 },
                 (buttonIndex) => {
                     if (buttonIndex === 1) fromLibrary();
+                    if (buttonIndex === 2) fromFileManager();
                 }
             );
         } else {
@@ -547,6 +637,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 undefined,
                 [
                     { text: 'Choose from Library', onPress: fromLibrary },
+                    { text: 'Choose from Files', onPress: fromFileManager },
                     { text: 'Cancel', style: 'cancel' },
                 ],
                 { cancelable: true }
@@ -1473,33 +1564,37 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>Take Pictures</Text>
                                                 </View>
 
-                                                <View
-                                                    style={[
-                                                        styles.multiImgBox,
-                                                        { width: '50%', marginTop: 0, marginRight: getResponsive(8) },
-                                                    ]}
-                                                >
-                                                    {(rowImages[row.webId] || []).map(img => (
-                                                        <View key={img.id} style={styles.multiImgThumbBox}>
-                                                            <TouchableOpacity onPress={() => setPreviewUri(img.uri)}>
-                                                                <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
-                                                            </TouchableOpacity>
-                                                            <TouchableOpacity
-                                                                style={styles.multiImgRemove}
-                                                                onPress={() => handleRemoveImage(row.webId, img.id)}
-                                                            >
-                                                                <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    ))}
-
+                                                <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
+                                                    {/* Camera Icon - Always on the left */}
                                                     <TouchableOpacity
-                                                        style={styles.multiImgAddBtn}
+                                                        style={styles.attachmentCameraBtn}
                                                         onPress={() => handleAddImages(row.webId)}
                                                         activeOpacity={0.7}
                                                     >
                                                         <CameraIcon />
                                                     </TouchableOpacity>
+
+                                                    {/* Horizontal Scroll for Image Boxes */}
+                                                    <ScrollView
+                                                        horizontal
+                                                        showsHorizontalScrollIndicator={false}
+                                                        style={styles.attachmentScrollView}
+                                                        contentContainerStyle={styles.attachmentScrollContent}
+                                                    >
+                                                        {(rowImages[row.webId] || []).map(img => (
+                                                            <View key={img.id} style={styles.attachmentThumbBox}>
+                                                                <TouchableOpacity onPress={() => setPreviewUri(img.uri)}>
+                                                                    <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity
+                                                                    style={styles.attachmentRemove}
+                                                                    onPress={() => handleRemoveImage(row.webId, img.id)}
+                                                                >
+                                                                    <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        ))}
+                                                    </ScrollView>
                                                 </View>
                                             </View>
                                         );
@@ -1523,30 +1618,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     </Text>
                                                 </View>
 
-                                                <View
-                                                    style={[
-                                                        styles.multiImgBox,
-                                                        { width: '50%', marginTop: 0, marginRight: getResponsive(8) },
-                                                    ]}
-                                                >
-                                                    {files.map(file => (
-                                                        <View key={file.id} style={styles.multiImgThumbBox}>
-                                                            <TouchableOpacity onPress={() => file.uri && setPreviewUri(file.uri)}>
-                                                                <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
-                                                                    <Text numberOfLines={1} style={styles.attachmentName}>{file.name || file.id}</Text>
-                                                                </View>
-                                                            </TouchableOpacity>
-                                                            <TouchableOpacity
-                                                                style={styles.multiImgRemove}
-                                                                onPress={() => handleRemoveAttachment(row.webId, file.id)}
-                                                            >
-                                                                <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    ))}
-
+                                                <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
+                                                    {/* Camera Icon - Always on the left */}
                                                     <TouchableOpacity
-                                                        style={styles.multiImgAddBtn}
+                                                        style={styles.attachmentCameraBtn}
                                                         onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: true }))}
                                                         activeOpacity={0.7}
                                                         disabled={uploading}
@@ -1554,6 +1629,30 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         <CameraIcon />
                                                     </TouchableOpacity>
                                                     {uploading ? <ActivityIndicator size="small" color="#1292E6" style={{ marginLeft: 6 }} /> : null}
+
+                                                    {/* Horizontal Scroll for Image Boxes */}
+                                                    <ScrollView
+                                                        horizontal
+                                                        showsHorizontalScrollIndicator={false}
+                                                        style={styles.attachmentScrollView}
+                                                        contentContainerStyle={styles.attachmentScrollContent}
+                                                    >
+                                                        {files.map(file => (
+                                                            <View key={file.id} style={styles.attachmentThumbBox}>
+                                                                <TouchableOpacity onPress={() => file.uri && setPreviewUri(file.uri)}>
+                                                                    <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                                        <Text numberOfLines={1} style={styles.attachmentName}>{file.name || file.id}</Text>
+                                                                    </View>
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity
+                                                                    style={styles.attachmentRemove}
+                                                                    onPress={() => handleRemoveAttachment(row.webId, file.id)}
+                                                                >
+                                                                    <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        ))}
+                                                    </ScrollView>
                                                 </View>
 
                                                 {/* Attachment Detail Modal */}
@@ -2616,6 +2715,46 @@ const styles = StyleSheet.create({
         marginLeft: getResponsive(10),
         marginRight: getResponsive(4),
     },
+    // New attachment container styles
+    attachmentContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#0088E733',
+        borderRadius: getResponsive(6),
+        padding: getResponsive(8),
+        minHeight: getResponsive(60),
+    },
+    attachmentCameraBtn: {
+        marginRight: getResponsive(8),
+        padding: getResponsive(4),
+    },
+    attachmentScrollView: {
+        flex: 1,
+        maxHeight: getResponsive(60),
+    },
+    attachmentScrollContent: {
+        alignItems: 'center',
+        paddingRight: getResponsive(8),
+    },
+    attachmentThumbBox: {
+        marginRight: getResponsive(8),
+        position: 'relative',
+    },
+    attachmentRemove: {
+        position: 'absolute',
+        top: -7,
+        right: -7,
+        backgroundColor: '#fff',
+        borderWidth: 2,
+        borderColor: '#1292E6',
+        borderRadius: getResponsive(14),
+        width: getResponsive(20),
+        height: getResponsive(20),
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2,
+        elevation: 2,
+    },
     notesRow: {
         backgroundColor: '#F7F9FC',
         borderRadius: getResponsive(12),
@@ -2860,10 +2999,14 @@ const styles = StyleSheet.create({
     // Attachment Modal Styles
     attachmentModalContainer: {
         flex: 1,
+        // height: '80%',
         backgroundColor: '#fff',
+        // marginTop: 'auto',
+        borderTopLeftRadius: getResponsive(20),
+        borderTopRightRadius: getResponsive(20),
     },
     attachmentModalHeader: {
-        flexDirection: 'row',
+        flexDirection: 'row-reverse',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: getResponsive(20),
