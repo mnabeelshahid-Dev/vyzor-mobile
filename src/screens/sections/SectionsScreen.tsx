@@ -38,6 +38,7 @@ import CalendarIcon from '../../assets/svgs/calendar.svg';
 import { useRoute } from '@react-navigation/native';
 import { showErrorToast, showSuccessToast } from '../../components';
 import { apiService } from '../../services/api';
+import { ensureCameraAndMediaPermissions } from '../../utils/takeImagePermission';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -369,83 +370,132 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     //     );
     // };
 
-    async function ensureAllSignaturesSaved() {
-        const rowIds = Array.from(signatureRowIdsRef.current);
-        const toCapture = rowIds.filter(id => !signatureValues[id]?.encoded);
-        if (toCapture.length === 0) return;
+    function safeReadSignature(rowId: string) {
+        return new Promise<void>((resolve) => {
+            const ref = signatureRefs.current[rowId];
+            if (!ref || typeof ref.readSignature !== 'function') return resolve();
 
-        await Promise.all(
-            toCapture.map(
-                (rowId) =>
-                    new Promise<void>((resolve) => {
-                        const ref = signatureRefs.current[rowId];
-                        if (!ref) return resolve();
-                        signatureWaiters.current[rowId] = () => resolve();
-                        // react-native-signature-canvas → triggers onOK
-                        ref.readSignature();
-                    })
-            )
-        );
+            signatureWaiters.current[rowId] = () => resolve();
+
+            let tries = 0;
+            const tryRead = () => {
+                try {
+                    ref.readSignature();
+                } catch (e: any) {
+                    if (tries++ < 2) {
+                        setTimeout(tryRead, 120);
+                    } else {
+                        // Don’t spam console: just resolve and let user re-try if needed
+                        resolve();
+                    }
+                }
+            };
+
+            setTimeout(tryRead, 60);
+        });
+    }
+
+    async function ensureAllSignaturesSaved(): Promise<boolean> {
+        // Validate only currently visible section’s signature rows
+        try {
+            const missing: string[] = [];
+            const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
+            rows.forEach((row) => {
+                const hasSignature = row.columns?.some((col: any) =>
+                    col.components?.some((c: any) => c.component === 'SIGNATURE')
+                );
+                if (hasSignature && !signatureValues[row.webId]?.encoded) {
+                    missing.push(row.columns?.[0]?.components?.[0]?.text || 'Signature');
+                }
+            });
+
+            if (missing.length) {
+                showErrorToast('Signature required', `Please provide: ${missing[0]}`);
+                return false;
+            }
+            return true;
+        } catch {
+            return true;
+        }
     }
 
     const handleAddImages = async (rowId: string) => {
         const remaining = Math.max(1, 5 - (rowImages[rowId]?.length || 0));
 
         const fromCamera = async () => {
-            const res = await launchCamera({
-                mediaType: 'photo',
-                saveToPhotos: true,
-                cameraType: 'back',
-            });
-            if (res.assets?.length) {
-                const newImgs = res.assets
-                    .filter(a => a.uri)
-                    .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
-                setRowImages(prev => ({
-                    ...prev,
-                    [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5),
-                }));
+            const ok = await ensureCameraAndMediaPermissions();
+            if (!ok) {
+                showErrorToast('Camera blocked', 'Grant Camera and Photos permissions.');
+                return;
+            }
+            try {
+                const res = await launchCamera({
+                    mediaType: 'photo',
+                    saveToPhotos: true,
+                    cameraType: 'back',
+                    quality: 0.9,
+                });
+                if (res.didCancel) return;
+                if (res.errorCode) {
+                    showErrorToast('Camera error', res.errorMessage || res.errorCode);
+                    return;
+                }
+                if (res.assets?.length) {
+                    const newImgs = res.assets
+                        .filter(a => a.uri)
+                        .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
+                    setRowImages(prev => ({
+                        ...prev,
+                        [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5),
+                    }));
+                }
+            } catch (e: any) {
+                showErrorToast('Camera error', e?.message || 'Failed to open camera');
             }
         };
 
         const fromLibrary = async () => {
-            const res = await launchImageLibrary({
-                mediaType: 'photo',
-                selectionLimit: remaining,
-            });
-            if (res.assets?.length) {
-                const newImgs = res.assets
-                    .filter(a => a.uri)
-                    .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
-                setRowImages(prev => ({
-                    ...prev,
-                    [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5),
-                }));
+            const ok = await ensureCameraAndMediaPermissions();
+            if (!ok) {
+                showErrorToast('Photos blocked', 'Grant Photos permission.');
+                return;
+            }
+            try {
+                const res = await launchImageLibrary({
+                    mediaType: 'photo',
+                    selectionLimit: remaining,
+                    quality: 0.9,
+                });
+                if (res.didCancel) return;
+                if (res.errorCode) {
+                    showErrorToast('Library error', res.errorMessage || res.errorCode);
+                    return;
+                }
+                if (res.assets?.length) {
+                    const newImgs = res.assets
+                        .filter(a => a.uri)
+                        .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
+                    setRowImages(prev => ({
+                        ...prev,
+                        [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5),
+                    }));
+                }
+            } catch (e: any) {
+                showErrorToast('Library error', e?.message || 'Failed to open library');
             }
         };
 
         if (Platform.OS === 'ios') {
             ActionSheetIOS.showActionSheetWithOptions(
-                {
-                    options: ['Cancel', 'Take Photo', 'Choose from Library'],
-                    cancelButtonIndex: 0,
-                },
-                (buttonIndex) => {
-                    if (buttonIndex === 1) fromCamera();
-                    if (buttonIndex === 2) fromLibrary();
-                }
+                { options: ['Cancel', 'Take Photo', 'Choose from Library'], cancelButtonIndex: 0 },
+                (i) => { if (i === 1) fromCamera(); if (i === 2) fromLibrary(); }
             );
         } else {
-            Alert.alert(
-                'Add Photo',
-                undefined,
-                [
-                    { text: 'Take Photo', onPress: fromCamera },
-                    { text: 'Choose from Library', onPress: fromLibrary },
-                    { text: 'Cancel', style: 'cancel' },
-                ],
-                { cancelable: true }
-            );
+            Alert.alert('Add Photo', undefined, [
+                { text: 'Take Photo', onPress: fromCamera },
+                { text: 'Choose from Library', onPress: fromLibrary },
+                { text: 'Cancel', style: 'cancel' },
+            ], { cancelable: true });
         }
     };
 
@@ -696,6 +746,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         queryKey: ['sectionRows', currentSectionId],
         queryFn: () => (currentSectionId ? fetchSectionRows(currentSectionId) : Promise.resolve([])),
         enabled: !!currentSectionId,
+        // automatically refetch every 2 minutes
+        refetchInterval: 2 * 60 * 1000,
+        refetchIntervalInBackground: true,
     });
 
 
@@ -813,21 +866,38 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     }
 
     const handleSubmit = async () => {
-        await ensureAllSignaturesSaved();
+        const ok = await ensureAllSignaturesSaved();
+        if (!ok) return;
 
-        const sectionModels = filteredList.map((section: any) => {
-            return {
-                startDate: formatDateTimeUTC(startDate || new Date()),
-                endDate: formatDateTimeUTC(endDate || new Date()),
-                key: section.key || section.webId || '',
-                formConfigurationSectionId: currentFormConfigurationSectionId || 0,
-                documentId: documentId,
-                userId: assignUserId,
-                data: (section.formSectionRowModels || []).flatMap((row: any) => {
+        // Helper: get rows for a section from cache or fetch
+        const getRowsForSection = async (sectionId: number | string) => {
+            const key = ['sectionRows', sectionId] as const;
+            const cached: any = queryClient.getQueryData(key);
+            let rows = Array.isArray(cached?.data) ? cached.data : (cached?.data || null);
+            if (!rows) {
+                const resp = await fetchSectionRows(sectionId);
+                rows = Array.isArray(resp?.data) ? resp.data : (resp?.data || []);
+                queryClient.setQueryData(key, resp);
+            }
+            return rows as any[];
+        };
+
+        // Build all sectionModels (id1, id2, ...)
+        const sectionModels = await Promise.all(
+            sectionIds.map(async (sectionId, idx) => {
+                const formConfigId =
+                    configSectionIds[idx] ??
+                    formConfigurationSectionIds?.[`id${idx + 1}`] ??
+                    0;
+
+                const rows = await getRowsForSection(sectionId);
+                if (!rows || rows.length === 0) return null;
+
+                const dataItems = rows.flatMap((row: any) => {
                     const comps = row.columns?.flatMap((col: any) => col.components || []) || [];
 
                     // RADIO_BUTTON (only include the selected one)
-                    const answer = answers[section.webId]?.[row.webId];
+                    const answer = answers[sectionId]?.[row.webId];
                     const radioData =
                         comps
                             .filter((c: any) => c.component === 'RADIO_BUTTON')
@@ -842,209 +912,179 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     // CAMERA (array of IDs)
                     const cameraComp = comps.find((c: any) => c.component === 'CAMERA');
                     const cameraData = cameraComp
-                        ? [
-                            {
-                                value: (rowImages[row.webId] || []).map((img) => img.id),
-                                controlId: cameraComp.webId || '',
-                                groupName: cameraComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: (rowImages[row.webId] || []).map((img) => img.id),
+                            controlId: cameraComp.webId || '',
+                            groupName: cameraComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // ATTACHEMENTS (array of file IDs)
                     const attachComp = comps.find((c: any) => c.component === 'ATTACHEMENTS');
                     const attachmentsData = attachComp
-                        ? [
-                            {
-                                value: (attachmentsByRow[row.webId] || []).map((f) => f.id),
-                                controlId: attachComp.webId || '',
-                                groupName: attachComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: (attachmentsByRow[row.webId] || []).map((f) => f.id),
+                            controlId: attachComp.webId || '',
+                            groupName: attachComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // TEXT_FIELD
                     const textComp = comps.find((c: any) => c.component === 'TEXT_FIELD');
                     const textVal = textInputs[row.webId] || '';
                     const textData = textComp
-                        ? [
-                            {
-                                value: textVal,
-                                controlId: textComp.webId,
-                                groupName: textComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: textVal,
+                            controlId: textComp.webId,
+                            groupName: textComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // CHECK_BOX (boolean)
                     const checkboxComp = comps.find((c: any) => c.component === 'CHECK_BOX');
                     const checkboxVal = checkboxValues[row.webId] ?? false;
                     const checkboxData = checkboxComp
-                        ? [
-                            {
-                                value: checkboxVal,
-                                controlId: checkboxComp.webId,
-                                groupName: checkboxComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: checkboxVal,
+                            controlId: checkboxComp.webId,
+                            groupName: checkboxComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // SWITCH_BUTTON (boolean)
                     const switchComp = comps.find((c: any) => c.component === 'SWITCH_BUTTON');
                     const switchVal = switchValues[row.webId] ?? false;
                     const switchData = switchComp
-                        ? [
-                            {
-                                value: switchVal,
-                                controlId: switchComp.webId,
-                                groupName: switchComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: switchVal,
+                            controlId: switchComp.webId,
+                            groupName: switchComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // TEXT_AREA
                     const textAreaComp = comps.find((c: any) => c.component === 'TEXT_AREA');
                     const textAreaVal = textAreaInputs[row.webId] || '';
                     const textAreaData = textAreaComp
-                        ? [
-                            {
-                                value: textAreaVal,
-                                controlId: textAreaComp.webId,
-                                groupName: textAreaComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: textAreaVal,
+                            controlId: textAreaComp.webId,
+                            groupName: textAreaComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // DATE (YYYY-MM-DD)
                     const dateComp = comps.find((c: any) => c.component === 'DATE');
                     const dateVal = dateValues[row.webId] || '';
                     const dateData = dateComp
-                        ? [
-                            {
-                                value: dateVal,
-                                controlId: dateComp.webId,
-                                groupName: dateComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: dateVal,
+                            controlId: dateComp.webId,
+                            groupName: dateComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // RATING (number)
                     const ratingComp = comps.find((c: any) => c.component === 'RATING');
                     const ratingVal = ratingValues[row.webId] ?? 0;
                     const ratingData = ratingComp
-                        ? [
-                            {
-                                value: Number(ratingVal),
-                                controlId: ratingComp.webId,
-                                groupName: ratingComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: Number(ratingVal),
+                            controlId: ratingComp.webId,
+                            groupName: ratingComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // LOOKUP
                     const lookupComp = comps.find((c: any) => c.component === 'LOOKUP');
                     const lookupVal = lookupValues[row.webId] || '';
                     const lookupData = lookupComp
-                        ? [
-                            {
-                                value: lookupVal,
-                                controlId: lookupComp.webId,
-                                groupName: lookupComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: lookupVal,
+                            controlId: lookupComp.webId,
+                            groupName: lookupComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // SIGNATURE
                     const signatureComp = comps.find((c: any) => c.component === 'SIGNATURE');
                     const signatureVal = signatureValues[row.webId]?.encoded || '';
                     const signatureData = signatureComp
-                        ? [
-                            {
-                                value: signatureVal,
-                                controlId: signatureComp.webId,
-                                groupName: signatureComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: signatureVal,
+                            controlId: signatureComp.webId,
+                            groupName: signatureComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // QR_CODE
                     const qrCodeComp = comps.find((c: any) => c.component === 'QR_CODE');
                     const qrCodeVal = qrCodeValues[row.webId] || '';
                     const qrCodeData = qrCodeComp
-                        ? [
-                            {
-                                value: qrCodeVal,
-                                controlId: qrCodeComp.webId,
-                                groupName: qrCodeComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: qrCodeVal,
+                            controlId: qrCodeComp.webId,
+                            groupName: qrCodeComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // QR_VALIDATOR
                     const qrValidatorComp = comps.find((c: any) => c.component === 'QR_VALIDATOR');
                     const qrValidatorVal = qrValidatorValues[row.webId] || '';
                     const qrValidatorData = qrValidatorComp
-                        ? [
-                            {
-                                value: qrValidatorVal,
-                                controlId: qrValidatorComp.webId,
-                                groupName: qrValidatorComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: qrValidatorVal,
+                            controlId: qrValidatorComp.webId,
+                            groupName: qrValidatorComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // BAR_CODE
                     const barcodeComp = comps.find((c: any) => c.component === 'BAR_CODE');
                     const barcodeVal = barcodeValues[row.webId] || '';
                     const barcodeData = barcodeComp
-                        ? [
-                            {
-                                value: barcodeVal,
-                                controlId: barcodeComp.webId,
-                                groupName: barcodeComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: barcodeVal,
+                            controlId: barcodeComp.webId,
+                            groupName: barcodeComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // BAR_VALIDATOR
                     const barcodeValidatorComp = comps.find((c: any) => c.component === 'BAR_VALIDATOR');
                     const barcodeValidatorVal = barcodeValidatorValues[row.webId] || '';
                     const barcodeValidatorData = barcodeValidatorComp
-                        ? [
-                            {
-                                value: barcodeValidatorVal,
-                                controlId: barcodeValidatorComp.webId,
-                                groupName: barcodeValidatorComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: barcodeValidatorVal,
+                            controlId: barcodeValidatorComp.webId,
+                            groupName: barcodeValidatorComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     // TIMER
                     const timerComp = comps.find((c: any) => c.component === 'TIMER');
                     const timerVal = timerValues[row.webId] || '00:00:00.0000000';
                     const timerData = timerComp
-                        ? [
-                            {
-                                value: timerVal,
-                                controlId: timerComp.webId,
-                                groupName: timerComp.groupName || null,
-                                senserData: null,
-                            },
-                        ]
+                        ? [{
+                            value: timerVal,
+                            controlId: timerComp.webId,
+                            groupName: timerComp.groupName || null,
+                            senserData: null,
+                        }]
                         : [];
 
                     return [
@@ -1065,9 +1105,19 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         ...barcodeValidatorData,
                         ...timerData,
                     ];
-                }),
-            };
-        });
+                });
+
+                return {
+                    startDate: formatDateTimeUTC(startDate || new Date()),
+                    endDate: formatDateTimeUTC(endDate || new Date()),
+                    key: formConfigId || sectionId, // match your sample (key === formConfigurationSectionId)
+                    formConfigurationSectionId: formConfigId || 0,
+                    documentId: documentId,
+                    userId: assignUserId,
+                    data: dataItems,
+                };
+            })
+        );
 
         const body = {
             formDefinitionId,
@@ -1078,7 +1128,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             flow: 0,
             deleted: false,
             completedDate: formatToUTC(new Date()),
-            sectionModels,
+            sectionModels: sectionModels.filter(Boolean), // drop nulls if any section had no rows
         };
 
         console.log('[SectionsScreen] Submitting body:', JSON.stringify(body, null, 2));
@@ -1390,10 +1440,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     >
                                                         <View style={styles.dateInputField}>
                                                             <Text style={styles.dateInputText}>
-                                                                {dateValue ? new Date(dateValue).toLocaleDateString('en-US', { 
-                                                                    month: 'numeric', 
-                                                                    day: 'numeric', 
-                                                                    year: 'numeric' 
+                                                                {dateValue ? new Date(dateValue).toLocaleDateString('en-US', {
+                                                                    month: 'numeric',
+                                                                    day: 'numeric',
+                                                                    year: 'numeric'
                                                                 }) : 'Select Date'}
                                                             </Text>
                                                             <View style={styles.dateInputSeparator} />
@@ -1760,15 +1810,15 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                     delete signatureWaiters.current[row.webId];
                                                                 }
                                                             }}
+                                                            // Avoid calling ref.readSignature() directly here; use the safe helper
                                                             onEnd={() => {
-                                                                // Auto-save after pen up
-                                                                signatureRefs.current[row.webId]?.readSignature();
+                                                                safeReadSignature(row.webId);
                                                             }}
                                                             webStyle={`
-                                                                            .m-signature-pad--footer { display:none; }
-                                                                            body,html { background: transparent; }
-                                                                            .m-signature-pad { box-shadow:none; border:0; background: transparent; }
-                                                                            canvas { background-color: transparent; }
+                                                                        .m-signature-pad--footer { display:none; }
+                                                                        body,html { background: transparent; }
+                                                                        .m-signature-pad { box-shadow:none; border:0; background: transparent; }
+                                                                        canvas { background-color: transparent; }
                                                                     `}
                                                             backgroundColor="#31AAFF33"
                                                             penColor="#000"
@@ -1829,7 +1879,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                 <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
                                                             </View>
                                                             <Text style={styles.qrCodeText}>
-                                                                
+
                                                             </Text>
                                                         </View>
                                                     )}
@@ -1843,7 +1893,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         <Text style={styles.scanButtonText}>Scan</Text>
                                                     </TouchableOpacity>
                                                 </View>
-                                                
+
                                                 {/* QR Code Scanner Modal */}
                                                 <Modal
                                                     visible={showScanner}
@@ -1928,7 +1978,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                 <QRCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
                                                             </View>
                                                             <Text style={styles.qrCodeText}>
-                                                                
+
                                                             </Text>
                                                         </View>
                                                     )}
@@ -1942,7 +1992,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         <Text style={[styles.scanButtonText, { color: validationStatus === 'pending' ? '#021639' : '#fff' }]}>Scan</Text>
                                                     </TouchableOpacity>
                                                 </View>
-                                                
+
                                                 {/* QR Validator Scanner Modal */}
                                                 <Modal
                                                     visible={showValidatorScanner}
@@ -2025,7 +2075,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                 <BarCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
                                                             </View>
                                                             <Text style={styles.barcodeText}>
-                                                                
+
                                                             </Text>
                                                         </View>
                                                     )}
@@ -2039,7 +2089,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         <Text style={styles.scanButtonText}>Scan</Text>
                                                     </TouchableOpacity>
                                                 </View>
-                                                
+
                                                 {/* Barcode Scanner Modal */}
                                                 <Modal
                                                     visible={showScanner}
@@ -2124,7 +2174,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                 <BarCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
                                                             </View>
                                                             <Text style={styles.barcodeText}>
-                                                                
+
                                                             </Text>
                                                         </View>
                                                     )}
@@ -2138,7 +2188,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         <Text style={[styles.scanButtonText, { color: validationStatus === 'pending' ? '#021639' : '#fff' }]}>Scan</Text>
                                                     </TouchableOpacity>
                                                 </View>
-                                                
+
                                                 {/* Barcode Validator Scanner Modal */}
                                                 <Modal
                                                     visible={showValidatorScanner}
@@ -2403,7 +2453,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     <>
                                         {currentSectionIdx === 0 && totalSections > 1 && (
                                             <TouchableOpacity
-                                               style={[styles.navBtn, styles.btnPrimary, { alignSelf: 'flex-end', flex: 1 }]}
+                                                style={[styles.navBtn, styles.btnPrimary, { alignSelf: 'flex-end', flex: 1 }]}
                                                 activeOpacity={0.85}
                                                 onPress={handleNext}
                                             >
@@ -2414,7 +2464,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         {currentSectionIdx === totalSections - 1 && totalSections > 1 && (
                                             <>
                                                 <TouchableOpacity
-                                                   style={[styles.navBtn, styles.btnPrimary, { flex: 0.4, marginRight: getResponsive(10) }]}
+                                                    style={[styles.navBtn, styles.btnPrimary, { flex: 0.4, marginRight: getResponsive(10) }]}
                                                     activeOpacity={0.85}
                                                     onPress={handlePrev}
                                                 >
@@ -2435,14 +2485,14 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         {currentSectionIdx > 0 && currentSectionIdx < totalSections - 1 && (
                                             <>
                                                 <TouchableOpacity
-                                                     style={[styles.navBtn, styles.btnPrimary, { flex: 1, marginRight: getResponsive(10) }]}
+                                                    style={[styles.navBtn, styles.btnPrimary, { flex: 1, marginRight: getResponsive(10) }]}
                                                     activeOpacity={0.85}
                                                     onPress={handlePrev}
                                                 >
                                                     <Text style={styles.submitBtnText}>Previous</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
-                                                   style={[styles.navBtn, styles.btnPrimary, { flex: 1 }]}
+                                                    style={[styles.navBtn, styles.btnPrimary, { flex: 1 }]}
                                                     activeOpacity={0.85}
                                                     onPress={handleNext}
                                                 >
@@ -2500,149 +2550,149 @@ const styles = StyleSheet.create({
         padding: getResponsive(8),
     },
     textFieldBox: {
-         // light blue like the image
-            borderRadius: getResponsive(10),
-            padding: getResponsive(8),
-            minHeight: getResponsive(50),
-            justifyContent: 'center',
-            },
-            textFieldInput: {
-            color: '#021639',
-            fontSize: getResponsive(12),
-            fontWeight: '500',
-            paddingVertical: getResponsive(4),
-            paddingHorizontal: getResponsive(4),
-            textAlignVertical: 'top',
-            },
-            footerRow: {
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              paddingHorizontal: getResponsive(10),
-              marginTop: getResponsive(10),
-            },
-            navBtn: {
-              borderRadius: getResponsive(10),
-              paddingVertical: getResponsive(10),
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: getResponsive(40),
-              flexDirection: 'row',
-            },
-            btnPrimary: {
-              backgroundColor: '#28B446',
-            },
-          submitBtn: {
-            backgroundColor: '#28B446',
-            borderRadius: getResponsive(10),
-            paddingVertical: getResponsive(7),
-            alignItems: 'center',
-            justifyContent: 'center',
-          },
-          submitBtnText: {
-            color: '#fff',
-            fontSize: getResponsive(16),
-            fontWeight: '600',
-            letterSpacing: 0.8,
-          },
-            headerRow: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            width: '100%',
-            paddingHorizontal: getResponsive(24),
-            },
-            headerTitle: {
-            color: '#fff',
-            fontSize: getResponsive(20),
-            fontWeight: '600',
-            textAlign: 'center',
-            flex: 1,
-            },
-            topCardFloatWrap: {
-            alignItems: 'center',
-            width: '100%',
-            zIndex: 2,
-            paddingHorizontal: getResponsive(16),
-            },
-            topCard: {
-            backgroundColor: '#fff',
-            borderRadius: getResponsive(14),
-            padding: getResponsive(10),
-            width: '100%',
-            shadowColor: '#0002',
-            shadowOpacity: 0.08,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 2,
-            marginBottom: getResponsive(8),
-            },
-            topCardTitle: {
-            color: '#021639',
-            fontWeight: '700',
-            fontSize: getResponsive(16),
-            },
-            topCardSub: {
-            color: '#02163980',
-            fontWeight: '500',
-            fontSize: getResponsive(12),
-            },
-            dot: {
-            color: '#02163980',
-            fontSize: getResponsive(18),
-            marginHorizontal: 2,
-            marginRight: getResponsive(8),
-            },
-            topCardDate: {
-            fontSize: getResponsive(14),
-            color: '#02163980',
-            fontWeight: '500',
-            },
-            formCard: {
-            backgroundColor: '#fff',
-            borderRadius: CARD_RADIUS,
-            marginHorizontal: getResponsive(12),
-            shadowColor: '#0002',
-            shadowOpacity: 0.08,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 2,
-            marginBottom: getResponsive(20),
-            },
-            formCardTitle: {
-            color: '#19233C',
-            fontSize: getResponsive(16),
-            fontWeight: '600',
-            },
-            radioRow: {
-            backgroundColor: '#F2F2F2',
-            borderRadius: getResponsive(12),
-            marginBottom: getResponsive(14),
-            paddingHorizontal: getResponsive(10),
-            flexDirection: 'row',
-            flex: 1,
-            justifyContent: 'space-between',
-            alignItems: 'center',
+        // light blue like the image
+        borderRadius: getResponsive(10),
+        padding: getResponsive(8),
+        minHeight: getResponsive(50),
+        justifyContent: 'center',
+    },
+    textFieldInput: {
+        color: '#021639',
+        fontSize: getResponsive(12),
+        fontWeight: '500',
+        paddingVertical: getResponsive(4),
+        paddingHorizontal: getResponsive(4),
+        textAlignVertical: 'top',
+    },
+    footerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        paddingHorizontal: getResponsive(10),
+        marginTop: getResponsive(10),
+    },
+    navBtn: {
+        borderRadius: getResponsive(10),
+        paddingVertical: getResponsive(10),
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: getResponsive(40),
+        flexDirection: 'row',
+    },
+    btnPrimary: {
+        backgroundColor: '#28B446',
+    },
+    submitBtn: {
+        backgroundColor: '#28B446',
+        borderRadius: getResponsive(10),
+        paddingVertical: getResponsive(7),
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    submitBtnText: {
+        color: '#fff',
+        fontSize: getResponsive(16),
+        fontWeight: '600',
+        letterSpacing: 0.8,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        paddingHorizontal: getResponsive(24),
+    },
+    headerTitle: {
+        color: '#fff',
+        fontSize: getResponsive(20),
+        fontWeight: '600',
+        textAlign: 'center',
+        flex: 1,
+    },
+    topCardFloatWrap: {
+        alignItems: 'center',
+        width: '100%',
+        zIndex: 2,
+        paddingHorizontal: getResponsive(16),
+    },
+    topCard: {
+        backgroundColor: '#fff',
+        borderRadius: getResponsive(14),
+        padding: getResponsive(10),
+        width: '100%',
+        shadowColor: '#0002',
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
+        marginBottom: getResponsive(8),
+    },
+    topCardTitle: {
+        color: '#021639',
+        fontWeight: '700',
+        fontSize: getResponsive(16),
+    },
+    topCardSub: {
+        color: '#02163980',
+        fontWeight: '500',
+        fontSize: getResponsive(12),
+    },
+    dot: {
+        color: '#02163980',
+        fontSize: getResponsive(18),
+        marginHorizontal: 2,
+        marginRight: getResponsive(8),
+    },
+    topCardDate: {
+        fontSize: getResponsive(14),
+        color: '#02163980',
+        fontWeight: '500',
+    },
+    formCard: {
+        backgroundColor: '#fff',
+        borderRadius: CARD_RADIUS,
+        marginHorizontal: getResponsive(12),
+        shadowColor: '#0002',
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
+        marginBottom: getResponsive(20),
+    },
+    formCardTitle: {
+        color: '#19233C',
+        fontSize: getResponsive(16),
+        fontWeight: '600',
+    },
+    radioRow: {
+        backgroundColor: '#F2F2F2',
+        borderRadius: getResponsive(12),
+        marginBottom: getResponsive(14),
+        paddingHorizontal: getResponsive(10),
+        flexDirection: 'row',
+        flex: 1,
+        justifyContent: 'space-between',
+        alignItems: 'center',
 
-            },
-            radioLabel: {
-            color: '#19233C',
-            fontSize: getResponsive(12),
-            lineHeight: getResponsive(16),
-            width: '60%',
+    },
+    radioLabel: {
+        color: '#19233C',
+        fontSize: getResponsive(12),
+        lineHeight: getResponsive(16),
+        width: '60%',
 
-            },
-            radioChoiceRow: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginTop: 2,
-            width: '40%',
-            justifyContent: 'flex-end',
-            },
-            radioOption: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginLeft: getResponsive(10),
+    },
+    radioChoiceRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 2,
+        width: '40%',
+        justifyContent: 'flex-end',
+    },
+    radioOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginLeft: getResponsive(10),
         // marginRight: getResponsive(24),
     },
     radioOptionText: {
