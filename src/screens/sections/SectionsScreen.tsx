@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchSectionRows, syncDocument, fetchLookupOptions, fetchFileUrl } from '../../api/statistics';
 import Signature from 'react-native-signature-canvas';
 import {
@@ -131,18 +131,18 @@ const Switch = ({ value, onValueChange }: { value: boolean; onValueChange: (valu
     </TouchableOpacity>
 );
 
-const Timer = ({ 
-    value, 
-    isRunning, 
-    onStart, 
-    onPause, 
-    onReset 
-}: { 
-    value: string; 
-    isRunning: boolean; 
-    onStart: () => void; 
-    onPause: () => void; 
-    onReset: () => void; 
+const Timer = ({
+    value,
+    isRunning,
+    onStart,
+    onPause,
+    onReset
+}: {
+    value: string;
+    isRunning: boolean;
+    onStart: () => void;
+    onPause: () => void;
+    onReset: () => void;
 }) => (
     <View style={{
         backgroundColor: '#fff',
@@ -170,10 +170,10 @@ const Timer = ({
                 {value}
             </Text>
         </View>
-        
+
         {/* Control Buttons */}
-        <View style={{ 
-            flexDirection: 'row', 
+        <View style={{
+            flexDirection: 'row',
             justifyContent: 'center',
             gap: getResponsive(12),
         }}>
@@ -265,6 +265,7 @@ const Timer = ({
 export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Get formDefinitionId, status, and sourceScreen from route params
     const route = useRoute();
+    const queryClient = useQueryClient();
     const {
         formSectionIds = {},
         data,
@@ -284,7 +285,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
     console.log("formSectionIds", formSectionIds);
     console.log("formConfigurationSectionIds", formConfigurationSectionIds);
-    
+
 
 
     // Mutation for document sync
@@ -493,9 +494,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
             setAttachmentsByRow(prev => ({
                 ...prev,
-                [rowId]: [...(prev[rowId] || []), { 
-                    id: fileId, 
-                    name: returnedName, 
+                [rowId]: [...(prev[rowId] || []), {
+                    id: fileId,
+                    name: returnedName,
                     uri: fileUri,
                     type: type,
                     size: fileSize
@@ -548,17 +549,76 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         }
     };
 
+
+    // for multi sections 
+
+    const sectionKeys = React.useMemo(
+        () => Object.keys(formSectionIds || {}).sort((a, b) => Number(a.replace('id', '')) - Number(b.replace('id', ''))),
+        [formSectionIds]
+    );
+    const sectionIds = React.useMemo(
+        () => sectionKeys.map(k => formSectionIds?.[k]).filter(Boolean),
+        [sectionKeys, formSectionIds]
+    );
+    const configSectionIds = React.useMemo(
+        () => sectionKeys.map(k => formConfigurationSectionIds?.[k]).filter(Boolean),
+        [sectionKeys, formConfigurationSectionIds]
+    );
+    const totalSections = sectionIds.length;
+    const currentSectionId = sectionIds[currentSectionIdx] ?? null;
+    const currentFormConfigurationSectionId =
+        configSectionIds[currentSectionIdx] ??
+        formConfigurationSectionIds?.[`id${currentSectionIdx + 1}`] ??
+        0;
+
+    const handleNext = () => {
+        if (currentSectionIdx < totalSections - 1) {
+            const nextIdx = currentSectionIdx + 1;
+            setCurrentSectionIdx(nextIdx);
+        }
+    };
+
+    const handlePrev = () => {
+        if (currentSectionIdx > 0) {
+            setCurrentSectionIdx(currentSectionIdx - 1);
+        }
+    };
+
+    // Keep index in range if ids change
+    React.useEffect(() => {
+        if (currentSectionIdx > Math.max(0, totalSections - 1)) {
+            setCurrentSectionIdx(0);
+        }
+    }, [totalSections]);
+
     const {
         data: sectionRowsData,
         isLoading: isSectionRowsLoading,
         isError: isSectionRowsError,
         refetch: refetchSectionRows,
     } = useQuery({
-        queryKey: ['sectionRows', formSectionIds.id1],
-        queryFn: () => formSectionIds.id1 ? fetchSectionRows(formSectionIds.id1) : Promise.resolve([]),
-        enabled: !!formSectionIds.id1,
+        queryKey: ['sectionRows', currentSectionId],
+        queryFn: () => (currentSectionId ? fetchSectionRows(currentSectionId) : Promise.resolve([])),
+        enabled: !!currentSectionId,
     });
 
+
+    React.useEffect(() => {
+        if (currentSectionId) {
+            refetchSectionRows();
+        }
+    }, [currentSectionId, refetchSectionRows]);
+
+    // Prefetch the next section to make Next feel instant
+    React.useEffect(() => {
+        const nextId = sectionIds[currentSectionIdx + 1];
+        if (nextId) {
+            queryClient.prefetchQuery({
+                queryKey: ['sectionRows', nextId],
+                queryFn: () => fetchSectionRows(nextId),
+            });
+        }
+    }, [currentSectionIdx, sectionIds, queryClient]);
 
     // Fetch lookup options for all LOOKUP controls
     React.useEffect(() => {
@@ -603,15 +663,15 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     // Calculate total elapsed time including previous paused time
                     const currentSessionTime = now - timerStartTime[rowId];
                     const totalElapsed = (timerElapsedTime[rowId] || 0) + currentSessionTime;
-                    
+
                     const totalSeconds = Math.floor(totalElapsed / 1000);
                     const milliseconds = Math.floor((totalElapsed % 1000) / 10); // Get centiseconds
                     const hours = Math.floor(totalSeconds / 3600);
                     const minutes = Math.floor((totalSeconds % 3600) / 60);
                     const seconds = totalSeconds % 60;
-                    
+
                     const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}0000`;
-                    
+
                     setTimerValues(prev => ({
                         ...prev,
                         [rowId]: formattedTime
@@ -625,12 +685,14 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
     const filteredList = (() => {
         const rows = Array.isArray(sectionRowsData?.data) ? sectionRowsData.data : (sectionRowsData?.data || []);
-        if (!rows || rows.length === 0) return [];
-        return [{
-            webId: formSectionIds.id1,
-            name: data?.sectionName || formName || 'Section',
-            formSectionRowModels: rows,
-        }];
+        if (!rows || rows.length === 0 || !currentSectionId) return [];
+        return [
+            {
+                webId: currentSectionId,
+                name: data?.sectionName || formName || 'Section',
+                formSectionRowModels: rows,
+            },
+        ];
     })();
 
     console.log('====================================');
@@ -662,7 +724,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 startDate: formatDateTimeUTC(startDate || new Date()),
                 endDate: formatDateTimeUTC(endDate || new Date()),
                 key: section.key || section.webId || '',
-                formConfigurationSectionId: formConfigurationSectionIds.id1 || 0,
+                formConfigurationSectionId: currentFormConfigurationSectionId || 0,
                 documentId: documentId,
                 userId: assignUserId,
                 data: (section.formSectionRowModels || []).flatMap((row: any) => {
@@ -684,179 +746,209 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     // CAMERA (array of IDs)
                     const cameraComp = comps.find((c: any) => c.component === 'CAMERA');
                     const cameraData = cameraComp
-                        ? [{
-                            value: (rowImages[row.webId] || []).map(img => img.id),
-                            controlId: cameraComp.webId || '',
-                            groupName: cameraComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: (rowImages[row.webId] || []).map((img) => img.id),
+                                controlId: cameraComp.webId || '',
+                                groupName: cameraComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
-                    // ATTACHEMENTS (array of IDs, same source as camera in this UI)
+                    // ATTACHEMENTS (array of file IDs)
                     const attachComp = comps.find((c: any) => c.component === 'ATTACHEMENTS');
                     const attachmentsData = attachComp
-                        ? [{
-                            value: (attachmentsByRow[row.webId] || []).map(f => f.id),
-                            controlId: attachComp.webId || '',
-                            groupName: attachComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: (attachmentsByRow[row.webId] || []).map((f) => f.id),
+                                controlId: attachComp.webId || '',
+                                groupName: attachComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
                     // TEXT_FIELD
                     const textComp = comps.find((c: any) => c.component === 'TEXT_FIELD');
                     const textVal = textInputs[row.webId] || '';
                     const textData = textComp
-                        ? [{
-                            value: textVal,
-                            controlId: textComp.webId,
-                            groupName: textComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: textVal,
+                                controlId: textComp.webId,
+                                groupName: textComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
                     // CHECK_BOX (boolean)
                     const checkboxComp = comps.find((c: any) => c.component === 'CHECK_BOX');
                     const checkboxVal = checkboxValues[row.webId] ?? false;
                     const checkboxData = checkboxComp
-                        ? [{
-                            value: checkboxVal,
-                            controlId: checkboxComp.webId,
-                            groupName: checkboxComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: checkboxVal,
+                                controlId: checkboxComp.webId,
+                                groupName: checkboxComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
                     // SWITCH_BUTTON (boolean)
                     const switchComp = comps.find((c: any) => c.component === 'SWITCH_BUTTON');
                     const switchVal = switchValues[row.webId] ?? false;
                     const switchData = switchComp
-                        ? [{
-                            value: switchVal,
-                            controlId: switchComp.webId,
-                            groupName: switchComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: switchVal,
+                                controlId: switchComp.webId,
+                                groupName: switchComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
                     // TEXT_AREA
                     const textAreaComp = comps.find((c: any) => c.component === 'TEXT_AREA');
                     const textAreaVal = textAreaInputs[row.webId] || '';
                     const textAreaData = textAreaComp
-                        ? [{
-                            value: textAreaVal,
-                            controlId: textAreaComp.webId,
-                            groupName: textAreaComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: textAreaVal,
+                                controlId: textAreaComp.webId,
+                                groupName: textAreaComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
                     // DATE (YYYY-MM-DD)
                     const dateComp = comps.find((c: any) => c.component === 'DATE');
                     const dateVal = dateValues[row.webId] || '';
                     const dateData = dateComp
-                        ? [{
-                            value: dateVal,
-                            controlId: dateComp.webId,
-                            groupName: dateComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: dateVal,
+                                controlId: dateComp.webId,
+                                groupName: dateComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
                     // RATING (number)
                     const ratingComp = comps.find((c: any) => c.component === 'RATING');
                     const ratingVal = ratingValues[row.webId] ?? 0;
                     const ratingData = ratingComp
-                        ? [{
-                            value: Number(ratingVal),
-                            controlId: ratingComp.webId,
-                            groupName: ratingComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: Number(ratingVal),
+                                controlId: ratingComp.webId,
+                                groupName: ratingComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
                     // LOOKUP
                     const lookupComp = comps.find((c: any) => c.component === 'LOOKUP');
                     const lookupVal = lookupValues[row.webId] || '';
                     const lookupData = lookupComp
-                        ? [{
-                            value: lookupVal,
-                            controlId: lookupComp.webId,
-                            groupName: lookupComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: lookupVal,
+                                controlId: lookupComp.webId,
+                                groupName: lookupComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
-                    // SIGNATURE (base64 without data: prefix)
+                    // SIGNATURE
                     const signatureComp = comps.find((c: any) => c.component === 'SIGNATURE');
                     const signatureVal = signatureValues[row.webId]?.encoded || '';
                     const signatureData = signatureComp
-                        ? [{
-                            value: signatureVal,
-                            controlId: signatureComp.webId,
-                            groupName: signatureComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: signatureVal,
+                                controlId: signatureComp.webId,
+                                groupName: signatureComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
-                    // QR_CODE (scanned value)
+                    // QR_CODE
                     const qrCodeComp = comps.find((c: any) => c.component === 'QR_CODE');
                     const qrCodeVal = qrCodeValues[row.webId] || '';
                     const qrCodeData = qrCodeComp
-                        ? [{
-                            value: qrCodeVal,
-                            controlId: qrCodeComp.webId,
-                            groupName: qrCodeComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: qrCodeVal,
+                                controlId: qrCodeComp.webId,
+                                groupName: qrCodeComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
-                    // QR_VALIDATOR (scanned value with validation status)
+                    // QR_VALIDATOR
                     const qrValidatorComp = comps.find((c: any) => c.component === 'QR_VALIDATOR');
                     const qrValidatorVal = qrValidatorValues[row.webId] || '';
                     const qrValidatorData = qrValidatorComp
-                        ? [{
-                            value: qrValidatorVal,
-                            controlId: qrValidatorComp.webId,
-                            groupName: qrValidatorComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: qrValidatorVal,
+                                controlId: qrValidatorComp.webId,
+                                groupName: qrValidatorComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
-                    // BAR_CODE (scanned barcode value)
+                    // BAR_CODE
                     const barcodeComp = comps.find((c: any) => c.component === 'BAR_CODE');
                     const barcodeVal = barcodeValues[row.webId] || '';
                     const barcodeData = barcodeComp
-                        ? [{
-                            value: barcodeVal,
-                            controlId: barcodeComp.webId,
-                            groupName: barcodeComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: barcodeVal,
+                                controlId: barcodeComp.webId,
+                                groupName: barcodeComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
-                    // BAR_VALIDATOR (scanned barcode value with validation status)
+                    // BAR_VALIDATOR
                     const barcodeValidatorComp = comps.find((c: any) => c.component === 'BAR_VALIDATOR');
                     const barcodeValidatorVal = barcodeValidatorValues[row.webId] || '';
                     const barcodeValidatorData = barcodeValidatorComp
-                        ? [{
-                            value: barcodeValidatorVal,
-                            controlId: barcodeValidatorComp.webId,
-                            groupName: barcodeValidatorComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: barcodeValidatorVal,
+                                controlId: barcodeValidatorComp.webId,
+                                groupName: barcodeValidatorComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
-                    // TIMER (time value in HH:MM:SS.mmmmmmm format)
+                    // TIMER
                     const timerComp = comps.find((c: any) => c.component === 'TIMER');
                     const timerVal = timerValues[row.webId] || '00:00:00.0000000';
                     const timerData = timerComp
-                        ? [{
-                            value: timerVal,
-                            controlId: timerComp.webId,
-                            groupName: timerComp.groupName || null,
-                            senserData: null,
-                        }]
+                        ? [
+                            {
+                                value: timerVal,
+                                controlId: timerComp.webId,
+                                groupName: timerComp.groupName || null,
+                                senserData: null,
+                            },
+                        ]
                         : [];
 
                     return [
@@ -935,7 +1027,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         return `${month}/${day}/${year} ${hours}:${minutesStr}${ampm}`;
     }
 
-    const currentSection = filteredList[currentSectionIdx] || null;
+    const currentSection = filteredList[0] || null;
+
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#0088E7' }}>
@@ -995,6 +1088,12 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     contentContainerStyle={{ paddingBottom: getResponsive(30), paddingHorizontal: 0 }}
                     showsVerticalScrollIndicator={false}
                 >
+                    {isSectionRowsLoading && (
+                        <View style={{ padding: getResponsive(16), alignItems: 'center' }}>
+                            <ActivityIndicator size="small" color="#0088E7" />
+                            <Text style={{ marginTop: 8, color: '#19233C' }}>Loading section…</Text>
+                        </View>
+                    )}
                     {/* Checklist Card */}
                     {currentSection && (
                         <View style={styles.formCard}>
@@ -1016,7 +1115,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                 <Text style={styles.formCardTitle}>{currentSection.name}</Text>
                                 <View style={{ flex: 1 }} />
                                 <Text style={styles.formCardTitle}>
-                                    <Text style={{ fontWeight: '600' }}>{currentSectionIdx + 1}</Text> of {filteredList.length}
+                                    <Text style={{ fontWeight: '600' }}>{currentSectionIdx + 1}</Text> of {totalSections || 1}
                                 </Text>
                             </View>
                             {/* Checklist */}
@@ -1467,7 +1566,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </TouchableOpacity>
                                                             <Text style={styles.attachmentModalTitle}>Upload</Text>
                                                         </View>
-                                                        
+
                                                         <View style={styles.attachmentModalContent}>
                                                             <View style={styles.attachmentDropZone}>
                                                                 <Text style={styles.attachmentDropIcon}>☁️</Text>
@@ -1627,7 +1726,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         {qrCodeValue || 'Scan QR Code'}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                
+
                                                 {/* QR Code Scanner Modal */}
                                                 <Modal
                                                     visible={showScanner}
@@ -1645,7 +1744,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </TouchableOpacity>
                                                             <Text style={styles.qrScannerTitle}>Scan QR Code</Text>
                                                         </View>
-                                                        
+
                                                         <Camera
                                                             onReadCode={(event: any) => {
                                                                 const scannedValue = event.nativeEvent.codeStringValue;
@@ -1720,7 +1819,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         {getStatusText()}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                
+
                                                 {/* QR Validator Scanner Modal */}
                                                 <Modal
                                                     visible={showValidatorScanner}
@@ -1738,22 +1837,22 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </TouchableOpacity>
                                                             <Text style={styles.qrScannerTitle}>Validate QR Code</Text>
                                                         </View>
-                                                        
+
                                                         <View style={styles.qrValidatorInfo}>
                                                             <Text style={styles.qrValidatorInfoText}>
                                                                 Expected Value: <Text style={styles.qrValidatorExpectedValue}>{expectedValue}</Text>
                                                             </Text>
                                                         </View>
-                                                        
+
                                                         <Camera
                                                             onReadCode={(event: any) => {
                                                                 const scannedValue = event.nativeEvent.codeStringValue;
                                                                 const isValid = scannedValue === expectedValue;
-                                                                
+
                                                                 setQrValidatorValues(prev => ({ ...prev, [row.webId]: scannedValue }));
                                                                 setQrValidatorStatus(prev => ({ ...prev, [row.webId]: isValid ? 'valid' : 'invalid' }));
                                                                 setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: false }));
-                                                                
+
                                                                 if (isValid) {
                                                                     showSuccessToast('QR Code Validated', `Value matches: ${scannedValue}`);
                                                                 } else {
@@ -1806,7 +1905,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         {barcodeValue || 'Scan Barcode'}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                
+
                                                 {/* Barcode Scanner Modal */}
                                                 <Modal
                                                     visible={showScanner}
@@ -1824,7 +1923,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </TouchableOpacity>
                                                             <Text style={styles.qrScannerTitle}>Scan Barcode</Text>
                                                         </View>
-                                                        
+
                                                         <Camera
                                                             onReadCode={(event: any) => {
                                                                 const scannedValue = event.nativeEvent.codeStringValue;
@@ -1899,7 +1998,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         {getStatusText()}
                                                     </Text>
                                                 </TouchableOpacity>
-                                                
+
                                                 {/* Barcode Validator Scanner Modal */}
                                                 <Modal
                                                     visible={showValidatorScanner}
@@ -1917,22 +2016,22 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </TouchableOpacity>
                                                             <Text style={styles.qrScannerTitle}>Validate Barcode</Text>
                                                         </View>
-                                                        
+
                                                         <View style={styles.qrValidatorInfo}>
                                                             <Text style={styles.qrValidatorInfoText}>
                                                                 Expected Value: <Text style={styles.qrValidatorExpectedValue}>{expectedValue}</Text>
                                                             </Text>
                                                         </View>
-                                                        
+
                                                         <Camera
                                                             onReadCode={(event: any) => {
                                                                 const scannedValue = event.nativeEvent.codeStringValue;
                                                                 const isValid = scannedValue === expectedValue;
-                                                                
+
                                                                 setBarcodeValidatorValues(prev => ({ ...prev, [row.webId]: scannedValue }));
                                                                 setBarcodeValidatorStatus(prev => ({ ...prev, [row.webId]: isValid ? 'valid' : 'invalid' }));
                                                                 setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: false }));
-                                                                
+
                                                                 if (isValid) {
                                                                     showSuccessToast('Barcode Validated', `Value matches: ${scannedValue}`);
                                                                 } else {
@@ -1971,7 +2070,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 const now = Date.now();
                                                 const currentSessionTime = now - (timerStartTime[row.webId] || now);
                                                 const totalElapsed = (timerElapsedTime[row.webId] || 0) + currentSessionTime;
-                                                
+
                                                 setTimerElapsedTime(prev => ({ ...prev, [row.webId]: totalElapsed }));
                                                 setTimerRunning(prev => ({ ...prev, [row.webId]: false }));
                                             }
@@ -2014,7 +2113,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
                                                 </View>
                                                 <View style={[styles.textFieldBox, { width: '50%' }]}>
-                                                    <Text style={[styles.textFieldInput, { 
+                                                    <Text style={[styles.textFieldInput, {
                                                         color: '#19233C',
                                                         fontSize: getResponsive(14),
                                                         lineHeight: getResponsive(20),
@@ -2042,7 +2141,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     const response = await fetchFileUrl(fileId);
                                                     const url = (response as any)?.data?.redirect || (response as any)?.data?.url || '';
                                                     setFileUrls(prev => ({ ...prev, [row.webId]: url }));
-                                                    
+
                                                     // Open the file URL in external browser
                                                     if (url) {
                                                         const canOpen = await Linking.canOpenURL(url);
@@ -2079,7 +2178,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 </View>
                                                 <View style={[styles.textFieldBox, { width: '50%' }]}>
                                                     <TouchableOpacity
-                                                        style={[styles.textFieldInput, { 
+                                                        style={[styles.textFieldInput, {
                                                             justifyContent: 'center',
                                                             alignItems: 'center',
                                                             backgroundColor: '#0088E7',
@@ -2088,7 +2187,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         onPress={handleFilePress}
                                                         activeOpacity={0.8}
                                                     >
-                                                        <Text style={{ 
+                                                        <Text style={{
                                                             color: '#fff',
                                                             fontSize: getResponsive(14),
                                                             fontWeight: '600'
@@ -2150,64 +2249,62 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                             {/* Next/Previous navigation */}
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
-                                {filteredList.length === 1 ? (
+                                {totalSections <= 1 ? (
                                     <TouchableOpacity
-                                        style={[styles.submitBtn, { backgroundColor: '#28B446', flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
+                                        style={[styles.navBtn, styles.btnPrimary, { flex: 1 }]}
                                         activeOpacity={0.85}
                                         onPress={handleSubmit}
                                         disabled={syncMutation.status === 'pending'}
                                     >
                                         <Text style={styles.submitBtnText}>Submit</Text>
-                                        {syncMutation.status === 'pending' ? (
-                                            <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 8 }} />
-                                        ) : null}
+                                        {syncMutation.status === 'pending' ? <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 8 }} /> : null}
                                     </TouchableOpacity>
                                 ) : (
                                     <>
-                                        {currentSectionIdx === 0 && filteredList.length > 1 && (
+                                        {currentSectionIdx === 0 && totalSections > 1 && (
                                             <TouchableOpacity
-                                                style={[styles.submitBtn, { marginLeft: 'auto', marginRight: 0, backgroundColor: '#28B446', paddingHorizontal: 20, bottom: 20, right: 20 }]}
+                                               style={[styles.navBtn, styles.btnPrimary, { alignSelf: 'flex-end', flex: 1 }]}
                                                 activeOpacity={0.85}
-                                                onPress={() => setCurrentSectionIdx(idx => Math.min(filteredList.length - 1, idx + 1))}
+                                                onPress={handleNext}
                                             >
                                                 <Text style={styles.submitBtnText}>Next</Text>
                                             </TouchableOpacity>
                                         )}
-                                        {currentSectionIdx === filteredList.length - 1 && filteredList.length > 1 && (
+
+                                        {currentSectionIdx === totalSections - 1 && totalSections > 1 && (
                                             <>
                                                 <TouchableOpacity
-                                                    style={[styles.submitBtn, { marginRight: 8, backgroundColor: '#28B446', paddingHorizontal: 20, bottom: 20, left: 20 }]}
+                                                   style={[styles.navBtn, styles.btnPrimary, { flex: 0.4, marginRight: getResponsive(10) }]}
                                                     activeOpacity={0.85}
-                                                    onPress={() => setCurrentSectionIdx(idx => Math.max(0, idx - 1))}
+                                                    onPress={handlePrev}
                                                 >
                                                     <Text style={styles.submitBtnText}>Previous</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
-                                                    style={[styles.submitBtn, { backgroundColor: '#28B446', flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
+                                                    style={[styles.navBtn, styles.btnPrimary, { flex: 1 }]}
                                                     activeOpacity={0.85}
                                                     onPress={handleSubmit}
                                                     disabled={syncMutation.status === 'pending'}
                                                 >
                                                     <Text style={styles.submitBtnText}>Submit</Text>
-                                                    {syncMutation.status === 'pending' ? (
-                                                        <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 8 }} />
-                                                    ) : null}
+                                                    {syncMutation.status === 'pending' ? <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 8 }} /> : null}
                                                 </TouchableOpacity>
                                             </>
                                         )}
-                                        {currentSectionIdx > 0 && currentSectionIdx < filteredList.length - 1 && (
+
+                                        {currentSectionIdx > 0 && currentSectionIdx < totalSections - 1 && (
                                             <>
                                                 <TouchableOpacity
-                                                    style={[styles.submitBtn, { flex: 1, marginRight: 8, backgroundColor: '#28B446' }]}
+                                                     style={[styles.navBtn, styles.btnPrimary, { flex: 1, marginRight: getResponsive(10) }]}
                                                     activeOpacity={0.85}
-                                                    onPress={() => setCurrentSectionIdx(idx => Math.max(0, idx - 1))}
+                                                    onPress={handlePrev}
                                                 >
                                                     <Text style={styles.submitBtnText}>Previous</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
-                                                    style={[styles.submitBtn, { flex: 1, marginLeft: 8, backgroundColor: '#28B446' }]}
+                                                   style={[styles.navBtn, styles.btnPrimary, { flex: 1 }]}
                                                     activeOpacity={0.85}
-                                                    onPress={() => setCurrentSectionIdx(idx => Math.min(filteredList.length - 1, idx + 1))}
+                                                    onPress={handleNext}
                                                 >
                                                     <Text style={styles.submitBtnText}>Next</Text>
                                                 </TouchableOpacity>
@@ -2263,118 +2360,149 @@ const styles = StyleSheet.create({
         padding: getResponsive(8),
     },
     textFieldBox: {
-        backgroundColor: '#D8ECFA', // light blue like the image
-        borderRadius: getResponsive(10),
-        padding: getResponsive(8),
-        minHeight: getResponsive(50),
-        justifyContent: 'center',
-    },
-    textFieldInput: {
-        color: '#021639',
-        fontSize: getResponsive(12),
-        fontWeight: '500',
-        paddingVertical: getResponsive(4),
-        paddingHorizontal: getResponsive(4),
-        textAlignVertical: 'top',
-    },
-    headerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        width: '100%',
-        paddingHorizontal: getResponsive(24),
-    },
-    headerTitle: {
-        color: '#fff',
-        fontSize: getResponsive(20),
-        fontWeight: '600',
-        textAlign: 'center',
-        flex: 1,
-    },
-    topCardFloatWrap: {
-        alignItems: 'center',
-        width: '100%',
-        zIndex: 2,
-        paddingHorizontal: getResponsive(16),
-    },
-    topCard: {
-        backgroundColor: '#fff',
-        borderRadius: getResponsive(14),
-        padding: getResponsive(10),
-        width: '100%',
-        shadowColor: '#0002',
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 2,
-        marginBottom: getResponsive(8),
-    },
-    topCardTitle: {
-        color: '#021639',
-        fontWeight: '700',
-        fontSize: getResponsive(16),
-    },
-    topCardSub: {
-        color: '#02163980',
-        fontWeight: '500',
-        fontSize: getResponsive(12),
-    },
-    dot: {
-        color: '#02163980',
-        fontSize: getResponsive(18),
-        marginHorizontal: 2,
-        marginRight: getResponsive(8),
-    },
-    topCardDate: {
-        fontSize: getResponsive(14),
-        color: '#02163980',
-        fontWeight: '500',
-    },
-    formCard: {
-        backgroundColor: '#fff',
-        borderRadius: CARD_RADIUS,
-        marginHorizontal: getResponsive(12),
-        shadowColor: '#0002',
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 2,
-        marginBottom: getResponsive(20),
-    },
-    formCardTitle: {
-        color: '#19233C',
-        fontSize: getResponsive(16),
-        fontWeight: '600',
-    },
-    radioRow: {
-        backgroundColor: '#F2F2F2',
-        borderRadius: getResponsive(12),
-        marginBottom: getResponsive(14),
-        paddingHorizontal: getResponsive(10),
-        flexDirection: 'row',
-        flex: 1,
-        justifyContent: 'space-between',
-        alignItems: 'center',
+         // light blue like the image
+            borderRadius: getResponsive(10),
+            padding: getResponsive(8),
+            minHeight: getResponsive(50),
+            justifyContent: 'center',
+            },
+            textFieldInput: {
+            color: '#021639',
+            fontSize: getResponsive(12),
+            fontWeight: '500',
+            paddingVertical: getResponsive(4),
+            paddingHorizontal: getResponsive(4),
+            textAlignVertical: 'top',
+            },
+            footerRow: {
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              paddingHorizontal: getResponsive(10),
+              marginTop: getResponsive(10),
+            },
+            navBtn: {
+              borderRadius: getResponsive(10),
+              paddingVertical: getResponsive(10),
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: getResponsive(40),
+              flexDirection: 'row',
+            },
+            btnPrimary: {
+              backgroundColor: '#28B446',
+            },
+          submitBtn: {
+            backgroundColor: '#28B446',
+            borderRadius: getResponsive(10),
+            paddingVertical: getResponsive(7),
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
+          submitBtnText: {
+            color: '#fff',
+            fontSize: getResponsive(16),
+            fontWeight: '600',
+            letterSpacing: 0.8,
+          },
+            headerRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            paddingHorizontal: getResponsive(24),
+            },
+            headerTitle: {
+            color: '#fff',
+            fontSize: getResponsive(20),
+            fontWeight: '600',
+            textAlign: 'center',
+            flex: 1,
+            },
+            topCardFloatWrap: {
+            alignItems: 'center',
+            width: '100%',
+            zIndex: 2,
+            paddingHorizontal: getResponsive(16),
+            },
+            topCard: {
+            backgroundColor: '#fff',
+            borderRadius: getResponsive(14),
+            padding: getResponsive(10),
+            width: '100%',
+            shadowColor: '#0002',
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 2,
+            marginBottom: getResponsive(8),
+            },
+            topCardTitle: {
+            color: '#021639',
+            fontWeight: '700',
+            fontSize: getResponsive(16),
+            },
+            topCardSub: {
+            color: '#02163980',
+            fontWeight: '500',
+            fontSize: getResponsive(12),
+            },
+            dot: {
+            color: '#02163980',
+            fontSize: getResponsive(18),
+            marginHorizontal: 2,
+            marginRight: getResponsive(8),
+            },
+            topCardDate: {
+            fontSize: getResponsive(14),
+            color: '#02163980',
+            fontWeight: '500',
+            },
+            formCard: {
+            backgroundColor: '#fff',
+            borderRadius: CARD_RADIUS,
+            marginHorizontal: getResponsive(12),
+            shadowColor: '#0002',
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 2,
+            marginBottom: getResponsive(20),
+            },
+            formCardTitle: {
+            color: '#19233C',
+            fontSize: getResponsive(16),
+            fontWeight: '600',
+            },
+            radioRow: {
+            backgroundColor: '#F2F2F2',
+            borderRadius: getResponsive(12),
+            marginBottom: getResponsive(14),
+            paddingHorizontal: getResponsive(10),
+            flexDirection: 'row',
+            flex: 1,
+            justifyContent: 'space-between',
+            alignItems: 'center',
 
-    },
-    radioLabel: {
-        color: '#19233C',
-        fontSize: getResponsive(12),
-        lineHeight: getResponsive(16),
-        width: '60%',
+            },
+            radioLabel: {
+            color: '#19233C',
+            fontSize: getResponsive(12),
+            lineHeight: getResponsive(16),
+            width: '60%',
 
-    },
-    radioChoiceRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 2,
-        width: '40%',
-        justifyContent: 'flex-end',
-    },
-    radioOption: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginLeft: getResponsive(10),
+            },
+            radioChoiceRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginTop: 2,
+            width: '40%',
+            justifyContent: 'flex-end',
+            },
+            radioOption: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginLeft: getResponsive(10),
         // marginRight: getResponsive(24),
     },
     radioOptionText: {
