@@ -1564,33 +1564,37 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>Take Pictures</Text>
                                                 </View>
 
-                                                <View
-                                                    style={[
-                                                        styles.multiImgBox,
-                                                        { width: '50%', marginTop: 0, marginRight: getResponsive(8) },
-                                                    ]}
-                                                >
-                                                    {(rowImages[row.webId] || []).map(img => (
-                                                        <View key={img.id} style={styles.multiImgThumbBox}>
-                                                            <TouchableOpacity onPress={() => setPreviewUri(img.uri)}>
-                                                                <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
-                                                            </TouchableOpacity>
-                                                            <TouchableOpacity
-                                                                style={styles.multiImgRemove}
-                                                                onPress={() => handleRemoveImage(row.webId, img.id)}
-                                                            >
-                                                                <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    ))}
-
+                                                <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
+                                                    {/* Camera Icon - Always on the left */}
                                                     <TouchableOpacity
-                                                        style={styles.multiImgAddBtn}
+                                                        style={styles.attachmentCameraBtn}
                                                         onPress={() => handleAddImages(row.webId)}
                                                         activeOpacity={0.7}
                                                     >
                                                         <CameraIcon />
                                                     </TouchableOpacity>
+
+                                                    {/* Horizontal Scroll for Image Boxes */}
+                                                    <ScrollView
+                                                        horizontal
+                                                        showsHorizontalScrollIndicator={false}
+                                                        style={styles.attachmentScrollView}
+                                                        contentContainerStyle={styles.attachmentScrollContent}
+                                                    >
+                                                        {(rowImages[row.webId] || []).map(img => (
+                                                            <View key={img.id} style={styles.attachmentThumbBox}>
+                                                                <TouchableOpacity onPress={() => setPreviewUri(img.uri)}>
+                                                                    <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity
+                                                                    style={styles.attachmentRemove}
+                                                                    onPress={() => handleRemoveImage(row.webId, img.id)}
+                                                                >
+                                                                    <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        ))}
+                                                    </ScrollView>
                                                 </View>
                                             </View>
                                         );
@@ -1614,30 +1618,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     </Text>
                                                 </View>
 
-                                                <View
-                                                    style={[
-                                                        styles.multiImgBox,
-                                                        { width: '50%', marginTop: 0, marginRight: getResponsive(8) },
-                                                    ]}
-                                                >
-                                                    {files.map(file => (
-                                                        <View key={file.id} style={styles.multiImgThumbBox}>
-                                                            <TouchableOpacity onPress={() => file.uri && setPreviewUri(file.uri)}>
-                                                                <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
-                                                                    <Text numberOfLines={1} style={styles.attachmentName}>{file.name || file.id}</Text>
-                                                                </View>
-                                                            </TouchableOpacity>
-                                                            <TouchableOpacity
-                                                                style={styles.multiImgRemove}
-                                                                onPress={() => handleRemoveAttachment(row.webId, file.id)}
-                                                            >
-                                                                <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    ))}
-
+                                                <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
+                                                    {/* Camera Icon - Always on the left */}
                                                     <TouchableOpacity
-                                                        style={styles.multiImgAddBtn}
+                                                        style={styles.attachmentCameraBtn}
                                                         onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: true }))}
                                                         activeOpacity={0.7}
                                                         disabled={uploading}
@@ -1645,6 +1629,30 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         <CameraIcon />
                                                     </TouchableOpacity>
                                                     {uploading ? <ActivityIndicator size="small" color="#1292E6" style={{ marginLeft: 6 }} /> : null}
+
+                                                    {/* Horizontal Scroll for Image Boxes */}
+                                                    <ScrollView
+                                                        horizontal
+                                                        showsHorizontalScrollIndicator={false}
+                                                        style={styles.attachmentScrollView}
+                                                        contentContainerStyle={styles.attachmentScrollContent}
+                                                    >
+                                                        {files.map(file => (
+                                                            <View key={file.id} style={styles.attachmentThumbBox}>
+                                                                <TouchableOpacity onPress={() => file.uri && setPreviewUri(file.uri)}>
+                                                                    <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                                        <Text numberOfLines={1} style={styles.attachmentName}>{file.name || file.id}</Text>
+                                                                    </View>
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity
+                                                                    style={styles.attachmentRemove}
+                                                                    onPress={() => handleRemoveAttachment(row.webId, file.id)}
+                                                                >
+                                                                    <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        ))}
+                                                    </ScrollView>
                                                 </View>
 
                                                 {/* Attachment Detail Modal */}
@@ -2706,6 +2714,46 @@ const styles = StyleSheet.create({
     multiImgAddBtn: {
         marginLeft: getResponsive(10),
         marginRight: getResponsive(4),
+    },
+    // New attachment container styles
+    attachmentContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#0088E733',
+        borderRadius: getResponsive(6),
+        padding: getResponsive(8),
+        minHeight: getResponsive(60),
+    },
+    attachmentCameraBtn: {
+        marginRight: getResponsive(8),
+        padding: getResponsive(4),
+    },
+    attachmentScrollView: {
+        flex: 1,
+        maxHeight: getResponsive(60),
+    },
+    attachmentScrollContent: {
+        alignItems: 'center',
+        paddingRight: getResponsive(8),
+    },
+    attachmentThumbBox: {
+        marginRight: getResponsive(8),
+        position: 'relative',
+    },
+    attachmentRemove: {
+        position: 'absolute',
+        top: -7,
+        right: -7,
+        backgroundColor: '#fff',
+        borderWidth: 2,
+        borderColor: '#1292E6',
+        borderRadius: getResponsive(14),
+        width: getResponsive(20),
+        height: getResponsive(20),
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2,
+        elevation: 2,
     },
     notesRow: {
         backgroundColor: '#F7F9FC',
