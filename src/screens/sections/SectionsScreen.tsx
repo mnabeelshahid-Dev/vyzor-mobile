@@ -2958,6 +2958,7 @@ const styles = StyleSheet.create({
         borderTopRightRadius: getResponsive(20),
     },
     attachmentModalHeader: {
+        flexDirection: 'row-reverse',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: getResponsive(20),
