@@ -410,7 +410,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             });
 
             if (missing.length) {
-                showErrorToast('Signature required', `Please provide: ${missing[0]}`);
+                // showErrorToast('Signature required', `Please provide: ${missing[0]}`);
                 return false;
             }
             return true;
@@ -574,18 +574,18 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 // For older versions, we need READ_EXTERNAL_STORAGE
                 const androidVersion = Platform.Version;
                 console.log('Android version:', androidVersion);
-                
+
                 let permission;
                 if (androidVersion >= 33) {
                     permission = PERMISSIONS.ANDROID.READ_MEDIA_IMAGES;
                 } else {
                     permission = PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
                 }
-                
+
                 console.log('Requesting permission:', permission);
                 const result = await request(permission);
                 console.log('Permission result:', result);
-                
+
                 if (result === RESULTS.GRANTED) {
                     return true;
                 } else if (result === RESULTS.DENIED) {
@@ -599,7 +599,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     showErrorToast('Permission error', 'Unable to get storage permission');
                     return false;
                 }
-                
+
             } catch (error) {
                 console.log('Permission error:', error);
                 showErrorToast('Permission error', 'Unable to request storage permission');
@@ -632,7 +632,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     allowMultiSelection: true,
                 });
                 console.log('Document picker result:', res);
-                
+
                 if (res?.length) {
                     for (const doc of res) {
                         console.log('Uploading document:', doc);
@@ -866,8 +866,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     }
 
     const handleSubmit = async () => {
-        const ok = await ensureAllSignaturesSaved();
-        if (!ok) return;
+        await ensureAllSignaturesSaved();
+        // if (!ok) return;
 
         // Helper: get rows for a section from cache or fetch
         const getRowsForSection = async (sectionId: number | string) => {
@@ -901,12 +901,15 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const radioData =
                         comps
                             .filter((c: any) => c.component === 'RADIO_BUTTON')
-                            .map((c: any) => ({
-                                value: answer === c.text ? c.text : '',
-                                controlId: c.webId,
-                                groupName: c.groupName || null,
-                                senserData: null,
-                            }))
+                            .map((c: any) => {
+                                return {
+
+                                    value: answer === c.text ? c.text : '',
+                                    controlId: c.controlId || '',
+                                    groupName: c.name || null,
+                                    senserData: null,
+                                }
+                            })
                             .filter((i: any) => i.value) || [];
 
                     // CAMERA (array of IDs)
@@ -914,8 +917,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const cameraData = cameraComp
                         ? [{
                             value: (rowImages[row.webId] || []).map((img) => img.id),
-                            controlId: cameraComp.webId || '',
-                            groupName: cameraComp.groupName || null,
+                            controlId: cameraComp.controlId || '',
+                            groupName: cameraComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -925,8 +928,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const attachmentsData = attachComp
                         ? [{
                             value: (attachmentsByRow[row.webId] || []).map((f) => f.id),
-                            controlId: attachComp.webId || '',
-                            groupName: attachComp.groupName || null,
+                            controlId: attachComp.controlId || '',
+                            groupName: attachComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -937,8 +940,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const textData = textComp
                         ? [{
                             value: textVal,
-                            controlId: textComp.webId,
-                            groupName: textComp.groupName || null,
+                            controlId: textComp.controlId || '',
+                            groupName: textComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -949,8 +952,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const checkboxData = checkboxComp
                         ? [{
                             value: checkboxVal,
-                            controlId: checkboxComp.webId,
-                            groupName: checkboxComp.groupName || null,
+                            controlId: checkboxComp.controlId || '',
+                            groupName: checkboxComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -961,8 +964,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const switchData = switchComp
                         ? [{
                             value: switchVal,
-                            controlId: switchComp.webId,
-                            groupName: switchComp.groupName || null,
+                            controlId: switchComp.controlId || '',
+                            groupName: switchComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -973,8 +976,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const textAreaData = textAreaComp
                         ? [{
                             value: textAreaVal,
-                            controlId: textAreaComp.webId,
-                            groupName: textAreaComp.groupName || null,
+                            controlId: textAreaComp.controlId || '',
+                            groupName: textAreaComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -985,8 +988,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const dateData = dateComp
                         ? [{
                             value: dateVal,
-                            controlId: dateComp.webId,
-                            groupName: dateComp.groupName || null,
+                            controlId: dateComp.controlId || '',
+                            groupName: dateComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -997,8 +1000,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const ratingData = ratingComp
                         ? [{
                             value: Number(ratingVal),
-                            controlId: ratingComp.webId,
-                            groupName: ratingComp.groupName || null,
+                            controlId: ratingComp.controlId || '',
+                            groupName: ratingComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -1009,8 +1012,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const lookupData = lookupComp
                         ? [{
                             value: lookupVal,
-                            controlId: lookupComp.webId,
-                            groupName: lookupComp.groupName || null,
+                            controlId: lookupComp.controlId || '',
+                            groupName: lookupComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -1021,8 +1024,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const signatureData = signatureComp
                         ? [{
                             value: signatureVal,
-                            controlId: signatureComp.webId,
-                            groupName: signatureComp.groupName || null,
+                            controlId: signatureComp.controlId || '',
+                            groupName: signatureComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -1033,8 +1036,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const qrCodeData = qrCodeComp
                         ? [{
                             value: qrCodeVal,
-                            controlId: qrCodeComp.webId,
-                            groupName: qrCodeComp.groupName || null,
+                            controlId: qrCodeComp.controlId || '',
+                            groupName: qrCodeComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -1045,8 +1048,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const qrValidatorData = qrValidatorComp
                         ? [{
                             value: qrValidatorVal,
-                            controlId: qrValidatorComp.webId,
-                            groupName: qrValidatorComp.groupName || null,
+                            controlId: qrValidatorComp.controlId || '',
+                            groupName: qrValidatorComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -1057,8 +1060,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const barcodeData = barcodeComp
                         ? [{
                             value: barcodeVal,
-                            controlId: barcodeComp.webId,
-                            groupName: barcodeComp.groupName || null,
+                            controlId: barcodeComp.controlId || '',
+                            groupName: barcodeComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -1069,8 +1072,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const barcodeValidatorData = barcodeValidatorComp
                         ? [{
                             value: barcodeValidatorVal,
-                            controlId: barcodeValidatorComp.webId,
-                            groupName: barcodeValidatorComp.groupName || null,
+                            controlId: barcodeValidatorComp.controlId || '',
+                            groupName: barcodeValidatorComp.name || null,
                             senserData: null,
                         }]
                         : [];
@@ -1081,8 +1084,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const timerData = timerComp
                         ? [{
                             value: timerVal,
-                            controlId: timerComp.webId,
-                            groupName: timerComp.groupName || null,
+                            controlId: timerComp.controlId || '',
+                            groupName: timerComp.name || null,
                             senserData: null,
                         }]
                         : [];
