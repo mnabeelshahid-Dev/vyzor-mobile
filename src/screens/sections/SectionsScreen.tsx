@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchSectionRows, syncDocument, fetchLookupOptions, fetchFileUrl } from '../../api/statistics';
+import { fetchSectionRows, syncDocument, fetchLookupOptions, fetchFileUrl, fetchMediaUrl } from '../../api/statistics';
 import Signature from 'react-native-signature-canvas';
 import {
     View,
@@ -314,6 +314,17 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         },
     });
 
+    function getImageIdFromRow(row: any) {
+        const imageComponent = row.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'IMAGE');
+        // Prefer explicit attr, fall back to defaultValue/text if backend sends it like that
+        return (
+            imageComponent?.attrs?.find((a: any) => a.key === 'imageId')?.value ??
+            imageComponent?.defaultValue ??
+            imageComponent?.text ??
+            null
+        );
+    }
+
     const [rowImages, setRowImages] = useState<{ [rowId: string]: Array<{ uri: string, id: string }> }>({});
     const [textInputs, setTextInputs] = useState<{ [key: string]: string }>({});
     const [checkboxValues, setCheckboxValues] = useState<{ [key: string]: boolean }>({});
@@ -347,11 +358,18 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [showLookupModal, setShowLookupModal] = useState<{ [rowId: string]: boolean }>({});
     const [answers, setAnswers] = useState<{ [sectionId: string]: { [rowId: string]: string } }>({});
     const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
+    const [imageUrlsByRow, setImageUrlsByRow] = useState<{ [rowId: string]: string }>({});
+    const [imageUrl, setImageUrl] = useState<string | null>(null); // keeps your preview state
     // replace single ref with a map of refs and helpers
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
     const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
     const signatureSaveTimers = useRef<{ [rowId: string]: any }>({});
     const signatureRowIdsRef = useRef<Set<string>>(new Set());
+    const [loaded, setLoaded] = useState(false);
+
+    const getImageUrl = (row: any) => imageUrlsByRow[row.webId] || null;
+
+
 
     // const handleAddImages = async (rowId: string) => {
     //     launchImageLibrary(
@@ -394,6 +412,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             setTimeout(tryRead, 60);
         });
     }
+
+
 
     async function ensureAllSignaturesSaved(): Promise<boolean> {
         // Validate only currently visible section’s signature rows
@@ -865,23 +885,21 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         return date.toISOString().split('.')[0] + 'Z';
     }
 
+    // Helper: get rows for a section from cache or fetch
+    const getRowsForSection = async (sectionId: number | string) => {
+        const key = ['sectionRows', sectionId] as const;
+        const cached: any = queryClient.getQueryData(key);
+        let rows = Array.isArray(cached?.data) ? cached.data : (cached?.data || null);
+        if (!rows) {
+            const resp = await fetchSectionRows(sectionId);
+            rows = Array.isArray(resp?.data) ? resp.data : (resp?.data || []);
+            queryClient.setQueryData(key, resp);
+        }
+        return rows as any[];
+    };
+
     const handleSubmit = async () => {
         await ensureAllSignaturesSaved();
-        // if (!ok) return;
-
-        // Helper: get rows for a section from cache or fetch
-        const getRowsForSection = async (sectionId: number | string) => {
-            const key = ['sectionRows', sectionId] as const;
-            const cached: any = queryClient.getQueryData(key);
-            let rows = Array.isArray(cached?.data) ? cached.data : (cached?.data || null);
-            if (!rows) {
-                const resp = await fetchSectionRows(sectionId);
-                rows = Array.isArray(resp?.data) ? resp.data : (resp?.data || []);
-                queryClient.setQueryData(key, resp);
-            }
-            return rows as any[];
-        };
-
         // Build all sectionModels (id1, id2, ...)
         const sectionModels = await Promise.all(
             sectionIds.map(async (sectionId, idx) => {
@@ -891,9 +909,12 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     0;
 
                 const rows = await getRowsForSection(sectionId);
+                console.log("rows", rows)
+
                 if (!rows || rows.length === 0) return null;
 
                 const dataItems = rows.flatMap((row: any) => {
+                    var keyuuid = row?.key;
                     const comps = row.columns?.flatMap((col: any) => col.components || []) || [];
 
                     // RADIO_BUTTON (only include the selected one)
@@ -1110,10 +1131,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     ];
                 });
 
+                const sectionKey =
+                    rows.find((r: any) => r.key)?.key;
+
                 return {
                     startDate: formatDateTimeUTC(startDate || new Date()),
                     endDate: formatDateTimeUTC(endDate || new Date()),
-                    key: formConfigId || sectionId, // match your sample (key === formConfigurationSectionId)
+                    key: sectionKey,
                     formConfigurationSectionId: formConfigId || 0,
                     documentId: documentId,
                     userId: assignUserId,
@@ -1177,6 +1201,37 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     }
 
     const currentSection = filteredList[0] || null;
+
+
+    React.useEffect(() => {
+        const rows: any[] = Array.isArray(sectionRowsData?.data) ? sectionRowsData!.data : (sectionRowsData?.data || []);
+        if (!rows.length) return;
+
+        rows.forEach((row: any) => {
+            const hasImage = row.columns?.some((col: any) => col.components?.some((c: any) => c.component === 'IMAGE'));
+            if (!hasImage) return;
+
+            const fileId = getImageIdFromRow(row);
+            if (!fileId) return;
+
+            // Skip if already cached
+            if (imageUrlsByRow[row.webId]) return;
+
+            fetchMediaUrl(String(fileId))
+                .then((res: any) => {
+                    const url = res?.data?.redirect;
+                    if (url) {
+                        setImageUrlsByRow(prev => ({ ...prev, [row.webId]: url }));
+                    }
+                })
+                .catch((e) => {
+                    console.warn('[IMAGE] failed to fetch url for row', row.webId, e?.message);
+                });
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sectionRowsData, currentSectionId]);
+
+    const getUri = (u) => (u ? encodeURI(u) : null);
 
 
     return (
@@ -1281,6 +1336,50 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     const hasSignature = row.columns.some(col =>
                                         col.components.some(comp => comp.component === 'SIGNATURE')
                                     );
+                                    const hasImage = row.columns.some(col =>
+                                        col.components.some(comp => comp.component === 'IMAGE')
+                                    );
+
+                                    if (hasImage) {
+                                        const imageComp = row.columns.flatMap((c: any) => c.components).find((c: any) => c.component === 'IMAGE');
+                                        const imageUrl = getImageUrl(row);
+
+                                        console.log('====================================');
+                                        console.log('hassss imagee', imageUrl);
+                                        console.log('====================================');
+
+                                        return (
+                                            <View key={row.webId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+
+                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
+                                                        {imageComp?.text || 'Image'}
+                                                    </Text>
+                                                </View>
+
+                                                <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
+                                                    {imageUrl ? (
+                                                        <TouchableOpacity onPress={() => setPreviewUri(imageUrl)} activeOpacity={0.85}>
+                                                            <Image
+                                                                source={{ uri: getUri(imageUrl) }}
+                                                                style={[styles.multiImgThumb, { width: getResponsive(120), height: getResponsive(90) }]}
+                                                                resizeMode="cover"
+                                                            />
+                                                        </TouchableOpacity>
+                                                    ) : (
+                                                        <View style={styles.attachmentThumbBox}>
+                                                            <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                                <Text numberOfLines={1} style={styles.attachmentName}>No image</Text>
+                                                            </View>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    console.log("hassss imagee", hasImage)
+
 
                                     if (hasTextField) {
                                         const textComp = row.columns.flatMap(c => c.components).find(c => c.component === 'TEXT_FIELD');
@@ -2732,7 +2831,7 @@ const styles = StyleSheet.create({
         width: getResponsive(60),
         height: getResponsive(50),
         borderRadius: getResponsive(10),
-        backgroundColor: '#bbb',
+        // backgroundColor: '#bbb',
         marginBottom: getResponsive(4),
     },
     attachmentThumb: {

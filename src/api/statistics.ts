@@ -90,69 +90,69 @@ type ControlValue = string | number | boolean | string[] | number[] | boolean[] 
 
 // Helper: normalize axios/fetch-like errors
 function normalizeHttpError(err: any, url?: string) {
-  const status = err?.response?.status ?? err?.status ?? 0;
-  const data = err?.response?.data ?? err?.data;
-  const message =
-    (typeof data === 'string' && data) ||
-    data?.message ||
-    err?.message ||
-    'Request failed';
-  const finalUrl = err?.config?.url ?? url ?? '';
-  return { status, data, message, url: finalUrl };
+	const status = err?.response?.status ?? err?.status ?? 0;
+	const data = err?.response?.data ?? err?.data;
+	const message =
+		(typeof data === 'string' && data) ||
+		data?.message ||
+		err?.message ||
+		'Request failed';
+	const finalUrl = err?.config?.url ?? url ?? '';
+	return { status, data, message, url: finalUrl };
 }
 
 export async function syncDocument(
-  documentId: string | number,
-  body: {
-    formDefinitionId: number;
-    status: string;
-    userAccountId: number;
-    clientId: number;
-    siteId: number;
-    flow: number;
-    deleted: boolean;
-    completedDate: string;
-    key?: string | null;
-    sectionModels: Array<{
-      startDate: string;
-      endDate: string;
-      key: string | number;
-      formConfigurationSectionId: number;
-      documentId: number | string;
-      userId: number | string;
-      data: Array<{
-        value: ControlValue;
-        controlId: string | number;
-        groupName: string | null;
-        senserData: any;
-      }>;
-    }>;
-  }
+	documentId: string | number,
+	body: {
+		formDefinitionId: number;
+		status: string;
+		userAccountId: number;
+		clientId: number;
+		siteId: number;
+		flow: number;
+		deleted: boolean;
+		completedDate: string;
+		key?: string | null;
+		sectionModels: Array<{
+			startDate: string;
+			endDate: string;
+			key: string | number;
+			formConfigurationSectionId: number;
+			documentId: number | string;
+			userId: number | string;
+			data: Array<{
+				value: ControlValue;
+				controlId: string | number;
+				groupName: string | null;
+				senserData: any;
+			}>;
+		}>;
+	}
 ) {
-	 const url = `/api/document/sync/${documentId}`;
-  try {
-    console.log('[API] syncDocument network request:', {
-      method: 'PUT',
-      url: `/api/document/sync/${documentId}`,
-      data: body,
-    });
-    const res = await apiService.put(`/api/document/sync/${documentId}`, body);
-    return res.data;
-  } catch (err: any) {
-     const n = normalizeHttpError(err, url);
-    console.error(`[API] syncDocument error [HTTP ${n.status || 'n/a'}] ${n.url}`);
-    if (n.data) console.error('[API] error body:', n.data);
-    console.error('[API] error message:', n.message);
-    throw Object.assign(new Error(n.message), { status: n.status, data: n.data, url: n.url });
-  }
+	const url = `/api/document/sync/${documentId}`;
+	try {
+		console.log('[API] syncDocument network request:', {
+			method: 'PUT',
+			url: `/api/document/sync/${documentId}`,
+			data: body,
+		});
+		const res = await apiService.put(`/api/document/sync/${documentId}`, body);
+		return res.data;
+	} catch (err: any) {
+		const n = normalizeHttpError(err, url);
+		console.error(`[API] syncDocument error [HTTP ${n.status || 'n/a'}] ${n.url}`);
+		if (n.data) console.error('[API] error body:', n.data);
+		console.error('[API] error message:', n.message);
+		throw Object.assign(new Error(n.message), { status: n.status, data: n.data, url: n.url });
+	}
 }
 const c = console;
 (globalThis as any).Debugconsole = (globalThis as any).Debugconsole ?? {
-  log: c.log.bind(c),
-  info: c.info.bind(c),
-  warn: c.warn.bind(c),
-  error: c.error.bind(c),
-  debug: c.debug.bind(c),
+	log: c.log.bind(c),
+	info: c.info.bind(c),
+	warn: c.warn.bind(c),
+	error: c.error.bind(c),
+	debug: c.debug.bind(c),
 };
 // Fetch section rows by sectionId
 export async function fetchSectionRows(sectionId: string | number) {
@@ -172,7 +172,7 @@ export async function fetchLookupOptions(lookupName: string) {
 // Fetch file URL by fileId
 export async function fetchFileUrl(fileId: string) {
 	const url = `/api/dms/file/url/${fileId}`;
-	
+
 	try {
 		// Get auth token
 		const { storage } = await import('../services/storage');
@@ -204,7 +204,7 @@ export async function fetchFileUrl(fileId: string) {
 
 		// Always get text response to avoid JSON parsing issues
 		const textData = await response.text();
-		
+
 		// Extract redirect URL from the response
 		const redirectMatch = textData.match(/redirect:([^\s]+)/);
 		if (redirectMatch) {
@@ -215,6 +215,52 @@ export async function fetchFileUrl(fileId: string) {
 		return { data: { redirect: textData } };
 	} catch (error) {
 		console.error('Error fetching file URL:', error);
+		throw error;
+	}
+}
+
+export async function fetchMediaUrl(fileId: string) {
+	const url = `/api/dms/file/url/${fileId}`;
+
+	try {
+		// Get auth token
+		const { storage } = await import('../services/storage');
+		let token: string | null = null;
+
+		try {
+			token = await storage.getSecureString('access_token');
+		} catch (error) {
+			console.warn('Failed to retrieve auth token', error);
+		}
+
+		const headers: Record<string, string> = {
+			Accept: 'text/plain, */*',
+		};
+
+		if (token) {
+			headers.Authorization = `Bearer ${token}`;
+		}
+
+		// Fetch from backend
+		const response = await fetch(`https://vyzor.app${url}`, {
+			method: 'GET',
+			headers,
+		});
+
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+		}
+
+		// Get plain text (the actual URL)
+		const redirectUrl = await response.text();
+
+		// Trim unwanted quotes or whitespace
+		const cleanUrl = redirectUrl.replace(/^"|"$/g, '').trim();
+
+		// Return full usable URL
+		return { data: { redirect: cleanUrl } };
+	} catch (error) {
+		console.error('Error fetching media URL:', error);
 		throw error;
 	}
 }
