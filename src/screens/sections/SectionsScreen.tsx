@@ -313,12 +313,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             showErrorToast(`Sync failed (HTTP ${status})`, message);
         },
     });
-
     function getImageIdFromRow(row: any) {
         const imageComponent = row.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'IMAGE');
-        // Prefer explicit attr, fall back to defaultValue/text if backend sends it like that
+        const getAttr = (k: string) => imageComponent?.attrs?.find((a: any) => a.key === k)?.value;
         return (
-            imageComponent?.attrs?.find((a: any) => a.key === 'imageId')?.value ??
+            getAttr('imageId') ??
+            getAttr('fileId') ??
+            getAttr('id') ??
             imageComponent?.defaultValue ??
             imageComponent?.text ??
             null
@@ -1134,10 +1135,12 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 const sectionKey =
                     rows.find((r: any) => r.key)?.key;
 
+                const generateUUID = () => crypto.randomUUID();
+
                 return {
                     startDate: formatDateTimeUTC(startDate || new Date()),
                     endDate: formatDateTimeUTC(endDate || new Date()),
-                    key: sectionKey,
+                    key: generateUUID(),
                     formConfigurationSectionId: formConfigId || 0,
                     documentId: documentId,
                     userId: assignUserId,
@@ -1202,6 +1205,35 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
     const currentSection = filteredList[0] || null;
 
+    // normalize and accept https urls, protocol-less //host, file:// and data: URIs
+    function normalizeMediaUrl(u?: string | null): string | null {
+        if (!u) return null;
+        let s = String(u).trim().replace(/^redirect:/i, '').replace(/^["']|["']$/g, '');
+
+        // already a data URI
+        if (s.startsWith('data:')) return s;
+
+        // protocol-less (//example.com/...) -> add https:
+        if (/^\/\/[^/]/.test(s)) s = 'https:' + s;
+
+        // local file path (android / ios) - ensure file:// prefix
+        if (/^\/[^\s]/.test(s)) s = 'file://' + s;
+
+        // only accept http(s), file, or data
+        if (/^https?:\/\//i.test(s) || s.startsWith('file://')) return s;
+
+        // sometimes backend returns base64 string without data: prefix
+        // detect base64 by characters and length heuristic (very approximate)
+        if (/^[A-Za-z0-9+/=\s]+$/.test(s) && s.length > 100) {
+            // can't know mime type; caller must handle this case (we prefix image/png as fallback)
+            return `data:image/png;base64,${s}`;
+        }
+
+        return null;
+    }
+
+
+
 
     React.useEffect(() => {
         const rows: any[] = Array.isArray(sectionRowsData?.data) ? sectionRowsData!.data : (sectionRowsData?.data || []);
@@ -1214,13 +1246,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             const fileId = getImageIdFromRow(row);
             if (!fileId) return;
 
-            // Skip if already cached
             if (imageUrlsByRow[row.webId]) return;
 
             fetchMediaUrl(String(fileId))
-                .then((res: any) => {
-                    const url = res?.data?.redirect;
+                .then(async (res: any) => {
+                    const url = normalizeMediaUrl(res?.data?.redirect || res?.data?.url);
                     if (url) {
+                        try { await Image.prefetch(url); } catch { }
                         setImageUrlsByRow(prev => ({ ...prev, [row.webId]: url }));
                     }
                 })
@@ -1228,10 +1260,29 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     console.warn('[IMAGE] failed to fetch url for row', row.webId, e?.message);
                 });
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sectionRowsData, currentSectionId]);
+    }, [sectionRowsData, currentSectionId, imageUrlsByRow]);
 
-    const getUri = (u) => (u ? encodeURI(u) : null);
+    const getUri = (u: string | null) => normalizeMediaUrl(u);
+
+    async function inspectUrl(url) {
+        try {
+            const r = await fetch(url, { method: 'GET' }); // GET because some servers block HEAD
+            console.log('status', r.status);
+            console.log('content-type', r.headers.get('content-type'));
+            const snippet = await r.text().then(t => t.slice(0, 200));
+            console.log('response snippet (first 200 chars):', snippet);
+        } catch (e) {
+            console.warn('inspectUrl failed', e);
+        }
+    }
+    inspectUrl(imageUrl);
+    Image.getSize(
+        imageUrl,
+        (w, h) => console.log('Image.getSize success', w, h),
+        (err) => console.warn('Image.getSize failed', err)
+    );
+
+
 
 
     return (
@@ -1337,8 +1388,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         col.components.some(comp => comp.component === 'SIGNATURE')
                                     );
                                     const hasImage = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'IMAGE')
+                                        col.components.some(comp => comp.component === "IMAGE")
                                     );
+
 
                                     if (hasImage) {
                                         const imageComp = row.columns.flatMap((c: any) => c.components).find((c: any) => c.component === 'IMAGE');
@@ -1361,15 +1413,18 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     {imageUrl ? (
                                                         <TouchableOpacity onPress={() => setPreviewUri(imageUrl)} activeOpacity={0.85}>
                                                             <Image
+                                                                key={imageUrl}
                                                                 source={{ uri: getUri(imageUrl) }}
                                                                 style={[styles.multiImgThumb, { width: getResponsive(120), height: getResponsive(90) }]}
                                                                 resizeMode="cover"
+                                                                onLoad={() => console.log('[IMAGE] loaded for row', row.webId)}
+                                                                onError={(e) => console.warn('[IMAGE] failed to render for row', row.webId, e?.nativeEvent)}
                                                             />
                                                         </TouchableOpacity>
                                                     ) : (
                                                         <View style={styles.attachmentThumbBox}>
                                                             <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
-                                                                <Text numberOfLines={1} style={styles.attachmentName}>No image</Text>
+                                                                <ActivityIndicator size="small" color="#1292E6" />
                                                             </View>
                                                         </View>
                                                     )}
