@@ -2598,7 +2598,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
                                 {totalSections <= 1 ? (
                                     <TouchableOpacity
-                                        style={[styles.navBtn, styles.btnPrimary, { flex: 1 }]}
+                                        style={[styles.navBtn, styles.btnPrimary, { flex: 0.5, alignSelf: 'flex-end' }]}
                                         activeOpacity={0.85}
                                         onPress={handleSubmit}
                                         disabled={syncMutation.status === 'pending'}
@@ -2621,7 +2621,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         {currentSectionIdx === totalSections - 1 && totalSections > 1 && (
                                             <>
                                                 <TouchableOpacity
-                                                    style={[styles.navBtn, styles.btnPrimary, { flex: 0.4, marginRight: getResponsive(10) }]}
+                                                    style={[styles.navBtn, styles.btnPrimary, { flex: 1, marginRight: getResponsive(10) }]}
                                                     activeOpacity={0.85}
                                                     onPress={handlePrev}
                                                 >
@@ -2708,10 +2708,13 @@ const styles = StyleSheet.create({
     },
     textFieldBox: {
         // light blue like the image
+        backgroundColor: '#D9ECFF',
         borderRadius: getResponsive(10),
         padding: getResponsive(8),
         minHeight: getResponsive(50),
         justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#8CC7FF',
     },
     textFieldInput: {
         color: '#021639',
@@ -2830,20 +2833,21 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'space-between',
         alignItems: 'center',
+        minHeight: getResponsive(80),
 
     },
     radioLabel: {
         color: '#19233C',
         fontSize: getResponsive(12),
         lineHeight: getResponsive(16),
-        width: '60%',
+        width: '40%',
 
     },
     radioChoiceRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 2,
-        width: '40%',
+        width: '60%',
         justifyContent: 'flex-end',
     },
     radioOption: {
@@ -2968,6 +2972,7 @@ const styles = StyleSheet.create({
         marginBottom: getResponsive(14),
         padding: getResponsive(16),
         flexDirection: 'row',
+        minHeight: getResponsive(80),
     },
     notesBox: {
         backgroundColor: '#0088E733',
@@ -2997,15 +3002,15 @@ const styles = StyleSheet.create({
         borderRadius: getResponsive(10),
         marginTop: getResponsive(10),
         padding: getResponsive(5),
-        minHeight: getResponsive(60),
-        minWidth: getResponsive(120),
+        minHeight: getResponsive(100),
+        minWidth: getResponsive(180),
         justifyContent: 'center',
         alignItems: 'center',
         position: 'relative',
     },
     signatureImg: {
-        width: getResponsive(110),
-        height: getResponsive(38),
+        width: getResponsive(180),
+        height: getResponsive(100),
         borderRadius: getResponsive(6),
     },
     signatureOverlay: {
@@ -3439,15 +3444,18 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#E0E0E0',
         borderRadius: getResponsive(8),
-        width: getResponsive(140),
+        flex: 1,
+        minWidth: getResponsive(180),
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: getResponsive(4),
-        paddingVertical: getResponsive(8),
+        paddingVertical: getResponsive(12),
+        marginVertical: getResponsive(12),
     },
     dateInputText: {
         flex: 1,
         fontSize: getResponsive(14),
+        paddingHorizontal: getResponsive(12),
         color: '#021639',
     },
     dateInputSeparator: {
