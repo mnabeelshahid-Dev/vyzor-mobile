@@ -2598,7 +2598,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
                                 {totalSections <= 1 ? (
                                     <TouchableOpacity
-                                        style={[styles.navBtn, styles.btnPrimary, { flex: 1 }]}
+                                        style={[styles.navBtn, styles.btnPrimary, { flex: 0.5, alignSelf: 'flex-end' }]}
                                         activeOpacity={0.85}
                                         onPress={handleSubmit}
                                         disabled={syncMutation.status === 'pending'}
@@ -2621,7 +2621,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         {currentSectionIdx === totalSections - 1 && totalSections > 1 && (
                                             <>
                                                 <TouchableOpacity
-                                                    style={[styles.navBtn, styles.btnPrimary, { flex: 0.4, marginRight: getResponsive(10) }]}
+                                                    style={[styles.navBtn, styles.btnPrimary, { flex: 1, marginRight: getResponsive(10) }]}
                                                     activeOpacity={0.85}
                                                     onPress={handlePrev}
                                                 >
