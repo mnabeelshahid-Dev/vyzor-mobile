@@ -2708,10 +2708,13 @@ const styles = StyleSheet.create({
     },
     textFieldBox: {
         // light blue like the image
+        backgroundColor: '#D9ECFF',
         borderRadius: getResponsive(10),
         padding: getResponsive(8),
         minHeight: getResponsive(50),
         justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#8CC7FF',
     },
     textFieldInput: {
         color: '#021639',
@@ -2837,14 +2840,14 @@ const styles = StyleSheet.create({
         color: '#19233C',
         fontSize: getResponsive(12),
         lineHeight: getResponsive(16),
-        width: '60%',
+        width: '40%',
 
     },
     radioChoiceRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 2,
-        width: '40%',
+        width: '60%',
         justifyContent: 'flex-end',
     },
     radioOption: {
@@ -3441,15 +3444,18 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#E0E0E0',
         borderRadius: getResponsive(8),
-        width: getResponsive(140),
+        flex: 1,
+        minWidth: getResponsive(180),
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: getResponsive(4),
-        paddingVertical: getResponsive(8),
+        paddingVertical: getResponsive(12),
+        marginVertical: getResponsive(12),
     },
     dateInputText: {
         flex: 1,
         fontSize: getResponsive(14),
+        paddingHorizontal: getResponsive(12),
         color: '#021639',
     },
     dateInputSeparator: {
