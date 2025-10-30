@@ -2830,6 +2830,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'space-between',
         alignItems: 'center',
+        minHeight: getResponsive(80),
 
     },
     radioLabel: {
@@ -2968,6 +2969,7 @@ const styles = StyleSheet.create({
         marginBottom: getResponsive(14),
         padding: getResponsive(16),
         flexDirection: 'row',
+        minHeight: getResponsive(80),
     },
     notesBox: {
         backgroundColor: '#0088E733',
