@@ -2020,35 +2020,45 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 </Text>
                                                 <View style={styles.radioChoiceRow}>
                                                     {qrCodeValue ? (
-                                                        // After scanning - show input field with value
-                                                        <View style={styles.inputFieldContainer}>
-                                                            <TextInput
-                                                                style={styles.inputField}
-                                                                value={qrCodeValue}
-                                                                editable={false}
-                                                                placeholder="Scanned QR Code"
-                                                            />
-                                                        </View>
-                                                    ) : (
-                                                        // Initially - show icon and text
-                                                        <View style={styles.qrCodeContainer}>
-                                                            <View style={styles.qrCodeIconContainer}>
-                                                                <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                        // After scanning - show input field and icon
+                                                        <>
+                                                            <View style={styles.inputFieldContainer}>
+                                                                <TextInput
+                                                                    style={styles.inputField}
+                                                                    value={qrCodeValue}
+                                                                    editable={false}
+                                                                    placeholder="Scanned QR Code"
+                                                                />
                                                             </View>
-                                                            <Text style={styles.qrCodeText}>
+                                                            <TouchableOpacity
+                                                                activeOpacity={0.8}
+                                                                onPress={() => {
+                                                                    setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                                }}
+                                                            >
+                                                                <View style={styles.qrCodeIconContainer}>
+                                                                    <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        </>
+                                                    ) : (
+                                                        // Initially - show only icon (tap to scan)
+                                                        <TouchableOpacity
+                                                            activeOpacity={0.8}
+                                                            onPress={() => {
+                                                                setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                            }}
+                                                        >
+                                                            <View style={styles.qrCodeContainer}>
+                                                                <View style={styles.qrCodeIconContainer}>
+                                                                    <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                                </View>
+                                                                <Text style={styles.qrCodeText}>
 
-                                                            </Text>
-                                                        </View>
+                                                                </Text>
+                                                            </View>
+                                                        </TouchableOpacity>
                                                     )}
-                                                    <TouchableOpacity
-                                                        style={styles.scanButton}
-                                                        activeOpacity={0.8}
-                                                        onPress={() => {
-                                                            setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                        }}
-                                                    >
-                                                        <Text style={styles.scanButtonText}>Scan</Text>
-                                                    </TouchableOpacity>
                                                 </View>
 
                                                 {/* QR Code Scanner Modal */}
@@ -2129,8 +2139,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </Text>
                                                         </View>
                                                     ) : (
-                                                        // Initially - show icon and text
-                                                        <View style={styles.qrCodeContainer}>
+                                                        // Initially - show icon and text (keep icon close to Scan)
+                                                        <View style={[styles.qrCodeContainer, styles.validatorIconRow]}>
                                                             <View style={styles.qrCodeIconContainer}>
                                                                 <QRCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
                                                             </View>
@@ -2215,35 +2225,25 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     {row.columns[0]?.components[0]?.text}
                                                 </Text>
                                                 <View style={styles.radioChoiceRow}>
-                                                    {barcodeValue ? (
-                                                        // After scanning - show input field with value
-                                                        <View style={styles.inputFieldContainer}>
-                                                            <TextInput
-                                                                style={styles.inputField}
-                                                                value={barcodeValue}
-                                                                editable={false}
-                                                                placeholder="Scanned Barcode"
-                                                            />
-                                                        </View>
-                                                    ) : (
-                                                        // Initially - show icon and text
-                                                        <View style={styles.barcodeContainer}>
-                                                            <View style={styles.barcodeIconContainer}>
-                                                                <BarCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
-                                                            </View>
-                                                            <Text style={styles.barcodeText}>
-
-                                                            </Text>
-                                                        </View>
-                                                    )}
+                                                    {/* Always show input field (empty initially) */}
+                                                    <View style={styles.inputFieldContainer}>
+                                                        <TextInput
+                                                            style={styles.inputField}
+                                                            value={barcodeValue}
+                                                            editable={false}
+                                                            placeholder="Barcode"
+                                                        />
+                                                    </View>
+                                                    {/* Icon on the right to trigger scan */}
                                                     <TouchableOpacity
-                                                        style={styles.scanButton}
                                                         activeOpacity={0.8}
                                                         onPress={() => {
                                                             setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: true }));
                                                         }}
                                                     >
-                                                        <Text style={styles.scanButtonText}>Scan</Text>
+                                                        <View style={styles.barcodeIconContainer}>
+                                                            <BarCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                        </View>
                                                     </TouchableOpacity>
                                                 </View>
 
@@ -2325,8 +2325,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </Text>
                                                         </View>
                                                     ) : (
-                                                        // Initially - show icon and text
-                                                        <View style={styles.barcodeContainer}>
+                                                        // Initially - show icon and text (keep icon close to Scan)
+                                                        <View style={[styles.barcodeContainer, styles.validatorIconRow]}>
                                                             <View style={styles.barcodeIconContainer}>
                                                                 <BarCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
                                                             </View>
@@ -3380,6 +3380,12 @@ const styles = StyleSheet.create({
         paddingVertical: getResponsive(8),
         borderRadius: getResponsive(8),
         flex: 1,
+        marginRight: getResponsive(8),
+    },
+    // Used in validators to keep icon close to the Scan button
+    validatorIconRow: {
+        flex: 0,
+        paddingLeft: getResponsive(8),
         marginRight: getResponsive(8),
     },
     barcodeIconContainer: {
