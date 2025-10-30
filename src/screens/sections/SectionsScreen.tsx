@@ -2026,35 +2026,45 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 </Text>
                                                 <View style={styles.radioChoiceRow}>
                                                     {qrCodeValue ? (
-                                                        // After scanning - show input field with value
-                                                        <View style={styles.inputFieldContainer}>
-                                                            <TextInput
-                                                                style={styles.inputField}
-                                                                value={qrCodeValue}
-                                                                editable={false}
-                                                                placeholder="Scanned QR Code"
-                                                            />
-                                                        </View>
-                                                    ) : (
-                                                        // Initially - show icon and text
-                                                        <View style={styles.qrCodeContainer}>
-                                                            <View style={styles.qrCodeIconContainer}>
-                                                                <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                        // After scanning - show input field and icon
+                                                        <>
+                                                            <View style={styles.inputFieldContainer}>
+                                                                <TextInput
+                                                                    style={styles.inputField}
+                                                                    value={qrCodeValue}
+                                                                    editable={false}
+                                                                    placeholder="Scanned QR Code"
+                                                                />
                                                             </View>
-                                                            <Text style={styles.qrCodeText}>
+                                                            <TouchableOpacity
+                                                                activeOpacity={0.8}
+                                                                onPress={() => {
+                                                                    setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                                }}
+                                                            >
+                                                                <View style={styles.qrCodeIconContainer}>
+                                                                    <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        </>
+                                                    ) : (
+                                                        // Initially - show only icon (tap to scan)
+                                                        <TouchableOpacity
+                                                            activeOpacity={0.8}
+                                                            onPress={() => {
+                                                                setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                            }}
+                                                        >
+                                                            <View style={styles.qrCodeContainer}>
+                                                                <View style={styles.qrCodeIconContainer}>
+                                                                    <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                                </View>
+                                                                <Text style={styles.qrCodeText}>
 
-                                                            </Text>
-                                                        </View>
+                                                                </Text>
+                                                            </View>
+                                                        </TouchableOpacity>
                                                     )}
-                                                    <TouchableOpacity
-                                                        style={styles.scanButton}
-                                                        activeOpacity={0.8}
-                                                        onPress={() => {
-                                                            setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                        }}
-                                                    >
-                                                        <Text style={styles.scanButtonText}>Scan</Text>
-                                                    </TouchableOpacity>
                                                 </View>
 
                                                 {/* QR Code Scanner Modal */}
@@ -2135,8 +2145,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </Text>
                                                         </View>
                                                     ) : (
-                                                        // Initially - show icon and text
-                                                        <View style={styles.qrCodeContainer}>
+                                                        // Initially - show icon and text (keep icon close to Scan)
+                                                        <View style={[styles.qrCodeContainer, styles.validatorIconRow]}>
                                                             <View style={styles.qrCodeIconContainer}>
                                                                 <QRCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
                                                             </View>
@@ -2221,35 +2231,25 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     {row.columns[0]?.components[0]?.text}
                                                 </Text>
                                                 <View style={styles.radioChoiceRow}>
-                                                    {barcodeValue ? (
-                                                        // After scanning - show input field with value
-                                                        <View style={styles.inputFieldContainer}>
-                                                            <TextInput
-                                                                style={styles.inputField}
-                                                                value={barcodeValue}
-                                                                editable={false}
-                                                                placeholder="Scanned Barcode"
-                                                            />
-                                                        </View>
-                                                    ) : (
-                                                        // Initially - show icon and text
-                                                        <View style={styles.barcodeContainer}>
-                                                            <View style={styles.barcodeIconContainer}>
-                                                                <BarCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
-                                                            </View>
-                                                            <Text style={styles.barcodeText}>
-
-                                                            </Text>
-                                                        </View>
-                                                    )}
+                                                    {/* Always show input field (empty initially) */}
+                                                    <View style={styles.inputFieldContainer}>
+                                                        <TextInput
+                                                            style={styles.inputField}
+                                                            value={barcodeValue}
+                                                            editable={false}
+                                                            placeholder="Barcode"
+                                                        />
+                                                    </View>
+                                                    {/* Icon on the right to trigger scan */}
                                                     <TouchableOpacity
-                                                        style={styles.scanButton}
                                                         activeOpacity={0.8}
                                                         onPress={() => {
                                                             setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: true }));
                                                         }}
                                                     >
-                                                        <Text style={styles.scanButtonText}>Scan</Text>
+                                                        <View style={styles.barcodeIconContainer}>
+                                                            <BarCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                        </View>
                                                     </TouchableOpacity>
                                                 </View>
 
@@ -2331,8 +2331,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </Text>
                                                         </View>
                                                     ) : (
-                                                        // Initially - show icon and text
-                                                        <View style={styles.barcodeContainer}>
+                                                        // Initially - show icon and text (keep icon close to Scan)
+                                                        <View style={[styles.barcodeContainer, styles.validatorIconRow]}>
                                                             <View style={styles.barcodeIconContainer}>
                                                                 <BarCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
                                                             </View>
@@ -2601,10 +2601,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             </View>
 
                             {/* Next/Previous navigation */}
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: totalSections <= 1 ? 'flex-end' : 'space-between', marginTop: 10 }}>
                                 {totalSections <= 1 ? (
                                     <TouchableOpacity
-                                        style={[styles.navBtn, styles.btnPrimary, { flex: 1 }]}
+                                        style={[styles.navBtn, styles.btnPrimary, { flex: 0.5, alignSelf: 'flex-end' }]}
                                         activeOpacity={0.85}
                                         onPress={handleSubmit}
                                         disabled={syncMutation.status === 'pending'}
@@ -2627,7 +2627,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         {currentSectionIdx === totalSections - 1 && totalSections > 1 && (
                                             <>
                                                 <TouchableOpacity
-                                                    style={[styles.navBtn, styles.btnPrimary, { flex: 0.4, marginRight: getResponsive(10) }]}
+                                                    style={[styles.navBtn, styles.btnPrimary, { flex: 1, marginRight: getResponsive(10) }]}
                                                     activeOpacity={0.85}
                                                     onPress={handlePrev}
                                                 >
@@ -2714,10 +2714,13 @@ const styles = StyleSheet.create({
     },
     textFieldBox: {
         // light blue like the image
+        backgroundColor: '#D9ECFF',
         borderRadius: getResponsive(10),
         padding: getResponsive(8),
         minHeight: getResponsive(50),
         justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#8CC7FF',
     },
     textFieldInput: {
         color: '#021639',
@@ -2836,20 +2839,21 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'space-between',
         alignItems: 'center',
+        minHeight: getResponsive(80),
 
     },
     radioLabel: {
         color: '#19233C',
         fontSize: getResponsive(12),
         lineHeight: getResponsive(16),
-        width: '60%',
+        width: '40%',
 
     },
     radioChoiceRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 2,
-        width: '40%',
+        width: '60%',
         justifyContent: 'flex-end',
     },
     radioOption: {
@@ -2974,6 +2978,7 @@ const styles = StyleSheet.create({
         marginBottom: getResponsive(14),
         padding: getResponsive(16),
         flexDirection: 'row',
+        minHeight: getResponsive(80),
     },
     notesBox: {
         backgroundColor: '#0088E733',
@@ -3003,15 +3008,15 @@ const styles = StyleSheet.create({
         borderRadius: getResponsive(10),
         marginTop: getResponsive(10),
         padding: getResponsive(5),
-        minHeight: getResponsive(60),
-        minWidth: getResponsive(120),
+        minHeight: getResponsive(100),
+        minWidth: getResponsive(180),
         justifyContent: 'center',
         alignItems: 'center',
         position: 'relative',
     },
     signatureImg: {
-        width: getResponsive(110),
-        height: getResponsive(38),
+        width: getResponsive(180),
+        height: getResponsive(100),
         borderRadius: getResponsive(6),
     },
     signatureOverlay: {
@@ -3383,6 +3388,12 @@ const styles = StyleSheet.create({
         flex: 1,
         marginRight: getResponsive(8),
     },
+    // Used in validators to keep icon close to the Scan button
+    validatorIconRow: {
+        flex: 0,
+        paddingLeft: getResponsive(8),
+        marginRight: getResponsive(8),
+    },
     barcodeIconContainer: {
         width: getResponsive(32),
         height: getResponsive(32),
@@ -3445,15 +3456,18 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#E0E0E0',
         borderRadius: getResponsive(8),
-        width: getResponsive(140),
+        flex: 1,
+        minWidth: getResponsive(180),
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: getResponsive(4),
-        paddingVertical: getResponsive(8),
+        paddingVertical: getResponsive(12),
+        marginVertical: getResponsive(12),
     },
     dateInputText: {
         flex: 1,
         fontSize: getResponsive(14),
+        paddingHorizontal: getResponsive(12),
         color: '#021639',
     },
     dateInputSeparator: {
