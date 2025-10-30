@@ -2595,7 +2595,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             </View>
 
                             {/* Next/Previous navigation */}
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: totalSections <= 1 ? 'flex-end' : 'space-between', marginTop: 10 }}>
                                 {totalSections <= 1 ? (
                                     <TouchableOpacity
                                         style={[styles.navBtn, styles.btnPrimary, { flex: 0.5, alignSelf: 'flex-end' }]}
