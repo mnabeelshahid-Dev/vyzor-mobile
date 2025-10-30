@@ -39,6 +39,7 @@ import { useRoute } from '@react-navigation/native';
 import { showErrorToast, showSuccessToast } from '../../components';
 import { apiService } from '../../services/api';
 import { ensureCameraAndMediaPermissions } from '../../utils/takeImagePermission';
+import { generateUUID } from '../../utils/generateUUID';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -899,6 +900,11 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         return rows as any[];
     };
 
+
+
+    console.log(generateUUID(), "Generating UUID");
+
+
     const handleSubmit = async () => {
         await ensureAllSignaturesSaved();
         // Build all sectionModels (id1, id2, ...)
@@ -1132,15 +1138,15 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     ];
                 });
 
-                const sectionKey =
-                    rows.find((r: any) => r.key)?.key;
+                // const sectionKey =
+                //     rows.find((r: any) => r.key)?.key;
 
-                const generateUUID = () => crypto.randomUUID();
+                const uuid = generateUUID();
 
                 return {
                     startDate: formatDateTimeUTC(startDate || new Date()),
                     endDate: formatDateTimeUTC(endDate || new Date()),
-                    key: generateUUID(),
+                    key: uuid,
                     formConfigurationSectionId: formConfigId || 0,
                     documentId: documentId,
                     userId: assignUserId,
