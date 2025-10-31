@@ -2978,7 +2978,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#F7F9FC',
         borderRadius: getResponsive(12),
         marginBottom: getResponsive(14),
-        padding: getResponsive(16),
+        padding: getResponsive(10),
         flexDirection: 'row',
         minHeight: getResponsive(80),
     },
