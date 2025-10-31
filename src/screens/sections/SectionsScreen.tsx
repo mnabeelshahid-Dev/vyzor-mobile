@@ -857,10 +857,12 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const filteredList = (() => {
         const rows = Array.isArray(sectionRowsData?.data) ? sectionRowsData.data : (sectionRowsData?.data || []);
         if (!rows || rows.length === 0 || !currentSectionId) return [];
+        // Extract section name from the first row (all rows in a section have the same sectionName)
+        const sectionName = rows[0]?.sectionName || data?.sectionName || formName || 'Section';
         return [
             {
                 webId: currentSectionId,
-                name: data?.sectionName || formName || 'Section',
+                name: sectionName,
                 formSectionRowModels: rows,
             },
         ];
