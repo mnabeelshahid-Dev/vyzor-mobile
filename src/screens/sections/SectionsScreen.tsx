@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchSectionRows, syncDocument, fetchLookupOptions, fetchFileUrl, fetchMediaUrl } from '../../api/statistics';
+import { fetchSectionRows, syncDocument, fetchLookupOptions, fetchFileUrl, fetchMediaUrl, normalizeMediaUrl } from '../../api/statistics';
 import Signature from 'react-native-signature-canvas';
 import {
     View,
@@ -24,7 +24,6 @@ import {
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Camera } from 'react-native-camera-kit';
-import { WebView } from 'react-native-webview';
 import { pick, types } from '@react-native-documents/picker';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
@@ -441,67 +440,117 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         }
     }
 
-    const handleAddImages = async (rowId: string) => {
+    const handleAddImages = async (rowId: string): Promise<void> => {
         const remaining = Math.max(1, 5 - (rowImages[rowId]?.length || 0));
 
-        const fromCamera = async () => {
-            const ok = await ensureCameraAndMediaPermissions();
-            if (!ok) {
-                showErrorToast('Camera blocked', 'Grant Camera and Photos permissions.');
+        // small retry helper for transient network failures (declared as a function to avoid TSX generic parsing issues)
+        async function retryAsync<T>(fn: () => Promise<T>, attempts = 3, delayMs = 1000): Promise<T> {
+            let lastErr: any;
+            for (let i = 0; i < attempts; i++) {
+                try {
+                    return await fn();
+                } catch (e) {
+                    lastErr = e;
+                    if (i < attempts - 1) await new Promise(res => setTimeout(res, delayMs));
+                }
+            }
+            throw lastErr;
+        }
+
+        const handleAssetsAndUpload = async (assets?: any[]): Promise<void> => {
+            console.log("assetssssss", assets)
+
+            if (!assets?.length) return;
+
+            // Filter out invalid / empty uris up-front (prevents Image.getSize empty-uri error)
+            const validAssets = (assets || []).filter(a => !!a?.uri).slice(0, remaining);
+            if (validAssets.length === 0) {
+                showErrorToast('No valid image', 'Selected image had no URI');
                 return;
             }
+
+            const results: Array<{ id: string; uri: string; localId?: string }> = [];
+
+            // Sequential loop (less likely to abort on flaky mobile networks)
+            for (const a of validAssets) {
+                const assetForUpload = {
+                    fileName: a.fileName || a.name || `photo_${Date.now()}`,
+                    uri: a.uri,
+                    type: a.type || a.mimeType || 'image/jpeg',
+                    size: a.fileSize ?? a.size,
+                };
+
+                // Optional: compress before upload (uncomment + install dependency if you want)
+                // try { assetForUpload.uri = await compressImage(assetForUpload.uri); } catch (e) { /* fallback to original */ }
+
+                // optimistic preview: add local image immediately with a localId so we can replace it later
+                const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+                setRowImages(prev => ({
+                    ...prev,
+                    [rowId]: [...(prev[rowId] || []), { uri: assetForUpload.uri, id: localId }].slice(0, 5),
+                }));
+
+                try {
+                    // call uploadAttachment wrapped in retry to mitigate transient network errors
+                    const uploaded = await retryAsync(
+                        () => uploadAttachment(rowId, assetForUpload, { onProgress: (p) => { /* optional */ }, showToast: false }),
+                        2,
+                        1500
+                    );
+
+                    if (uploaded) {
+                        // replace local preview id with server id
+                        setRowImages(prev => ({
+                            ...prev,
+                            [rowId]: (prev[rowId] || []).map(item => item.id === localId ? ({ uri: uploaded.uri, id: uploaded.id }) : item)
+                        }));
+
+                        results.push({ id: uploaded.id, uri: uploaded.uri, localId });
+                    } else {
+                        // uploadAttachment returned null — keep local preview entry (and allow user to retry)
+                        results.push({ id: assetForUpload.fileName || assetForUpload.uri, uri: assetForUpload.uri, localId });
+                        showErrorToast('Upload failed', 'Server did not return file info');
+                    }
+                } catch (err: any) {
+                    // after retries, still failed
+                    showErrorToast('Upload failed', err?.message || 'Network error');
+                    results.push({ id: assetForUpload.fileName || assetForUpload.uri, uri: assetForUpload.uri, localId });
+                }
+            }
+
+            // Ensure final rowImages contains up to 5 items (combine existing ones and new results)
+            setRowImages(prev => {
+                const existing = (prev[rowId] || []).filter(item => !results.some(r => r.localId && r.localId === item.id));
+                const merged = [
+                    ...existing.slice(0, Math.max(0, 5 - results.length)),
+                    ...results.map(r => ({ uri: r.uri, id: r.id })),
+                ].slice(0, 5);
+                return { ...prev, [rowId]: merged };
+            });
+        };
+
+        // camera / library selection handlers
+        const fromCamera = async (): Promise<void> => {
+            const ok = await ensureCameraAndMediaPermissions();
+            if (!ok) { showErrorToast('Camera blocked', 'Grant Camera and Photos permissions.'); return; }
             try {
-                const res = await launchCamera({
-                    mediaType: 'photo',
-                    saveToPhotos: true,
-                    cameraType: 'back',
-                    quality: 0.9,
-                });
+                const res = await launchCamera({ mediaType: 'photo', saveToPhotos: true, cameraType: 'back', quality: 0.9 });
                 if (res.didCancel) return;
-                if (res.errorCode) {
-                    showErrorToast('Camera error', res.errorMessage || res.errorCode);
-                    return;
-                }
-                if (res.assets?.length) {
-                    const newImgs = res.assets
-                        .filter(a => a.uri)
-                        .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
-                    setRowImages(prev => ({
-                        ...prev,
-                        [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5),
-                    }));
-                }
+                if (res.errorCode) { showErrorToast('Camera error', res.errorMessage || res.errorCode); return; }
+                if (res.assets?.length) await handleAssetsAndUpload(res.assets);
             } catch (e: any) {
                 showErrorToast('Camera error', e?.message || 'Failed to open camera');
             }
         };
 
-        const fromLibrary = async () => {
+        const fromLibrary = async (): Promise<void> => {
             const ok = await ensureCameraAndMediaPermissions();
-            if (!ok) {
-                showErrorToast('Photos blocked', 'Grant Photos permission.');
-                return;
-            }
+            if (!ok) { showErrorToast('Photos blocked', 'Grant Photos permission.'); return; }
             try {
-                const res = await launchImageLibrary({
-                    mediaType: 'photo',
-                    selectionLimit: remaining,
-                    quality: 0.9,
-                });
+                const res = await launchImageLibrary({ mediaType: 'photo', selectionLimit: remaining, quality: 0.9 });
                 if (res.didCancel) return;
-                if (res.errorCode) {
-                    showErrorToast('Library error', res.errorMessage || res.errorCode);
-                    return;
-                }
-                if (res.assets?.length) {
-                    const newImgs = res.assets
-                        .filter(a => a.uri)
-                        .map(a => ({ uri: a.uri as string, id: a.fileName || a.uri || Math.random().toString() }));
-                    setRowImages(prev => ({
-                        ...prev,
-                        [rowId]: [...(prev[rowId] || []), ...newImgs].slice(0, 5),
-                    }));
-                }
+                if (res.errorCode) { showErrorToast('Library error', res.errorMessage || res.errorCode); return; }
+                if (res.assets?.length) await handleAssetsAndUpload(res.assets);
             } catch (e: any) {
                 showErrorToast('Library error', e?.message || 'Failed to open library');
             }
@@ -510,16 +559,17 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         if (Platform.OS === 'ios') {
             ActionSheetIOS.showActionSheetWithOptions(
                 { options: ['Cancel', 'Take Photo', 'Choose from Library'], cancelButtonIndex: 0 },
-                (i) => { if (i === 1) fromCamera(); if (i === 2) fromLibrary(); }
+                (i: number) => { if (i === 1) fromCamera(); if (i === 2) fromLibrary(); }
             );
         } else {
             Alert.alert('Add Photo', undefined, [
                 { text: 'Take Photo', onPress: fromCamera },
                 { text: 'Choose from Library', onPress: fromLibrary },
-                { text: 'Cancel', style: 'cancel' },
+                { text: 'Cancel', style: 'cancel' }
             ], { cancelable: true });
         }
     };
+
 
     const handleRemoveImage = (rowId: string, imgId: string) => {
         setRowImages(prev => ({
@@ -560,34 +610,65 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 name: fileName,
             }));
 
-            const res = await apiService.postFormData<any>(`/api/dms/file?json=${jsonMeta}`, formData);
+            const fullUrl = `/api/dms/file?json=${jsonMeta}`;
+
+            // ✅ Detailed logs
+            console.log('🚀 [UPLOAD DEBUG]');
+            console.log('➡️  URL:', fullUrl);
+            console.log('➡️  Meta:', JSON.parse(decodeURIComponent(jsonMeta)));
+            console.log('➡️  File Info:', {
+                uri: fileUri,
+                name: fileName,
+                type,
+                size: fileSize,
+            });
+
+            // If you want to manually inspect FormData fields
+            // (works only for debugging — don't use in production)
+            if (formData instanceof FormData && (formData as any)._parts) {
+                console.log('➡️  FormData Parts:', JSON.stringify((formData as any)._parts, null, 2));
+            }
+
+            // ✅ Actual API call
+            const res = await apiService.postFormData<any>(fullUrl, formData);
+
+            console.log('✅ [UPLOAD RESPONSE]');
+            console.log('Status:', res?.status || 'unknown');
+            console.log('Data:', res?.data || res);
+            console.log('====================================');
+
             if (!res.success || !res.data) {
                 throw new Error(res.message || 'Upload failed');
             }
 
             const fileId = (res.data as any).id;
             const returnedName = (res.data as any).name || fileName;
-            if (!fileId) {
-                throw new Error('No file id returned');
-            }
+            if (!fileId) throw new Error('No file id returned');
+
+            const uploadedFile = {
+                id: fileId,
+                name: returnedName,
+                uri: fileUri,
+                type,
+                size: fileSize,
+            };
 
             setAttachmentsByRow(prev => ({
                 ...prev,
-                [rowId]: [...(prev[rowId] || []), {
-                    id: fileId,
-                    name: returnedName,
-                    uri: fileUri,
-                    type: type,
-                    size: fileSize
-                }],
+                [rowId]: [...(prev[rowId] || []), uploadedFile],
             }));
+
             showSuccessToast('Attachment uploaded', returnedName);
+            return uploadedFile;
+
         } catch (e: any) {
+            console.log('❌ [UPLOAD ERROR]', e?.message || e);
             showErrorToast('Attachment failed', e?.message || 'Upload error');
         } finally {
             setIsUploadingAttachment(prev => ({ ...prev, [rowId]: false }));
         }
     };
+
 
     const checkAndRequestPermissions = async () => {
         if (Platform.OS === 'android') {
@@ -942,6 +1023,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                     // CAMERA (array of IDs)
                     const cameraComp = comps.find((c: any) => c.component === 'CAMERA');
+
                     const cameraData = cameraComp
                         ? [{
                             value: (rowImages[row.webId] || []).map((img) => img.id),
@@ -1211,32 +1293,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
     const currentSection = filteredList[0] || null;
 
-    // normalize and accept https urls, protocol-less //host, file:// and data: URIs
-    function normalizeMediaUrl(u?: string | null): string | null {
-        if (!u) return null;
-        let s = String(u).trim().replace(/^redirect:/i, '').replace(/^["']|["']$/g, '');
 
-        // already a data URI
-        if (s.startsWith('data:')) return s;
-
-        // protocol-less (//example.com/...) -> add https:
-        if (/^\/\/[^/]/.test(s)) s = 'https:' + s;
-
-        // local file path (android / ios) - ensure file:// prefix
-        if (/^\/[^\s]/.test(s)) s = 'file://' + s;
-
-        // only accept http(s), file, or data
-        if (/^https?:\/\//i.test(s) || s.startsWith('file://')) return s;
-
-        // sometimes backend returns base64 string without data: prefix
-        // detect base64 by characters and length heuristic (very approximate)
-        if (/^[A-Za-z0-9+/=\s]+$/.test(s) && s.length > 100) {
-            // can't know mime type; caller must handle this case (we prefix image/png as fallback)
-            return `data:image/png;base64,${s}`;
-        }
-
-        return null;
-    }
 
 
 

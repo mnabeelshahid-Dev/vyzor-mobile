@@ -264,3 +264,29 @@ export async function fetchMediaUrl(fileId: string) {
 		throw error;
 	}
 }
+
+export function normalizeMediaUrl(u?: string | null): string | null {
+	if (!u) return null;
+	let s = String(u).trim().replace(/^redirect:/i, '').replace(/^["']|["']$/g, '');
+
+	// already a data URI
+	if (s.startsWith('data:')) return s;
+
+	// protocol-less (//example.com/...) -> add https:
+	if (/^\/\/[^/]/.test(s)) s = 'https:' + s;
+
+	// local file path (android / ios) - ensure file:// prefix
+	if (/^\/[^\s]/.test(s)) s = 'file://' + s;
+
+	// only accept http(s), file, or data
+	if (/^https?:\/\//i.test(s) || s.startsWith('file://')) return s;
+
+	// sometimes backend returns base64 string without data: prefix
+	// detect base64 by characters and length heuristic (very approximate)
+	if (/^[A-Za-z0-9+/=\s]+$/.test(s) && s.length > 100) {
+		// can't know mime type; caller must handle this case (we prefix image/png as fallback)
+		return `data:image/png;base64,${s}`;
+	}
+
+	return null;
+}
