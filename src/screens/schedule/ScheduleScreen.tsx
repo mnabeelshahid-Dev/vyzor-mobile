@@ -30,7 +30,7 @@ import UserIcon from '../../assets/svgs/user.svg';
 import MenuIcon from '../../assets/svgs/menuIcon.svg';
 import NotesIcon from '../../assets/svgs/notesIcon.svg';
 import { useAuthStore } from '../../store/authStore';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useFocusEffect } from '@react-navigation/native';
 
 
 
@@ -399,6 +399,14 @@ const {
   },
   // enabled: !!userId && !!branchId, // Only fetch when we have both user ID and branch ID
 });
+
+// Refetch tasks when screen comes into focus (e.g., after submitting a task)
+useFocusEffect(
+  React.useCallback(() => {
+    // Refetch tasks to update status (e.g., from Active to Completed)
+    refetchTasks();
+  }, [refetchTasks])
+);
 
 
 // Devices Query
