@@ -99,13 +99,9 @@ const HOUR_LIST = Array.from({ length: 48 }, (_, i) => {
   return `${displayHour.toString().padStart(2, '0')}.${minutesStr} ${period}`;
 });
 
-function formatTasksForUI(tasks: TaskSchedulingModel[]) {
-  // Filter out tasks with empty or whitespace-only userNames
-  const filteredTasks = tasks.filter(task => {
-    return task.userName && task.userName.trim().length > 0;
-  });
-
-  return filteredTasks.map(task => {
+function formatTasksForUI(tasks: TaskSchedulingModel[], userFirstName?: string | null) {
+  // Show all tasks regardless of userName
+  return tasks.map(task => {
     const startTime = new Date(task.startDate);
     const endTime = new Date(task.endDate);
 
@@ -175,7 +171,7 @@ const isActive = task.scheduleType === 'SCHEDULED' &&
 
 const ACTIVE_BLUE = '#0088E7';
 const SCHEDULED_ORANGE = '#E09200';
-const COMPLETED_GREEN = '#11A330';
+const COMPLETED_GREEN = '#12862bff';
 const EXPIRED_RED = '#E4190A';
 
 let borderColor = BLUE; // Default
@@ -190,22 +186,20 @@ if (isActive) {
 } else if (task.scheduleType === 'EXPIRED') {
   borderColor = EXPIRED_RED;
   bg = '#E4190A1A';
-} else if (task.scheduleType === 'COMPLETED') {
+} else if (task.scheduleType === 'COMPLETED' || task.scheduleType === 'ON_TIME' || task.scheduleType === 'OUTSIDE_PERIOD') {
   borderColor = COMPLETED_GREEN;
-  bg = '#ECEFF3';
+  bg = '#11A3301A';
+  effectiveScheduleType = 'COMPLETED';
 } else if (task.scheduleType === 'SCHEDULED') {
   borderColor = SCHEDULED_ORANGE;
   bg = '#f6e0c1ff';  // Light orange background for scheduled
-} else if (task.scheduleType === 'ON_TIME') {
-  borderColor = BLUE;
-  bg = '#E3F2FD';
 }
 return {
   id: task.webId.toString(),
   hour: formatTime(startTime),
   number: `#${task.documentId}`,
   title: task.formName || task.documentName || 'No Title',
-  user: task.userName,
+  user: userFirstName || '',
   borderColor,
   bg,
   type: taskType,
@@ -323,6 +317,8 @@ const userId = user?.id || '';
 
 
     useEffect(() => {
+      console.log("complete user data from store", user)
+      console.log("User First name", user?.firstName)
       console.log("Web ID from Store", user?.id)
       console.log("Site ID from Store", user?.currentUserSite[0]?.siteId)
       console.log("User Data from Store", user)
@@ -452,7 +448,7 @@ const {
 });
 
   // Format tasks for UI
-  const formattedTasks = tasksData ? formatTasksForUI(tasksData) : [];
+  const formattedTasks = tasksData ? formatTasksForUI(tasksData, user?.firstName) : [];
 
   // Debug logs after formattedTasks is defined
   console.log('Formatted tasks:', formattedTasks);
@@ -497,7 +493,7 @@ const normalizeStatus = (status: string = '') => {
   if (s === 'schedule' || s === 'scheduled') return 'Scheduled';
   if (s === 'active') return 'Active';
   if (s === 'expired') return 'Expired';
-  if (s === 'completed') return 'Completed';
+  if (s === 'completed' || s === 'on_time' || s === 'outside_period') return 'Completed';
   return status || '';
 };
   const STATUS_COLORS: Record<string, string> = {
@@ -847,8 +843,8 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
                                   <View style={styles.taskUserPill}>
                                     <Text style={styles.taskUserText}>
                                           {maxColumnsOverall > 2 || item.type === 'mini'
-                                        ? item.user.split(' ')[0]
-                                        : item.user}
+                                        ? (item.user || '').split(' ')[0]
+                                        : item.user || ''}
                                     </Text>
                                   </View>
                                 </View>
