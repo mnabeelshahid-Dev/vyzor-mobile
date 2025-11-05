@@ -212,6 +212,8 @@ return {
   slots,
   slotCount: slots.length,
   formDefinitionId: task.formDefinitionId,
+  // Include raw task data for navigation
+  rawTask: task,
 };
   });
 }
@@ -411,7 +413,7 @@ const {
   enabled: devicesModal,
 });
 
-// Sections Query
+// Sections Query - Enable always to get section data for navigation
 const {
   data: sectionsData,
   isLoading: isSectionsLoading,
@@ -420,7 +422,7 @@ const {
 } = useQuery({
   queryKey: ['sections'],
   queryFn: fetchSections,
-  enabled: sectionsModal,
+  enabled: true, // Always enabled to support navigation
 });
 
 // Notes Query
@@ -545,6 +547,65 @@ const closeModal = () => {
 };
 
 const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
+
+// Helper functions for section navigation (same as TaskScreen)
+interface FormDefinitionSectionModel {
+  formDefinitionId: string | number;
+  deleted?: boolean;
+  formSectionId?: string | number;
+  webId?: any;
+}
+
+interface Section {
+  documentId?: string | number;
+  name?: string;
+  location?: string;
+  formDefinitionSectionModels?: FormDefinitionSectionModel[];
+}
+
+function getSectionModelsForSectionIds(formDefinationsId: string | number): any {
+  if (!sectionsData?.data?.content) return {};
+  let tempArray: any = [];
+  sectionsData.data.content.forEach((section: Section) => {
+    if (Array.isArray(section.formDefinitionSectionModels)) {
+      section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel) => {
+        if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
+          tempArray.push(model);
+        }
+      });
+    }
+  });
+  const formSectionIDs: Record<string, any> = {};
+  let id = 1;
+  tempArray.forEach((model: FormDefinitionSectionModel) => {
+    if (model.formSectionId) {
+      formSectionIDs[`id${id++}`] = model.formSectionId;
+    }
+  });
+  return formSectionIDs;
+}
+
+function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Record<string, any> {
+  if (!sectionsData?.data?.content) return {};
+  let tempArray: any = [];
+  sectionsData.data.content.forEach((section: Section) => {
+    if (Array.isArray(section.formDefinitionSectionModels)) {
+      section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel & { webId?: any }) => {
+        if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
+          tempArray.push(model);
+        }
+      });
+    }
+  });
+  const webIds: Record<string, any> = {};
+  let id = 1;
+  tempArray.forEach((model: { webId?: any }) => {
+    if (model.webId !== undefined && model.webId !== null) {
+      webIds[`id${id++}`] = model.webId;
+    }
+  });
+  return webIds;
+}
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BLUE }}>
@@ -1116,14 +1177,27 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
                         onPress={() => {
                           if (canStart && selectedTask) {
                             setShowTaskModal(false);
-                      navigation.navigate('Task', {
-                        screen: 'Section',
-                        params: {
-                          formDefinitionId: selectedTask.formDefinitionId || selectedTask.id,
-                          status: selectedTask.scheduleType,
-                          sourceScreen: 'Schedule', // Add source information
-                        },
-                      });
+                            // Get raw task data for navigation
+                            const rawTask = selectedTask.rawTask || {};
+                            // Build task data object similar to TaskScreen
+                            const taskData = {
+                              formName: rawTask.formName || selectedTask.title,
+                              startDate: rawTask.startDate || selectedTask.startDate,
+                              endDate: rawTask.endDate || selectedTask.endDate,
+                              documentId: rawTask.documentId || selectedTask.number?.replace('#', '') || '',
+                              formDefinitionId: rawTask.formDefinitionId || selectedTask.formDefinitionId,
+                              assignUserId: rawTask.assignUserId || rawTask.userId || user?.id || '',
+                              clientId: rawTask.clientId || '',
+                              siteId: rawTask.siteId || branchId || '',
+                            };
+                            navigation.navigate('Task', {
+                              screen: 'Section',
+                              params: {
+                                formSectionIds: getSectionModelsForSectionIds(taskData.formDefinitionId),
+                                formConfigurationSectionIds: getSectionWebIdsForSectionIds(taskData.formDefinitionId),
+                                data: taskData,
+                              },
+                            });
                           }
                         }}
                         style={{ 
