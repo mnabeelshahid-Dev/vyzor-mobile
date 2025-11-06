@@ -584,13 +584,14 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
             const formData = new FormData();
             // @ts-ignore RN FormData file
-            formData.append('file', { uri: fileUri, name: fileName, type });
+            formData.append('content', { uri: fileUri, name: fileName, type });
 
             const ownerId =
                 typeof documentId === 'string' ? Number(documentId) :
                     typeof documentId === 'number' ? documentId : 0;
 
             const meta = {
+                id: generateUUID() , //bring me here
                 ownerWebId: ownerId,
                 name: fileName,
             };
