@@ -238,6 +238,91 @@ class ApiService {
       };
     }
   }
+
+  // ApiService
+async postFileData<T = unknown>(
+  endpoint: string,
+  formData: FormData,
+  options?: { timeoutMs?: number } // new optional param
+): Promise<ApiResponse<T>> {
+  try {
+    let token: string | null = null;
+    try {
+      token = await storage.getSecureString(AUTH_CONFIG.ACCESS_TOKEN_KEY);
+    } catch (storageError) {
+      if (FEATURE_FLAGS.DEBUG_API_LOGS) {
+        DebugConsole.warn('Failed to retrieve auth token', storageError);
+      }
+    }
+
+    const headers: Record<string, string> = { /* no content-type */ };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const requestConfig: RequestInit = {
+      method: 'POST',
+      headers,
+      body: formData,
+    };
+
+    if (FEATURE_FLAGS.DEBUG_API_LOGS) {
+      DebugConsole.api('POST', `${this.baseURL}${endpoint}`, {
+        headers,
+        body: 'FormData (not logged)',
+        extra: options,
+      });
+    }
+
+    let controller: AbortController | undefined;
+    let timeoutId: any;
+    if (options?.timeoutMs && options.timeoutMs > 0) {
+      controller = new AbortController();
+      requestConfig.signal = controller.signal;
+      timeoutId = setTimeout(() => controller!.abort(), options.timeoutMs);
+    }
+
+    const response = await fetch(`${this.baseURL}${endpoint}`, requestConfig);
+
+    if (timeoutId) clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorBody = await response.text();
+        if (errorBody) errorMessage += ` - ${errorBody}`;
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const data: any = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
+
+    if (FEATURE_FLAGS.DEBUG_API_LOGS) {
+      DebugConsole.success(`API Response ${response.status}`, { url: `${this.baseURL}${endpoint}`, data });
+    }
+
+    return { success: true, data: data as T };
+
+  } catch (error: any) {
+    // Better handling for aborts
+    const isAbort = (error && (error.name === 'AbortError' || /aborted|abort/i.test(String(error.message))));
+    if (FEATURE_FLAGS.DEBUG_API_LOGS) {
+      try {
+        DebugConsole.log('ApiService', 'FormData Upload Failed', { error, isAbort });
+      } catch (logErr) {
+        console.error('Logging failed in postFormData catch', logErr);
+      }
+    }
+
+    return {
+      success: false,
+      message: isAbort ? 'Upload aborted (timeout). Try again or increase timeout.' :
+               (error instanceof Error ? error.message : 'Unknown error occurred'),
+    };
+  }
+}
+
 }
 
 export const apiService = new ApiService();

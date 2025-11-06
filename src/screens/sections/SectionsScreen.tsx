@@ -458,8 +458,6 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         }
 
         const handleAssetsAndUpload = async (assets?: any[]): Promise<void> => {
-            console.log("assetssssss", assets)
-
             if (!assets?.length) return;
 
             // Filter out invalid / empty uris up-front (prevents Image.getSize empty-uri error)
@@ -469,8 +467,6 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 return;
             }
 
-            const results: Array<{ id: string; uri: string; localId?: string }> = [];
-
             // Sequential loop (less likely to abort on flaky mobile networks)
             for (const a of validAssets) {
                 const assetForUpload = {
@@ -479,9 +475,6 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     type: a.type || a.mimeType || 'image/jpeg',
                     size: a.fileSize ?? a.size,
                 };
-
-                // Optional: compress before upload (uncomment + install dependency if you want)
-                // try { assetForUpload.uri = await compressImage(assetForUpload.uri); } catch (e) { /* fallback to original */ }
 
                 // optimistic preview: add local image immediately with a localId so we can replace it later
                 const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -504,29 +497,16 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             ...prev,
                             [rowId]: (prev[rowId] || []).map(item => item.id === localId ? ({ uri: uploaded.uri, id: uploaded.id }) : item)
                         }));
-
-                        results.push({ id: uploaded.id, uri: uploaded.uri, localId });
                     } else {
                         // uploadAttachment returned null — keep local preview entry (and allow user to retry)
-                        results.push({ id: assetForUpload.fileName || assetForUpload.uri, uri: assetForUpload.uri, localId });
                         showErrorToast('Upload failed', 'Server did not return file info');
                     }
                 } catch (err: any) {
                     // after retries, still failed
                     showErrorToast('Upload failed', err?.message || 'Network error');
-                    results.push({ id: assetForUpload.fileName || assetForUpload.uri, uri: assetForUpload.uri, localId });
+                    // Keep the local image so user can see what failed and retry if needed
                 }
             }
-
-            // Ensure final rowImages contains up to 5 items (combine existing ones and new results)
-            setRowImages(prev => {
-                const existing = (prev[rowId] || []).filter(item => !results.some(r => r.localId && r.localId === item.id));
-                const merged = [
-                    ...existing.slice(0, Math.max(0, 5 - results.length)),
-                    ...results.map(r => ({ uri: r.uri, id: r.id })),
-                ].slice(0, 5);
-                return { ...prev, [rowId]: merged };
-            });
         };
 
         // camera / library selection handlers
@@ -587,7 +567,12 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
     const uploadAttachment = async (rowId: string, asset: any) => {
         try {
-            const fileName = asset.fileName || asset.name || 'attachment';
+            const fileName =
+                asset.fileName ||
+                asset.name ||
+                (typeof asset.uri === 'string' ? asset.uri.split('/').pop() : null) ||
+                'attachment';
+
             const fileUri = asset.uri;
             const type = asset.type || asset.mimeType || 'application/octet-stream';
             const fileSize = asset.size;
@@ -597,56 +582,35 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 return;
             }
 
-            setIsUploadingAttachment(prev => ({ ...prev, [rowId]: true }));
-
             const formData = new FormData();
             // @ts-ignore RN FormData file
             formData.append('file', { uri: fileUri, name: fileName, type });
 
-            const generatedId = `${Date.now().toString()}${Math.random().toString(36).substr(2, 9)}`;
-            const jsonMeta = encodeURIComponent(JSON.stringify({
-                id: generatedId,
-                ownerWebId: assignUserId,
+            const ownerId =
+                typeof documentId === 'string' ? Number(documentId) :
+                    typeof documentId === 'number' ? documentId : 0;
+
+            const meta = {
+                ownerWebId: ownerId,
                 name: fileName,
-            }));
+            };
 
-            const fullUrl = `/api/dms/file?json=${jsonMeta}`;
+            const fullUrl = `/api/dms/file?json=${encodeURIComponent(JSON.stringify(meta))}`;
 
-            // ✅ Detailed logs
-            console.log('🚀 [UPLOAD DEBUG]');
-            console.log('➡️  URL:', fullUrl);
-            console.log('➡️  Meta:', JSON.parse(decodeURIComponent(jsonMeta)));
-            console.log('➡️  File Info:', {
-                uri: fileUri,
-                name: fileName,
-                type,
-                size: fileSize,
-            });
+            console.log('➡️ Upload URL (raw json query):', fullUrl);
+            console.log('➡️ Meta JSON (raw):', meta);
+            const res = await apiService.postFileData<any>(fullUrl, formData);
 
-            // If you want to manually inspect FormData fields
-            // (works only for debugging — don't use in production)
-            if (formData instanceof FormData && (formData as any)._parts) {
-                console.log('➡️  FormData Parts:', JSON.stringify((formData as any)._parts, null, 2));
+            if (!res?.success || !res?.data) {
+                throw new Error(res?.message || 'Upload failed');
             }
 
-            // ✅ Actual API call
-            const res = await apiService.postFormData<any>(fullUrl, formData);
-
-            console.log('✅ [UPLOAD RESPONSE]');
-            console.log('Status:', res?.status || 'unknown');
-            console.log('Data:', res?.data || res);
-            console.log('====================================');
-
-            if (!res.success || !res.data) {
-                throw new Error(res.message || 'Upload failed');
-            }
-
-            const fileId = (res.data as any).id;
-            const returnedName = (res.data as any).name || fileName;
-            if (!fileId) throw new Error('No file id returned');
+            // Use the correct ID field from the API response
+            const fileId = res.data.id; // This is the correct field
+            const returnedName = res.data.name || fileName;
 
             const uploadedFile = {
-                id: fileId,
+                id: fileId, // This will now be the UUID from the server
                 name: returnedName,
                 uri: fileUri,
                 type,
@@ -664,8 +628,6 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         } catch (e: any) {
             console.log('❌ [UPLOAD ERROR]', e?.message || e);
             showErrorToast('Attachment failed', e?.message || 'Upload error');
-        } finally {
-            setIsUploadingAttachment(prev => ({ ...prev, [rowId]: false }));
         }
     };
 
@@ -720,6 +682,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 mediaType: 'mixed',
                 selectionLimit: remaining,
             });
+
+
             if (res.assets?.length) {
                 for (const asset of res.assets) {
                     await uploadAttachment(rowId, asset);
@@ -1331,7 +1295,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
     async function inspectUrl(url) {
         try {
-            const r = await fetch(url, { method: 'GET' }); // GET because some servers block HEAD
+            const r = await fetch(url, { method: 'GET' });
             console.log('status', r.status);
             console.log('content-type', r.headers.get('content-type'));
             const snippet = await r.text().then(t => t.slice(0, 200));
@@ -1340,12 +1304,15 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             console.warn('inspectUrl failed', e);
         }
     }
-    inspectUrl(imageUrl);
-    Image.getSize(
-        imageUrl,
-        (w, h) => console.log('Image.getSize success', w, h),
-        (err) => console.warn('Image.getSize failed', err)
-    );
+    // Guard to avoid empty URI errors during render
+    if (imageUrl) {
+        inspectUrl(imageUrl);
+        Image.getSize(
+            getUri(imageUrl),
+            (w, h) => console.log('Image.getSize success', w, h),
+            (err) => console.warn('Image.getSize failed', err)
+        );
+    }
 
 
 
@@ -2017,7 +1984,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 </View>
 
                                                 <View style={{ width: '50%', alignItems: 'flex-end', paddingRight: getResponsive(8) }}>
-                                                    <View style={[styles.signatureBox, { width: '100%', overflow: 'hidden', height: getResponsive(90) }]}>
+                                                    <View style={[styles.signatureBox, { width: '100%', overflow: 'hidden', height: getResponsive(150) }]}>
                                                         {/* Inline signature canvas using react-native-signature-canvas */}
                                                         <Signature
                                                             ref={(r) => { if (r) signatureRefs.current[row.webId] = r; }}
@@ -2032,16 +1999,25 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                     delete signatureWaiters.current[row.webId];
                                                                 }
                                                             }}
-                                                            // Avoid calling ref.readSignature() directly here; use the safe helper
                                                             onEnd={() => {
                                                                 safeReadSignature(row.webId);
                                                             }}
                                                             webStyle={`
-                                                                        .m-signature-pad--footer { display:none; }
-                                                                        body,html { background: transparent; }
-                                                                        .m-signature-pad { box-shadow:none; border:0; background: transparent; }
-                                                                        canvas { background-color: transparent; }
-                                                                    `}
+                .m-signature-pad--footer { display:none; }
+                body,html { background: transparent; }
+                .m-signature-pad { 
+                    box-shadow:none; 
+                    border:0; 
+                    background: transparent; 
+                    width: 100%;
+                    height: 100%;
+                }
+                canvas { 
+                    background-color: transparent;
+                    width: 100% !important;
+                    height: 100% !important;
+                }
+            `}
                                                             backgroundColor="#31AAFF33"
                                                             penColor="#000"
                                                             descriptionText=""
@@ -3060,15 +3036,15 @@ const styles = StyleSheet.create({
         backgroundColor: '#F2F2F2',
         borderRadius: getResponsive(12),
         marginBottom: getResponsive(10),
-        padding: getResponsive(16),
+        // padding: getResponsive(16),
         flexDirection: 'row',
     },
     signatureBox: {
         borderRadius: getResponsive(10),
         marginTop: getResponsive(10),
         padding: getResponsive(5),
-        minHeight: getResponsive(100),
-        minWidth: getResponsive(180),
+        minHeight: getResponsive(150), // Increased from 100
+        minWidth: getResponsive(200), // Increased from 180
         justifyContent: 'center',
         alignItems: 'center',
         position: 'relative',
