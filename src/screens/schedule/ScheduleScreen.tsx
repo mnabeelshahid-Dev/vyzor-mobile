@@ -30,7 +30,7 @@ import UserIcon from '../../assets/svgs/user.svg';
 import MenuIcon from '../../assets/svgs/menuIcon.svg';
 import NotesIcon from '../../assets/svgs/notesIcon.svg';
 import { useAuthStore } from '../../store/authStore';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useFocusEffect } from '@react-navigation/native';
 
 
 
@@ -99,13 +99,9 @@ const HOUR_LIST = Array.from({ length: 48 }, (_, i) => {
   return `${displayHour.toString().padStart(2, '0')}.${minutesStr} ${period}`;
 });
 
-function formatTasksForUI(tasks: TaskSchedulingModel[]) {
-  // Filter out tasks with empty or whitespace-only userNames
-  const filteredTasks = tasks.filter(task => {
-    return task.userName && task.userName.trim().length > 0;
-  });
-
-  return filteredTasks.map(task => {
+function formatTasksForUI(tasks: TaskSchedulingModel[], userFirstName?: string | null) {
+  // Show all tasks regardless of userName
+  return tasks.map(task => {
     const startTime = new Date(task.startDate);
     const endTime = new Date(task.endDate);
 
@@ -175,7 +171,7 @@ const isActive = task.scheduleType === 'SCHEDULED' &&
 
 const ACTIVE_BLUE = '#0088E7';
 const SCHEDULED_ORANGE = '#E09200';
-const COMPLETED_GREEN = '#11A330';
+const COMPLETED_GREEN = '#12862bff';
 const EXPIRED_RED = '#E4190A';
 
 let borderColor = BLUE; // Default
@@ -190,22 +186,20 @@ if (isActive) {
 } else if (task.scheduleType === 'EXPIRED') {
   borderColor = EXPIRED_RED;
   bg = '#E4190A1A';
-} else if (task.scheduleType === 'COMPLETED') {
+} else if (task.scheduleType === 'COMPLETED' || task.scheduleType === 'ON_TIME' || task.scheduleType === 'OUTSIDE_PERIOD') {
   borderColor = COMPLETED_GREEN;
-  bg = '#ECEFF3';
+  bg = '#11A3301A';
+  effectiveScheduleType = 'COMPLETED';
 } else if (task.scheduleType === 'SCHEDULED') {
   borderColor = SCHEDULED_ORANGE;
   bg = '#f6e0c1ff';  // Light orange background for scheduled
-} else if (task.scheduleType === 'ON_TIME') {
-  borderColor = BLUE;
-  bg = '#E3F2FD';
 }
 return {
   id: task.webId.toString(),
   hour: formatTime(startTime),
   number: `#${task.documentId}`,
   title: task.formName || task.documentName || 'No Title',
-  user: task.userName,
+  user: userFirstName || '',
   borderColor,
   bg,
   type: taskType,
@@ -218,6 +212,8 @@ return {
   slots,
   slotCount: slots.length,
   formDefinitionId: task.formDefinitionId,
+  // Include raw task data for navigation
+  rawTask: task,
 };
   });
 }
@@ -323,6 +319,8 @@ const userId = user?.id || '';
 
 
     useEffect(() => {
+      console.log("complete user data from store", user)
+      console.log("User First name", user?.firstName)
       console.log("Web ID from Store", user?.id)
       console.log("Site ID from Store", user?.currentUserSite[0]?.siteId)
       console.log("User Data from Store", user)
@@ -402,6 +400,14 @@ const {
   // enabled: !!userId && !!branchId, // Only fetch when we have both user ID and branch ID
 });
 
+// Refetch tasks when screen comes into focus (e.g., after submitting a task)
+useFocusEffect(
+  React.useCallback(() => {
+    // Refetch tasks to update status (e.g., from Active to Completed)
+    refetchTasks();
+  }, [refetchTasks])
+);
+
 
 // Devices Query
 const {
@@ -415,7 +421,7 @@ const {
   enabled: devicesModal,
 });
 
-// Sections Query
+// Sections Query - Enable always to get section data for navigation
 const {
   data: sectionsData,
   isLoading: isSectionsLoading,
@@ -424,7 +430,7 @@ const {
 } = useQuery({
   queryKey: ['sections'],
   queryFn: fetchSections,
-  enabled: sectionsModal,
+  enabled: true, // Always enabled to support navigation
 });
 
 // Notes Query
@@ -452,7 +458,7 @@ const {
 });
 
   // Format tasks for UI
-  const formattedTasks = tasksData ? formatTasksForUI(tasksData) : [];
+  const formattedTasks = tasksData ? formatTasksForUI(tasksData, user?.firstName) : [];
 
   // Debug logs after formattedTasks is defined
   console.log('Formatted tasks:', formattedTasks);
@@ -497,7 +503,7 @@ const normalizeStatus = (status: string = '') => {
   if (s === 'schedule' || s === 'scheduled') return 'Scheduled';
   if (s === 'active') return 'Active';
   if (s === 'expired') return 'Expired';
-  if (s === 'completed') return 'Completed';
+  if (s === 'completed' || s === 'on_time' || s === 'outside_period') return 'Completed';
   return status || '';
 };
   const STATUS_COLORS: Record<string, string> = {
@@ -549,6 +555,65 @@ const closeModal = () => {
 };
 
 const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
+
+// Helper functions for section navigation (same as TaskScreen)
+interface FormDefinitionSectionModel {
+  formDefinitionId: string | number;
+  deleted?: boolean;
+  formSectionId?: string | number;
+  webId?: any;
+}
+
+interface Section {
+  documentId?: string | number;
+  name?: string;
+  location?: string;
+  formDefinitionSectionModels?: FormDefinitionSectionModel[];
+}
+
+function getSectionModelsForSectionIds(formDefinationsId: string | number): any {
+  if (!sectionsData?.data?.content) return {};
+  let tempArray: any = [];
+  sectionsData.data.content.forEach((section: Section) => {
+    if (Array.isArray(section.formDefinitionSectionModels)) {
+      section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel) => {
+        if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
+          tempArray.push(model);
+        }
+      });
+    }
+  });
+  const formSectionIDs: Record<string, any> = {};
+  let id = 1;
+  tempArray.forEach((model: FormDefinitionSectionModel) => {
+    if (model.formSectionId) {
+      formSectionIDs[`id${id++}`] = model.formSectionId;
+    }
+  });
+  return formSectionIDs;
+}
+
+function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Record<string, any> {
+  if (!sectionsData?.data?.content) return {};
+  let tempArray: any = [];
+  sectionsData.data.content.forEach((section: Section) => {
+    if (Array.isArray(section.formDefinitionSectionModels)) {
+      section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel & { webId?: any }) => {
+        if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
+          tempArray.push(model);
+        }
+      });
+    }
+  });
+  const webIds: Record<string, any> = {};
+  let id = 1;
+  tempArray.forEach((model: { webId?: any }) => {
+    if (model.webId !== undefined && model.webId !== null) {
+      webIds[`id${id++}`] = model.webId;
+    }
+  });
+  return webIds;
+}
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BLUE }}>
@@ -847,8 +912,8 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
                                   <View style={styles.taskUserPill}>
                                     <Text style={styles.taskUserText}>
                                           {maxColumnsOverall > 2 || item.type === 'mini'
-                                        ? item.user.split(' ')[0]
-                                        : item.user}
+                                        ? (item.user || '').split(' ')[0]
+                                        : item.user || ''}
                                     </Text>
                                   </View>
                                 </View>
@@ -1120,14 +1185,27 @@ const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
                         onPress={() => {
                           if (canStart && selectedTask) {
                             setShowTaskModal(false);
-                      navigation.navigate('Task', {
-                        screen: 'Section',
-                        params: {
-                          formDefinitionId: selectedTask.formDefinitionId || selectedTask.id,
-                          status: selectedTask.scheduleType,
-                          sourceScreen: 'Schedule', // Add source information
-                        },
-                      });
+                            // Get raw task data for navigation
+                            const rawTask = selectedTask.rawTask || {};
+                            // Build task data object similar to TaskScreen
+                            const taskData = {
+                              formName: rawTask.formName || selectedTask.title,
+                              startDate: rawTask.startDate || selectedTask.startDate,
+                              endDate: rawTask.endDate || selectedTask.endDate,
+                              documentId: rawTask.documentId || selectedTask.number?.replace('#', '') || '',
+                              formDefinitionId: rawTask.formDefinitionId || selectedTask.formDefinitionId,
+                              assignUserId: rawTask.assignUserId || rawTask.userId || user?.id || '',
+                              clientId: rawTask.clientId || '',
+                              siteId: rawTask.siteId || branchId || '',
+                            };
+                            navigation.navigate('Task', {
+                              screen: 'Section',
+                              params: {
+                                formSectionIds: getSectionModelsForSectionIds(taskData.formDefinitionId),
+                                formConfigurationSectionIds: getSectionWebIdsForSectionIds(taskData.formDefinitionId),
+                                data: taskData,
+                              },
+                            });
                           }
                         }}
                         style={{ 
