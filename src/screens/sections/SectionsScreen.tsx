@@ -968,7 +968,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                 if (!rows || rows.length === 0) return null;
 
-                const dataItems = rows.flatMap((row: any) => {
+                const dataItems = rows
+                    // .filter((row: any) => {
+                    //     // Skip rows where all columns have null components
+                    //     if (!row.columns || row.columns.length === 0) return false;
+                    //     return row.columns.some((col: any) => col.components != null);
+                    // })
+                    .flatMap((row: any) => {
                     var keyuuid = row?.key;
                     const comps = row.columns?.flatMap((col: any) => col.components || []) || [];
 
