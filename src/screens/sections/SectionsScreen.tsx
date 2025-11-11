@@ -1410,18 +1410,18 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             <View style={{ paddingHorizontal: getResponsive(10), paddingVertical: getResponsive(10) }}>
                                 {currentSection.formSectionRowModels.map((row, rIdx) => {
                                     const isLastRow = rIdx === currentSection.formSectionRowModels.length - 1;
-                                    const hasCamera = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'CAMERA')
+                                    const hasCamera = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'CAMERA')
                                     );
                                     // TEXT_FIELD row
-                                    const hasTextField = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'TEXT_FIELD')
+                                    const hasTextField = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'TEXT_FIELD')
                                     );
-                                    const hasSignature = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'SIGNATURE')
+                                    const hasSignature = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'SIGNATURE')
                                     );
-                                    const hasImage = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === "IMAGE")
+                                    const hasImage = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === "IMAGE")
                                     );
 
 
@@ -1495,8 +1495,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // CHECK_BOX row
-                                    const hasCheckbox = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'CHECK_BOX')
+                                    const hasCheckbox = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'CHECK_BOX')
                                     );
                                     if (hasCheckbox) {
                                         const checkboxComp = row.columns.flatMap(c => c.components).find(c => c.component === 'CHECK_BOX');
@@ -1533,8 +1533,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // SWITCH_BUTTON row
-                                    const hasSwitch = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'SWITCH_BUTTON')
+                                    const hasSwitch = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'SWITCH_BUTTON')
                                     );
                                     if (hasSwitch) {
                                         const switchValue = switchValues[row.webId] || false;
@@ -1569,8 +1569,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // TEXT_AREA row
-                                    const hasTextArea = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'TEXT_AREA')
+                                    const hasTextArea = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'TEXT_AREA')
                                     );
                                     if (hasTextArea) {
                                         const textAreaComp = row.columns.flatMap(c => c.components).find(c => c.component === 'TEXT_AREA');
@@ -1600,8 +1600,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // DATE row
-                                    const hasDate = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'DATE')
+                                    const hasDate = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'DATE')
                                     );
                                     if (hasDate) {
                                         const dateValue = dateValues[row.webId] || '';
@@ -1655,8 +1655,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         );
                                     }
 
-                                    const hasRating = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'RATING')
+                                    const hasRating = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'RATING')
                                     );
 
 
@@ -1697,8 +1697,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
 
-                                    const hasLookup = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'LOOKUP')
+                                    const hasLookup = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'LOOKUP')
                                     );
 
                                     // LOOKUP row
@@ -1841,8 +1841,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // ATTACHEMENTS row (file uploads producing file IDs)
-                                    const hasAttachments = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'ATTACHEMENTS')
+                                    const hasAttachments = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'ATTACHEMENTS')
                                     );
                                     if (hasAttachments) {
                                         const files = attachmentsByRow[row.webId] || [];
@@ -2048,8 +2048,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // QR_CODE row
-                                    const hasQrCode = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'QR_CODE')
+                                    const hasQrCode = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'QR_CODE')
                                     );
                                     if (hasQrCode) {
                                         const qrCodeValue = qrCodeValues[row.webId] || '';
@@ -2141,8 +2141,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // QR_VALIDATOR row
-                                    const hasQrValidator = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'QR_VALIDATOR')
+                                    const hasQrValidator = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'QR_VALIDATOR')
                                     );
                                     if (hasQrValidator) {
                                         const qrValidatorComp = row.columns.flatMap(c => c.components).find(c => c.component === 'QR_VALIDATOR');
@@ -2254,8 +2254,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // BAR_CODE row
-                                    const hasBarcode = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'BAR_CODE')
+                                    const hasBarcode = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'BAR_CODE')
                                     );
                                     if (hasBarcode) {
                                         const barcodeValue = barcodeValues[row.webId] || '';
@@ -2327,8 +2327,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // BAR_VALIDATOR row
-                                    const hasBarcodeValidator = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'BAR_VALIDATOR')
+                                    const hasBarcodeValidator = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'BAR_VALIDATOR')
                                     );
                                     if (hasBarcodeValidator) {
                                         const barcodeValidatorComp = row.columns.flatMap(c => c.components).find(c => c.component === 'BAR_VALIDATOR');
@@ -2440,8 +2440,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // TIMER row
-                                    const hasTimer = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'TIMER')
+                                    const hasTimer = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'TIMER')
                                     );
                                     if (hasTimer) {
                                         const timerValue = timerValues[row.webId] || '00:00:00.0000000';
@@ -2489,8 +2489,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // PARAGRAPH row
-                                    const hasParagraph = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'PARAGRAPH')
+                                    const hasParagraph = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'PARAGRAPH')
                                     );
                                     if (hasParagraph) {
                                         const paragraphComp = row.columns.flatMap(c => c.components).find(c => c.component === 'PARAGRAPH');
@@ -2516,8 +2516,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     }
 
                                     // FILE row
-                                    const hasFile = row.columns.some(col =>
-                                        col.components.some(comp => comp.component === 'FILE')
+                                    const hasFile = row.columns?.some(col =>
+                                        col.components?.some(comp => comp.component === 'FILE')
                                     );
                                     if (hasFile) {
                                         const fileComp = row.columns.flatMap(c => c.components).find(c => c.component === 'FILE');
