@@ -1408,7 +1408,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             </View>
                             {/* Checklist */}
                             <View style={{ paddingHorizontal: getResponsive(10), paddingVertical: getResponsive(10) }}>
-                                {currentSection.formSectionRowModels.map((row, rIdx) => {
+                                {currentSection.formSectionRowModels
+                                    .filter((row) => {
+                                        // Skip rows where all columns have null components
+                                        if (!row.columns || row.columns.length === 0) return false;
+                                        return row.columns.some((col: any) => col.components != null);
+                                    })
+                                    .map((row, rIdx) => {
                                     const isLastRow = rIdx === currentSection.formSectionRowModels.length - 1;
                                     const hasCamera = row.columns?.some(col =>
                                         col.components?.some(comp => comp.component === 'CAMERA')
@@ -1426,7 +1432,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
 
                                     if (hasImage) {
-                                        const imageComp = row.columns.flatMap((c: any) => c.components).find((c: any) => c.component === 'IMAGE');
+                                        const imageComp = row.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'IMAGE');
                                         const imageUrl = getImageUrl(row);
 
                                         console.log('====================================');
@@ -1470,7 +1476,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
 
                                     if (hasTextField) {
-                                        const textComp = row.columns.flatMap(c => c.components).find(c => c.component === 'TEXT_FIELD');
+                                        const textComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'TEXT_FIELD');
                                         const placeholder = textComp?.placeholder || 'Type your answer...';
 
                                         return (
@@ -1499,7 +1505,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         col.components?.some(comp => comp.component === 'CHECK_BOX')
                                     );
                                     if (hasCheckbox) {
-                                        const checkboxComp = row.columns.flatMap(c => c.components).find(c => c.component === 'CHECK_BOX');
+                                        const checkboxComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'CHECK_BOX');
                                         const isChecked = checkboxValues[row.webId] || false;
 
                                         return (
@@ -1573,7 +1579,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         col.components?.some(comp => comp.component === 'TEXT_AREA')
                                     );
                                     if (hasTextArea) {
-                                        const textAreaComp = row.columns.flatMap(c => c.components).find(c => c.component === 'TEXT_AREA');
+                                        const textAreaComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'TEXT_AREA');
                                         const placeholder = textAreaComp?.placeholder || 'Type your comments...';
 
                                         return (
@@ -1662,7 +1668,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                     // RATING row
                                     if (hasRating) {
-                                        const ratingComp = row.columns.flatMap(c => c.components).find(c => c.component === 'RATING');
+                                        const ratingComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'RATING');
                                         const currentRating = ratingValues[row.webId] || 0;
 
                                         return (
@@ -1703,7 +1709,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                     // LOOKUP row
                                     if (hasLookup) {
-                                        const lookupComp = row.columns.flatMap(c => c.components).find(c => c.component === 'LOOKUP');
+                                        const lookupComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'LOOKUP');
                                         const options = lookupOptions[row.webId] || [];
                                         const selectedValue = lookupValues[row.webId] || '';
                                         const selectedText = options.find(opt => opt.value === selectedValue)?.text || 'Select an option';
@@ -2145,7 +2151,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         col.components?.some(comp => comp.component === 'QR_VALIDATOR')
                                     );
                                     if (hasQrValidator) {
-                                        const qrValidatorComp = row.columns.flatMap(c => c.components).find(c => c.component === 'QR_VALIDATOR');
+                                        const qrValidatorComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'QR_VALIDATOR');
                                         const expectedValue = qrValidatorComp?.defaultValue || qrValidatorComp?.text || '';
                                         const scannedValue = qrValidatorValues[row.webId] || '';
                                         const validationStatus = qrValidatorStatus[row.webId] || 'pending';
@@ -2331,7 +2337,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         col.components?.some(comp => comp.component === 'BAR_VALIDATOR')
                                     );
                                     if (hasBarcodeValidator) {
-                                        const barcodeValidatorComp = row.columns.flatMap(c => c.components).find(c => c.component === 'BAR_VALIDATOR');
+                                        const barcodeValidatorComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'BAR_VALIDATOR');
                                         const expectedValue = barcodeValidatorComp?.defaultValue || barcodeValidatorComp?.text || '';
                                         const scannedValue = barcodeValidatorValues[row.webId] || '';
                                         const validationStatus = barcodeValidatorStatus[row.webId] || 'pending';
@@ -2493,7 +2499,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         col.components?.some(comp => comp.component === 'PARAGRAPH')
                                     );
                                     if (hasParagraph) {
-                                        const paragraphComp = row.columns.flatMap(c => c.components).find(c => c.component === 'PARAGRAPH');
+                                        const paragraphComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'PARAGRAPH');
                                         const paragraphText = paragraphComp?.defaultValue || paragraphComp?.text || '';
 
                                         return (
@@ -2520,7 +2526,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         col.components?.some(comp => comp.component === 'FILE')
                                     );
                                     if (hasFile) {
-                                        const fileComp = row.columns.flatMap(c => c.components).find(c => c.component === 'FILE');
+                                        const fileComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'FILE');
                                         const fileId = fileComp?.defaultValue || fileComp?.attrs?.find(attr => attr.key === 'imageId')?.value || '';
                                         const fileUrl = fileUrls[row.webId] || '';
 
@@ -2597,7 +2603,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             </Text>
 
                                             <View style={styles.radioChoiceRow}>
-                                                {row.columns[1]?.components.map((comp, cIdx) =>
+                                                {(row.columns[1]?.components || []).map((comp, cIdx) =>
                                                     comp.component === 'RADIO_BUTTON' ? (
                                                         <TouchableOpacity
                                                             key={comp.webId}
