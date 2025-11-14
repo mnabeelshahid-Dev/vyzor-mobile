@@ -843,9 +843,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
         const rows = Array.isArray(sectionRowsData.data) ? sectionRowsData.data : [sectionRowsData.data];
 
-        rows.forEach((row: any) => {
+        // Filter out deleted rows and components
+        rows.filter((row: any) => !row.deleted).forEach((row: any) => {
             row.columns?.forEach((col: any) => {
-                col.components?.forEach((comp: any) => {
+                col.components?.filter((comp: any) => !comp.deleted).forEach((comp: any) => {
                     if (comp.component === 'LOOKUP' && comp.text) {
                         const lookupName = comp.text;
                         const rowId = row.webId;
@@ -903,13 +904,34 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const filteredList = (() => {
         const rows = Array.isArray(sectionRowsData?.data) ? sectionRowsData.data : (sectionRowsData?.data || []);
         if (!rows || rows.length === 0 || !currentSectionId) return [];
+        
+        // Filter out rows with deleted: true
+        const filteredRows = rows.filter((row: any) => !row.deleted);
+        
+        // Filter out components with deleted: true within each row
+        const rowsWithFilteredComponents = filteredRows.map((row: any) => {
+            if (!row.columns) return row;
+            return {
+                ...row,
+                columns: row.columns.map((col: any) => {
+                    if (!col.components) return col;
+                    return {
+                        ...col,
+                        components: col.components.filter((comp: any) => !comp.deleted)
+                    };
+                }).filter((col: any) => col.components && col.components.length > 0)
+            };
+        }).filter((row: any) => row.columns && row.columns.length > 0);
+        
+        if (rowsWithFilteredComponents.length === 0) return [];
+        
         // Extract section name from the first row (all rows in a section have the same sectionName)
-        const sectionName = rows[0]?.sectionName || data?.sectionName || formName || 'Section';
+        const sectionName = rowsWithFilteredComponents[0]?.sectionName || data?.sectionName || formName || 'Section';
         return [
             {
                 webId: currentSectionId,
                 name: sectionName,
-                formSectionRowModels: rows,
+                formSectionRowModels: rowsWithFilteredComponents,
             },
         ];
     })();
@@ -968,7 +990,24 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                 if (!rows || rows.length === 0) return null;
 
-                const dataItems = rows
+                // Filter out deleted rows and components
+                const filteredRows = rows.filter((row: any) => !row.deleted).map((row: any) => {
+                    if (!row.columns) return row;
+                    return {
+                        ...row,
+                        columns: row.columns.map((col: any) => {
+                            if (!col.components) return col;
+                            return {
+                                ...col,
+                                components: col.components.filter((comp: any) => !comp.deleted)
+                            };
+                        }).filter((col: any) => col.components && col.components.length > 0)
+                    };
+                }).filter((row: any) => row.columns && row.columns.length > 0);
+
+                if (!filteredRows || filteredRows.length === 0) return null;
+
+                const dataItems = filteredRows
                     // .filter((row: any) => {
                     //     // Skip rows where all columns have null components
                     //     if (!row.columns || row.columns.length === 0) return false;
@@ -1275,8 +1314,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         const rows: any[] = Array.isArray(sectionRowsData?.data) ? sectionRowsData!.data : (sectionRowsData?.data || []);
         if (!rows.length) return;
 
-        rows.forEach((row: any) => {
-            const hasImage = row.columns?.some((col: any) => col.components?.some((c: any) => c.component === 'IMAGE'));
+        // Filter out deleted rows
+        rows.filter((row: any) => !row.deleted).forEach((row: any) => {
+            const hasImage = row.columns?.some((col: any) => col.components?.filter((c: any) => !c.deleted).some((c: any) => c.component === 'IMAGE'));
             if (!hasImage) return;
 
             const fileId = getImageIdFromRow(row);
