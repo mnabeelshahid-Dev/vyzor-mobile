@@ -940,6 +940,36 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     console.log('Rendering SectionsScreen with data:', { filteredList });
     console.log('====================================');
 
+    // Helper function to flatten rows and columns in row-wise order
+    const flattenRowsAndColumns = (rows: any[]) => {
+        if (!rows || rows.length === 0) return [];
+        
+        // Sort rows by rowOrder
+        const sortedRows = [...rows].sort((a, b) => (a.rowOrder || 0) - (b.rowOrder || 0));
+        
+        const flattened: Array<{ row: any; column: any; rowIndex: number; columnIndex: number }> = [];
+        
+        sortedRows.forEach((row, rowIdx) => {
+            if (!row.columns || row.columns.length === 0) return;
+            
+            // Sort columns by columnOrder
+            const sortedColumns = [...row.columns]
+                .filter((col: any) => col.components && col.components.length > 0)
+                .sort((a: any, b: any) => (a.columnOrder || 0) - (b.columnOrder || 0));
+            
+            sortedColumns.forEach((column: any, colIdx: number) => {
+                flattened.push({
+                    row,
+                    column,
+                    rowIndex: rowIdx,
+                    columnIndex: colIdx
+                });
+            });
+        });
+        
+        return flattened;
+    };
+
     // Submission handler
 
     function formatDateTimeUTC(date: Date | string) {
@@ -1017,219 +1047,94 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     var keyuuid = row?.key;
                     const comps = row.columns?.flatMap((col: any) => col.components || []) || [];
 
-                    // RADIO_BUTTON (only include the selected one)
-                    const answer = answers[sectionId]?.[row.webId];
-                    const radioData =
-                        comps
-                            .filter((c: any) => c.component === 'RADIO_BUTTON')
-                            .map((c: any) => {
-                                return {
+                    // Process each component and get its value using component.webId
+                    const dataItemsForRow = comps
+                        .filter((c: any) => c.component !== 'LABEL') // Skip LABEL components
+                        .map((c: any) => {
+                            const compWebId = c.webId;
+                            let value: any = null;
 
-                                    value: answer === c.text ? c.text : '',
-                                    controlId: c.controlId || '',
-                                    groupName: c.name || null,
-                                    senserData: null,
-                                }
-                            })
-                            .filter((i: any) => i.value) || [];
+                            // RADIO_BUTTON
+                            if (c.component === 'RADIO_BUTTON') {
+                                const answer = answers[sectionId]?.[compWebId];
+                                value = answer === c.text ? c.text : '';
+                                if (!value) return null; // Skip if not selected
+                            }
+                            // CAMERA
+                            else if (c.component === 'CAMERA') {
+                                value = (rowImages[compWebId] || []).map((img: any) => img.id);
+                            }
+                            // ATTACHEMENTS
+                            else if (c.component === 'ATTACHEMENTS') {
+                                value = (attachmentsByRow[compWebId] || []).map((f: any) => f.id);
+                            }
+                            // TEXT_FIELD
+                            else if (c.component === 'TEXT_FIELD') {
+                                value = textInputs[compWebId] || '';
+                            }
+                            // CHECK_BOX
+                            else if (c.component === 'CHECK_BOX') {
+                                value = checkboxValues[compWebId] ?? false;
+                            }
+                            // SWITCH_BUTTON
+                            else if (c.component === 'SWITCH_BUTTON') {
+                                value = switchValues[compWebId] ?? false;
+                            }
+                            // TEXT_AREA
+                            else if (c.component === 'TEXT_AREA') {
+                                value = textAreaInputs[compWebId] || '';
+                            }
+                            // DATE
+                            else if (c.component === 'DATE') {
+                                value = dateValues[compWebId] || '';
+                            }
+                            // RATING
+                            else if (c.component === 'RATING') {
+                                value = Number(ratingValues[compWebId] ?? 0);
+                            }
+                            // LOOKUP
+                            else if (c.component === 'LOOKUP') {
+                                value = lookupValues[compWebId] || '';
+                            }
+                            // SIGNATURE
+                            else if (c.component === 'SIGNATURE') {
+                                value = signatureValues[compWebId]?.encoded || '';
+                            }
+                            // QR_CODE
+                            else if (c.component === 'QR_CODE') {
+                                value = qrCodeValues[compWebId] || '';
+                            }
+                            // QR_VALIDATOR
+                            else if (c.component === 'QR_VALIDATOR') {
+                                value = qrValidatorValues[compWebId] || '';
+                            }
+                            // BAR_CODE
+                            else if (c.component === 'BAR_CODE') {
+                                value = barcodeValues[compWebId] || '';
+                            }
+                            // BAR_VALIDATOR
+                            else if (c.component === 'BAR_VALIDATOR') {
+                                value = barcodeValidatorValues[compWebId] || '';
+                            }
+                            // TIMER
+                            else if (c.component === 'TIMER') {
+                                value = timerValues[compWebId] || '00:00:00.0000000';
+                            }
+                            // Skip other component types (IMAGE, PARAGRAPH, FILE are display-only)
+                            else {
+                                return null;
+                            }
 
-                    // CAMERA (array of IDs)
-                    const cameraComp = comps.find((c: any) => c.component === 'CAMERA');
+                            return {
+                                value: value,
+                                controlId: c.controlId || c.webId || '',
+                                groupName: c.name || null,
+                                senserData: null,
+                            };
+                        })
+                        .filter((item: any) => item !== null);
 
-                    const cameraData = cameraComp
-                        ? [{
-                            value: (rowImages[row.webId] || []).map((img) => img.id),
-                            controlId: cameraComp.controlId || '',
-                            groupName: cameraComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // ATTACHEMENTS (array of file IDs)
-                    const attachComp = comps.find((c: any) => c.component === 'ATTACHEMENTS');
-                    const attachmentsData = attachComp
-                        ? [{
-                            value: (attachmentsByRow[row.webId] || []).map((f) => f.id),
-                            controlId: attachComp.controlId || '',
-                            groupName: attachComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // TEXT_FIELD
-                    const textComp = comps.find((c: any) => c.component === 'TEXT_FIELD');
-                    const textVal = textInputs[row.webId] || '';
-                    const textData = textComp
-                        ? [{
-                            value: textVal,
-                            controlId: textComp.controlId || '',
-                            groupName: textComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // CHECK_BOX (boolean)
-                    const checkboxComp = comps.find((c: any) => c.component === 'CHECK_BOX');
-                    const checkboxVal = checkboxValues[row.webId] ?? false;
-                    const checkboxData = checkboxComp
-                        ? [{
-                            value: checkboxVal,
-                            controlId: checkboxComp.controlId || '',
-                            groupName: checkboxComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // SWITCH_BUTTON (boolean)
-                    const switchComp = comps.find((c: any) => c.component === 'SWITCH_BUTTON');
-                    const switchVal = switchValues[row.webId] ?? false;
-                    const switchData = switchComp
-                        ? [{
-                            value: switchVal,
-                            controlId: switchComp.controlId || '',
-                            groupName: switchComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // TEXT_AREA
-                    const textAreaComp = comps.find((c: any) => c.component === 'TEXT_AREA');
-                    const textAreaVal = textAreaInputs[row.webId] || '';
-                    const textAreaData = textAreaComp
-                        ? [{
-                            value: textAreaVal,
-                            controlId: textAreaComp.controlId || '',
-                            groupName: textAreaComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // DATE (YYYY-MM-DD)
-                    const dateComp = comps.find((c: any) => c.component === 'DATE');
-                    const dateVal = dateValues[row.webId] || '';
-                    const dateData = dateComp
-                        ? [{
-                            value: dateVal,
-                            controlId: dateComp.controlId || '',
-                            groupName: dateComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // RATING (number)
-                    const ratingComp = comps.find((c: any) => c.component === 'RATING');
-                    const ratingVal = ratingValues[row.webId] ?? 0;
-                    const ratingData = ratingComp
-                        ? [{
-                            value: Number(ratingVal),
-                            controlId: ratingComp.controlId || '',
-                            groupName: ratingComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // LOOKUP
-                    const lookupComp = comps.find((c: any) => c.component === 'LOOKUP');
-                    const lookupVal = lookupValues[row.webId] || '';
-                    const lookupData = lookupComp
-                        ? [{
-                            value: lookupVal,
-                            controlId: lookupComp.controlId || '',
-                            groupName: lookupComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // SIGNATURE
-                    const signatureComp = comps.find((c: any) => c.component === 'SIGNATURE');
-                    const signatureVal = signatureValues[row.webId]?.encoded || '';
-                    const signatureData = signatureComp
-                        ? [{
-                            value: signatureVal,
-                            controlId: signatureComp.controlId || '',
-                            groupName: signatureComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // QR_CODE
-                    const qrCodeComp = comps.find((c: any) => c.component === 'QR_CODE');
-                    const qrCodeVal = qrCodeValues[row.webId] || '';
-                    const qrCodeData = qrCodeComp
-                        ? [{
-                            value: qrCodeVal,
-                            controlId: qrCodeComp.controlId || '',
-                            groupName: qrCodeComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // QR_VALIDATOR
-                    const qrValidatorComp = comps.find((c: any) => c.component === 'QR_VALIDATOR');
-                    const qrValidatorVal = qrValidatorValues[row.webId] || '';
-                    const qrValidatorData = qrValidatorComp
-                        ? [{
-                            value: qrValidatorVal,
-                            controlId: qrValidatorComp.controlId || '',
-                            groupName: qrValidatorComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // BAR_CODE
-                    const barcodeComp = comps.find((c: any) => c.component === 'BAR_CODE');
-                    const barcodeVal = barcodeValues[row.webId] || '';
-                    const barcodeData = barcodeComp
-                        ? [{
-                            value: barcodeVal,
-                            controlId: barcodeComp.controlId || '',
-                            groupName: barcodeComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // BAR_VALIDATOR
-                    const barcodeValidatorComp = comps.find((c: any) => c.component === 'BAR_VALIDATOR');
-                    const barcodeValidatorVal = barcodeValidatorValues[row.webId] || '';
-                    const barcodeValidatorData = barcodeValidatorComp
-                        ? [{
-                            value: barcodeValidatorVal,
-                            controlId: barcodeValidatorComp.controlId || '',
-                            groupName: barcodeValidatorComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    // TIMER
-                    const timerComp = comps.find((c: any) => c.component === 'TIMER');
-                    const timerVal = timerValues[row.webId] || '00:00:00.0000000';
-                    const timerData = timerComp
-                        ? [{
-                            value: timerVal,
-                            controlId: timerComp.controlId || '',
-                            groupName: timerComp.name || null,
-                            senserData: null,
-                        }]
-                        : [];
-
-                    return [
-                        ...radioData,
-                        ...attachmentsData,
-                        ...cameraData,
-                        ...textData,
-                        ...checkboxData,
-                        ...switchData,
-                        ...textAreaData,
-                        ...dateData,
-                        ...ratingData,
-                        ...lookupData,
-                        ...signatureData,
-                        ...qrCodeData,
-                        ...qrValidatorData,
-                        ...barcodeData,
-                        ...barcodeValidatorData,
-                        ...timerData,
-                    ];
+                    return dataItemsForRow;
                 });
 
                 // const sectionKey =
@@ -1454,607 +1359,638 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             </View>
                             {/* Checklist */}
                             <View style={{ paddingHorizontal: getResponsive(10), paddingVertical: getResponsive(10) }}>
-                                {currentSection.formSectionRowModels
-                                    .filter((row) => {
-                                        // Skip rows where all columns have null components
-                                        if (!row.columns || row.columns.length === 0) return false;
-                                        return row.columns.some((col: any) => col.components != null);
-                                    })
-                                    .map((row, rIdx) => {
-                                    const isLastRow = rIdx === currentSection.formSectionRowModels.length - 1;
-                                    const hasCamera = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'CAMERA')
-                                    );
-                                    // TEXT_FIELD row
-                                    const hasTextField = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'TEXT_FIELD')
-                                    );
-                                    const hasSignature = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'SIGNATURE')
-                                    );
-                                    const hasImage = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === "IMAGE")
+                                {(() => {
+                                    // Flatten rows and columns in row-wise order
+                                    const flattened = flattenRowsAndColumns(
+                                        currentSection.formSectionRowModels.filter((row) => {
+                                            // Skip rows where all columns have null components
+                                            if (!row.columns || row.columns.length === 0) return false;
+                                            return row.columns.some((col: any) => col.components != null);
+                                        })
                                     );
 
+                                    // Process each column to find question-control pairs
+                                    const questionControlPairs: Array<{
+                                        question: any; // LABEL component
+                                        control: any; // Control component
+                                        row: any;
+                                        column: any;
+                                        uniqueId: string;
+                                    }> = [];
+                                    
+                                    // Track which column indices have been processed to avoid duplicates
+                                    const processedColumnIndices = new Set<number>();
 
-                                    if (hasImage) {
-                                        const imageComp = row.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'IMAGE');
-                                        const imageUrl = getImageUrl(row);
+                                    flattened.forEach(({ row, column }, index) => {
+                                        // Skip if this column has already been processed
+                                        if (processedColumnIndices.has(index)) {
+                                            return;
+                                        }
 
-                                        console.log('====================================');
-                                        console.log('hassss imagee', imageUrl);
-                                        console.log('====================================');
+                                        const components = column.components || [];
+                                        const labelComp = components.find((c: any) => c.component === 'LABEL');
+                                        const controlComps = components.filter((c: any) => c.component !== 'LABEL');
 
-                                        return (
-                                            <View key={row.webId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-
-                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
-                                                        {imageComp?.text || 'Image'}
-                                                    </Text>
-                                                </View>
-
-                                                <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
-                                                    {imageUrl ? (
-                                                        <TouchableOpacity onPress={() => setPreviewUri(imageUrl)} activeOpacity={0.85}>
-                                                            <Image
-                                                                key={imageUrl}
-                                                                source={{ uri: getUri(imageUrl) }}
-                                                                style={[styles.multiImgThumb, { width: getResponsive(120), height: getResponsive(90) }]}
-                                                                resizeMode="cover"
-                                                                onLoad={() => console.log('[IMAGE] loaded for row', row.webId)}
-                                                                onError={(e) => console.warn('[IMAGE] failed to render for row', row.webId, e?.nativeEvent)}
-                                                            />
-                                                        </TouchableOpacity>
-                                                    ) : (
-                                                        <View style={styles.attachmentThumbBox}>
-                                                            <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
-                                                                <ActivityIndicator size="small" color="#1292E6" />
-                                                            </View>
-                                                        </View>
-                                                    )}
-                                                </View>
-                                            </View>
-                                        );
-                                    }
-
-                                    console.log("hassss imagee", hasImage)
-
-
-                                    if (hasTextField) {
-                                        const textComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'TEXT_FIELD');
-                                        const placeholder = textComp?.placeholder || 'Type your answer...';
-
-                                        return (
-                                            <View key={row.webId} style={styles.notesRow}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
-                                                </View>
-                                                <View style={[styles.textFieldBox, { width: '50%' }]}>
-                                                    <TextInput
-                                                        style={styles.textFieldInput}
-                                                        multiline
-                                                        value={textInputs[row.webId] || ''}
-                                                        onChangeText={(v) =>
-                                                            setTextInputs(prev => ({ ...prev, [row.webId]: v }))
-                                                        }
-                                                        placeholder={placeholder}
-                                                        placeholderTextColor="#02163980"
-                                                    />
-                                                </View>
-                                            </View>
-                                        );
-                                    }
-
-                                    // CHECK_BOX row
-                                    const hasCheckbox = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'CHECK_BOX')
-                                    );
-                                    if (hasCheckbox) {
-                                        const checkboxComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'CHECK_BOX');
-                                        const isChecked = checkboxValues[row.webId] || false;
-
-                                        return (
-                                            <View key={row.webId} style={styles.radioRow}>
-                                                <Text style={styles.radioLabel}>
-                                                    {row.columns[0]?.components[0]?.text}
-                                                </Text>
-                                                <TouchableOpacity
-                                                    style={styles.radioChoiceRow}
-                                                    activeOpacity={0.8}
-                                                    onPress={() => {
-                                                        setCheckboxValues(prev => ({
-                                                            ...prev,
-                                                            [row.webId]: !isChecked
-                                                        }));
-                                                    }}
-                                                >
-                                                    <Checkbox selected={isChecked} />
-                                                    <Text style={[
-                                                        styles.radioOptionText,
-                                                        isChecked && {
-                                                            color: '#0088E7',
-                                                            fontWeight: 'bold',
-                                                        }
-                                                    ]}>
-                                                        {isChecked ? 'Yes' : 'No'}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        );
-                                    }
-
-                                    // SWITCH_BUTTON row
-                                    const hasSwitch = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'SWITCH_BUTTON')
-                                    );
-                                    if (hasSwitch) {
-                                        const switchValue = switchValues[row.webId] || false;
-
-                                        return (
-                                            <View key={row.webId} style={styles.radioRow}>
-                                                <Text style={styles.radioLabel}>
-                                                    {row.columns[0]?.components[0]?.text}
-                                                </Text>
-                                                <View style={styles.radioChoiceRow}>
-                                                    <Switch
-                                                        value={switchValue}
-                                                        onValueChange={(value) => {
-                                                            setSwitchValues(prev => ({
-                                                                ...prev,
-                                                                [row.webId]: value
-                                                            }));
-                                                        }}
-                                                    />
-                                                    <Text style={[
-                                                        styles.radioOptionText,
-                                                        switchValue && {
-                                                            color: '#0088E7',
-                                                            fontWeight: 'bold',
-                                                        }
-                                                    ]}>
-                                                        {switchValue ? 'On' : 'Off'}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                        );
-                                    }
-
-                                    // TEXT_AREA row
-                                    const hasTextArea = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'TEXT_AREA')
-                                    );
-                                    if (hasTextArea) {
-                                        const textAreaComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'TEXT_AREA');
-                                        const placeholder = textAreaComp?.placeholder || 'Type your comments...';
-
-                                        return (
-                                            <View key={row.webId} style={styles.notesRow}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
-                                                </View>
-                                                <View style={[styles.textFieldBox, { width: '50%' }]}>
-                                                    <TextInput
-                                                        style={[styles.textFieldInput, { minHeight: getResponsive(80) }]}
-                                                        multiline
-                                                        numberOfLines={4}
-                                                        value={textAreaInputs[row.webId] || ''}
-                                                        onChangeText={(v) =>
-                                                            setTextAreaInputs(prev => ({ ...prev, [row.webId]: v }))
-                                                        }
-                                                        placeholder={placeholder}
-                                                        placeholderTextColor="#02163980"
-                                                        textAlignVertical="top"
-                                                    />
-                                                </View>
-                                            </View>
-                                        );
-                                    }
-
-                                    // DATE row
-                                    const hasDate = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'DATE')
-                                    );
-                                    if (hasDate) {
-                                        const dateValue = dateValues[row.webId] || '';
-                                        const showPicker = showDatePicker[row.webId] || false;
-
-                                        const handleDateChange = (event: any, selectedDate?: Date) => {
-                                            setShowDatePicker(prev => ({ ...prev, [row.webId]: false }));
-                                            if (selectedDate) {
-                                                const formattedDate = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-                                                setDateValues(prev => ({ ...prev, [row.webId]: formattedDate }));
+                                        if (labelComp && controlComps.length > 0) {
+                                            // This column has both LABEL and control(s)
+                                            controlComps.forEach((control: any) => {
+                                                questionControlPairs.push({
+                                                    question: labelComp,
+                                                    control: control,
+                                                    row: row,
+                                                    column: column,
+                                                    uniqueId: `${row.webId}_${column.webId}_${control.webId}`
+                                                });
+                                            });
+                                            processedColumnIndices.add(index);
+                                        } else if (labelComp && controlComps.length === 0) {
+                                            // This column has only LABEL - check next column for control
+                                            if (index < flattened.length - 1) {
+                                                const nextColumn = flattened[index + 1];
+                                                const nextControlComps = (nextColumn.column.components || []).filter((c: any) => c.component !== 'LABEL');
+                                                if (nextControlComps.length > 0) {
+                                                    nextControlComps.forEach((control: any) => {
+                                                        questionControlPairs.push({
+                                                            question: labelComp,
+                                                            control: control,
+                                                            row: row,
+                                                            column: nextColumn.column,
+                                                            uniqueId: `${row.webId}_${column.webId}_${nextColumn.column.webId}_${control.webId}`
+                                                        });
+                                                    });
+                                                    // Mark both current and next column as processed
+                                                    processedColumnIndices.add(index);
+                                                    processedColumnIndices.add(index + 1);
+                                                }
                                             }
-                                        };
+                                        } else if (controlComps.length > 0 && !labelComp) {
+                                            // This column has only control - check previous column for LABEL
+                                            if (index > 0) {
+                                                const prevColumn = flattened[index - 1];
+                                                // Only process if previous column hasn't been processed yet
+                                                if (!processedColumnIndices.has(index - 1)) {
+                                                    const prevLabelComp = (prevColumn.column.components || []).find((c: any) => c.component === 'LABEL');
+                                                    if (prevLabelComp) {
+                                                        controlComps.forEach((control: any) => {
+                                                            questionControlPairs.push({
+                                                                question: prevLabelComp,
+                                                                control: control,
+                                                                row: row,
+                                                                column: column,
+                                                                uniqueId: `${row.webId}_${prevColumn.column.webId}_${column.webId}_${control.webId}`
+                                                            });
+                                                        });
+                                                        // Mark both previous and current column as processed
+                                                        processedColumnIndices.add(index - 1);
+                                                        processedColumnIndices.add(index);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    });
 
-                                        return (
-                                            <View key={row.webId} style={styles.radioRow}>
-                                                <Text style={styles.radioLabel}>
-                                                    {row.columns[0]?.components[0]?.text}
-                                                </Text>
-                                                <View style={styles.radioChoiceRow}>
-                                                    <TouchableOpacity
-                                                        style={styles.dateInputContainer}
-                                                        activeOpacity={0.8}
-                                                        onPress={() => {
-                                                            setShowDatePicker(prev => ({ ...prev, [row.webId]: true }));
-                                                        }}
-                                                    >
-                                                        <View style={styles.dateInputField}>
-                                                            <Text style={styles.dateInputText}>
-                                                                {dateValue ? new Date(dateValue).toLocaleDateString('en-US', {
-                                                                    month: 'numeric',
-                                                                    day: 'numeric',
-                                                                    year: 'numeric'
-                                                                }) : 'Select Date'}
+                                    return questionControlPairs
+                                        .map((pair) => {
+                                            const { question, control, row, column, uniqueId } = pair;
+                                            const controlType = control.component;
+                                            const questionText = question?.text || '';
+
+                                            // Use control.webId as the unique identifier for state management
+                                            const controlId = control.webId || uniqueId;
+
+                                            // IMAGE control
+                                            if (controlType === 'IMAGE') {
+                                                const imageUrl = getImageUrl(row);
+
+                                                return (
+                                                    <View key={uniqueId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}>
+                                                        <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                            <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
+                                                                {questionText || control?.text || 'Image'}
                                                             </Text>
-                                                            <View style={styles.dateInputSeparator} />
-                                                            <View style={styles.calendarIconContainer}>
-                                                                <CalendarIcon width={getResponsive(20)} height={getResponsive(20)} />
-                                                            </View>
                                                         </View>
-                                                    </TouchableOpacity>
-                                                </View>
-                                                {showPicker && (
-                                                    <DateTimePicker
-                                                        value={dateValue ? new Date(dateValue) : new Date()}
-                                                        mode="date"
-                                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                                        onChange={handleDateChange}
-                                                    />
-                                                )}
-                                            </View>
-                                        );
-                                    }
+                                                        <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
+                                                            {imageUrl ? (
+                                                                <TouchableOpacity onPress={() => setPreviewUri(imageUrl)} activeOpacity={0.85}>
+                                                                    <Image
+                                                                        key={imageUrl}
+                                                                        source={{ uri: getUri(imageUrl) }}
+                                                                        style={[styles.multiImgThumb, { width: getResponsive(120), height: getResponsive(90) }]}
+                                                                        resizeMode="cover"
+                                                                        onLoad={() => console.log('[IMAGE] loaded for row', row.webId)}
+                                                                        onError={(e) => console.warn('[IMAGE] failed to render for row', row.webId, e?.nativeEvent)}
+                                                                    />
+                                                                </TouchableOpacity>
+                                                            ) : (
+                                                                <View style={styles.attachmentThumbBox}>
+                                                                    <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                                        <ActivityIndicator size="small" color="#1292E6" />
+                                                                    </View>
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                );
+                                            }
 
-                                    const hasRating = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'RATING')
-                                    );
+                                            // TEXT_FIELD control
+                                            if (controlType === 'TEXT_FIELD') {
+                                                const placeholder = control?.placeholder || 'Type your answer...';
 
+                                                return (
+                                                    <View key={uniqueId} style={styles.notesRow}>
+                                                        <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                            <Text style={styles.radioLabel}>{questionText}</Text>
+                                                        </View>
+                                                        <View style={[styles.textFieldBox, { width: '50%' }]}>
+                                                            <TextInput
+                                                                style={styles.textFieldInput}
+                                                                multiline
+                                                                value={textInputs[controlId] || ''}
+                                                                onChangeText={(v) =>
+                                                                    setTextInputs(prev => ({ ...prev, [controlId]: v }))
+                                                                }
+                                                                placeholder={placeholder}
+                                                                placeholderTextColor="#02163980"
+                                                            />
+                                                        </View>
+                                                    </View>
+                                                );
+                                            }
 
-                                    // RATING row
-                                    if (hasRating) {
-                                        const ratingComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'RATING');
-                                        const currentRating = ratingValues[row.webId] || 0;
+                                            // CHECK_BOX control
+                                            if (controlType === 'CHECK_BOX') {
+                                                const isChecked = checkboxValues[controlId] || false;
 
-                                        return (
-                                            <View key={row.webId} style={styles.radioRow}>
-                                                <Text style={styles.radioLabel}>
-                                                    {row.columns[0]?.components[0]?.text}
-                                                </Text>
-                                                <View style={styles.radioChoiceRow}>
-                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                return (
+                                                    <View key={uniqueId} style={styles.radioRow}>
+                                                        <Text style={styles.radioLabel}>
+                                                            {questionText}
+                                                        </Text>
                                                         <TouchableOpacity
-                                                            key={star}
+                                                            style={styles.radioChoiceRow}
+                                                            activeOpacity={0.8}
                                                             onPress={() => {
-                                                                setRatingValues(prev => ({
+                                                                setCheckboxValues(prev => ({
                                                                     ...prev,
-                                                                    [row.webId]: star
+                                                                    [controlId]: !isChecked
                                                                 }));
                                                             }}
-                                                            activeOpacity={0.7}
-                                                            style={{ marginHorizontal: getResponsive(4) }}
                                                         >
-                                                            <Text style={{
-                                                                fontSize: getResponsive(24),
-                                                                color: star <= currentRating ? '#FFB800' : '#E0E0E0'
-                                                            }}>
-                                                                ★
+                                                            <Checkbox selected={isChecked} />
+                                                            <Text style={[
+                                                                styles.radioOptionText,
+                                                                isChecked && {
+                                                                    color: '#0088E7',
+                                                                    fontWeight: 'bold',
+                                                                }
+                                                            ]}>
+                                                                {isChecked ? 'Yes' : 'No'}
                                                             </Text>
                                                         </TouchableOpacity>
-                                                    ))}
-                                                </View>
-                                            </View>
-                                        );
-                                    }
+                                                    </View>
+                                                );
+                                            }
 
+                                            // SWITCH_BUTTON control
+                                            if (controlType === 'SWITCH_BUTTON') {
+                                                const switchValue = switchValues[controlId] || false;
 
-                                    const hasLookup = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'LOOKUP')
-                                    );
-
-                                    // LOOKUP row
-                                    if (hasLookup) {
-                                        const lookupComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'LOOKUP');
-                                        const options = lookupOptions[row.webId] || [];
-                                        const selectedValue = lookupValues[row.webId] || '';
-                                        const selectedText = options.find(opt => opt.value === selectedValue)?.text || 'Select an option';
-                                        const showModal = showLookupModal[row.webId] || false;
-
-                                        return (
-                                            <View key={row.webId} style={styles.radioRow}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={styles.radioLabel}>
-                                                        {row.columns[0]?.components[0]?.text}
-                                                    </Text>
-                                                </View>
-                                                <View style={{ width: '50%' }}>
-                                                    <TouchableOpacity
-                                                        style={[styles.textFieldBox, {
-                                                            paddingVertical: getResponsive(12),
-                                                            flexDirection: 'row',
-                                                            justifyContent: 'space-between',
-                                                            alignItems: 'center'
-                                                        }]}
-                                                        onPress={() => setShowLookupModal(prev => ({ ...prev, [row.webId]: true }))}
-                                                        activeOpacity={0.7}
-                                                    >
-                                                        <Text style={[
-                                                            styles.textFieldInput,
-                                                            !selectedValue && { color: '#02163980' }
-                                                        ]}>
-                                                            {selectedText}
+                                                return (
+                                                    <View key={uniqueId} style={styles.radioRow}>
+                                                        <Text style={styles.radioLabel}>
+                                                            {questionText}
                                                         </Text>
-                                                        <Text style={{ color: '#021639', fontSize: getResponsive(12) }}>▼</Text>
-                                                    </TouchableOpacity>
+                                                        <View style={styles.radioChoiceRow}>
+                                                            <Switch
+                                                                value={switchValue}
+                                                                onValueChange={(value) => {
+                                                                    setSwitchValues(prev => ({
+                                                                        ...prev,
+                                                                        [controlId]: value
+                                                                    }));
+                                                                }}
+                                                            />
+                                                            <Text style={[
+                                                                styles.radioOptionText,
+                                                                switchValue && {
+                                                                    color: '#0088E7',
+                                                                    fontWeight: 'bold',
+                                                                }
+                                                            ]}>
+                                                                {switchValue ? 'On' : 'Off'}
+                                                            </Text>
+                                                        </View>
+                                                    </View>
+                                                );
+                                            }
 
-                                                    {/* Lookup Modal */}
-                                                    <Modal
-                                                        visible={showModal}
-                                                        transparent
-                                                        animationType="fade"
-                                                        onRequestClose={() => setShowLookupModal(prev => ({ ...prev, [row.webId]: false }))}
-                                                    >
-                                                        <View style={styles.lookupModalOverlay}>
-                                                            <View style={styles.lookupModalContent}>
-                                                                <View style={styles.lookupModalHeader}>
-                                                                    <Text style={styles.lookupModalTitle}>
-                                                                        {row.columns[0]?.components[0]?.text}
-                                                                    </Text>
+                                            // TEXT_AREA control
+                                            if (controlType === 'TEXT_AREA') {
+                                                const placeholder = control?.placeholder || 'Type your comments...';
+
+                                                return (
+                                                    <View key={uniqueId} style={styles.notesRow}>
+                                                        <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                            <Text style={styles.radioLabel}>{questionText}</Text>
+                                                        </View>
+                                                        <View style={[styles.textFieldBox, { width: '50%' }]}>
+                                                            <TextInput
+                                                                style={[styles.textFieldInput, { minHeight: getResponsive(80) }]}
+                                                                multiline
+                                                                numberOfLines={4}
+                                                                value={textAreaInputs[controlId] || ''}
+                                                                onChangeText={(v) =>
+                                                                    setTextAreaInputs(prev => ({ ...prev, [controlId]: v }))
+                                                                }
+                                                                placeholder={placeholder}
+                                                                placeholderTextColor="#02163980"
+                                                                textAlignVertical="top"
+                                                            />
+                                                        </View>
+                                                    </View>
+                                                );
+                                            }
+
+                                            // DATE control
+                                            if (controlType === 'DATE') {
+                                            const dateValue = dateValues[controlId] || '';
+                                            const showPicker = showDatePicker[controlId] || false;
+
+                                            const handleDateChange = (event: any, selectedDate?: Date) => {
+                                                setShowDatePicker(prev => ({ ...prev, [controlId]: false }));
+                                                if (selectedDate) {
+                                                    const formattedDate = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+                                                    setDateValues(prev => ({ ...prev, [controlId]: formattedDate }));
+                                                }
+                                            };
+
+                                            return (
+                                                <View key={uniqueId} style={styles.radioRow}>
+                                                    <Text style={styles.radioLabel}>
+                                                        {questionText}
+                                                    </Text>
+                                                    <View style={styles.radioChoiceRow}>
+                                                        <TouchableOpacity
+                                                            style={styles.dateInputContainer}
+                                                            activeOpacity={0.8}
+                                                            onPress={() => {
+                                                                setShowDatePicker(prev => ({ ...prev, [controlId]: true }));
+                                                            }}
+                                                        >
+                                                            <View style={styles.dateInputField}>
+                                                                <Text style={styles.dateInputText}>
+                                                                    {dateValue ? new Date(dateValue).toLocaleDateString('en-US', {
+                                                                        month: 'numeric',
+                                                                        day: 'numeric',
+                                                                        year: 'numeric'
+                                                                    }) : 'Select Date'}
+                                                                </Text>
+                                                                <View style={styles.dateInputSeparator} />
+                                                                <View style={styles.calendarIconContainer}>
+                                                                    <CalendarIcon width={getResponsive(20)} height={getResponsive(20)} />
+                                                                </View>
+                                                            </View>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                    {showPicker && (
+                                                        <DateTimePicker
+                                                            value={dateValue ? new Date(dateValue) : new Date()}
+                                                            mode="date"
+                                                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                            onChange={handleDateChange}
+                                                        />
+                                                    )}
+                                                </View>
+                                            );
+                                        }
+
+                                        // RATING control
+                                        if (controlType === 'RATING') {
+                                            const currentRating = ratingValues[controlId] || 0;
+
+                                            return (
+                                                <View key={uniqueId} style={styles.radioRow}>
+                                                    <Text style={styles.radioLabel}>
+                                                        {questionText}
+                                                    </Text>
+                                                    <View style={styles.radioChoiceRow}>
+                                                        {[1, 2, 3, 4, 5].map((star) => (
+                                                            <TouchableOpacity
+                                                                key={star}
+                                                                onPress={() => {
+                                                                    setRatingValues(prev => ({
+                                                                        ...prev,
+                                                                        [controlId]: star
+                                                                    }));
+                                                                }}
+                                                                activeOpacity={0.7}
+                                                                style={{ marginHorizontal: getResponsive(4) }}
+                                                            >
+                                                                <Text style={{
+                                                                    fontSize: getResponsive(24),
+                                                                    color: star <= currentRating ? '#FFB800' : '#E0E0E0'
+                                                                }}>
+                                                                    ★
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+                                                </View>
+                                            );
+                                        }
+
+                                        // LOOKUP control
+                                        if (controlType === 'LOOKUP') {
+                                            const options = lookupOptions[controlId] || [];
+                                            const selectedValue = lookupValues[controlId] || '';
+                                            const selectedText = options.find(opt => opt.value === selectedValue)?.text || 'Select an option';
+                                            const showModal = showLookupModal[controlId] || false;
+
+                                            return (
+                                                <View key={uniqueId} style={styles.radioRow}>
+                                                    <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                        <Text style={styles.radioLabel}>
+                                                            {questionText}
+                                                        </Text>
+                                                    </View>
+                                                    <View style={{ width: '50%' }}>
+                                                        <TouchableOpacity
+                                                            style={[styles.textFieldBox, {
+                                                                paddingVertical: getResponsive(12),
+                                                                flexDirection: 'row',
+                                                                justifyContent: 'space-between',
+                                                                alignItems: 'center'
+                                                            }]}
+                                                            onPress={() => setShowLookupModal(prev => ({ ...prev, [controlId]: true }))}
+                                                            activeOpacity={0.7}
+                                                        >
+                                                            <Text style={[
+                                                                styles.textFieldInput,
+                                                                !selectedValue && { color: '#02163980' }
+                                                            ]}>
+                                                                {selectedText}
+                                                            </Text>
+                                                            <Text style={{ color: '#021639', fontSize: getResponsive(12) }}>▼</Text>
+                                                        </TouchableOpacity>
+
+                                                        {/* Lookup Modal */}
+                                                        <Modal
+                                                            visible={showModal}
+                                                            transparent
+                                                            animationType="fade"
+                                                            onRequestClose={() => setShowLookupModal(prev => ({ ...prev, [controlId]: false }))}
+                                                        >
+                                                            <View style={styles.lookupModalOverlay}>
+                                                                <View style={styles.lookupModalContent}>
+                                                                    <View style={styles.lookupModalHeader}>
+                                                                        <Text style={styles.lookupModalTitle}>
+                                                                            {questionText}
+                                                                        </Text>
+                                                                        <TouchableOpacity
+                                                                            onPress={() => setShowLookupModal(prev => ({ ...prev, [controlId]: false }))}
+                                                                            style={styles.lookupModalClose}
+                                                                        >
+                                                                            <Text style={styles.lookupModalCloseText}>✕</Text>
+                                                                        </TouchableOpacity>
+                                                                    </View>
+                                                                    <ScrollView style={styles.lookupModalScroll}>
+                                                                        {options.map((option) => (
+                                                                            <TouchableOpacity
+                                                                                key={option.value}
+                                                                                style={[
+                                                                                    styles.lookupOption,
+                                                                                    selectedValue === option.value && styles.lookupOptionSelected
+                                                                                ]}
+                                                                                onPress={() => {
+                                                                                    setLookupValues(prev => ({
+                                                                                        ...prev,
+                                                                                        [controlId]: option.value
+                                                                                    }));
+                                                                                    setShowLookupModal(prev => ({ ...prev, [controlId]: false }));
+                                                                                }}
+                                                                                activeOpacity={0.7}
+                                                                            >
+                                                                                <Text style={[
+                                                                                    styles.lookupOptionText,
+                                                                                    selectedValue === option.value && styles.lookupOptionTextSelected
+                                                                                ]}>
+                                                                                    {option.text}
+                                                                                </Text>
+                                                                                {selectedValue === option.value && (
+                                                                                    <Text style={styles.lookupOptionCheck}>✓</Text>
+                                                                                )}
+                                                                            </TouchableOpacity>
+                                                                        ))}
+                                                                    </ScrollView>
+                                                                </View>
+                                                            </View>
+                                                        </Modal>
+                                                    </View>
+                                                </View>
+                                            );
+                                        }
+
+                                        // CAMERA control
+                                        if (controlType === 'CAMERA') {
+                                            return (
+                                                <View key={uniqueId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}>
+                                                    <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                        <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
+                                                            {questionText || 'Take Pictures'}
+                                                        </Text>
+                                                    </View>
+
+                                                    <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
+                                                        <TouchableOpacity
+                                                            style={styles.attachmentCameraBtn}
+                                                            onPress={() => handleAddImages(controlId)}
+                                                            activeOpacity={0.7}
+                                                        >
+                                                            <CameraIcon />
+                                                        </TouchableOpacity>
+
+                                                        <ScrollView
+                                                            horizontal
+                                                            showsHorizontalScrollIndicator={false}
+                                                            style={styles.attachmentScrollView}
+                                                            contentContainerStyle={styles.attachmentScrollContent}
+                                                        >
+                                                            {(rowImages[controlId] || []).map(img => (
+                                                                <View key={img.id} style={styles.attachmentThumbBox}>
+                                                                    <TouchableOpacity onPress={() => setPreviewUri(img.uri)}>
+                                                                        <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
+                                                                    </TouchableOpacity>
                                                                     <TouchableOpacity
-                                                                        onPress={() => setShowLookupModal(prev => ({ ...prev, [row.webId]: false }))}
-                                                                        style={styles.lookupModalClose}
+                                                                        style={styles.attachmentRemove}
+                                                                        onPress={() => handleRemoveImage(controlId, img.id)}
                                                                     >
-                                                                        <Text style={styles.lookupModalCloseText}>✕</Text>
+                                                                        <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
                                                                     </TouchableOpacity>
                                                                 </View>
-                                                                <ScrollView style={styles.lookupModalScroll}>
-                                                                    {options.map((option) => (
-                                                                        <TouchableOpacity
-                                                                            key={option.value}
-                                                                            style={[
-                                                                                styles.lookupOption,
-                                                                                selectedValue === option.value && styles.lookupOptionSelected
-                                                                            ]}
-                                                                            onPress={() => {
-                                                                                setLookupValues(prev => ({
-                                                                                    ...prev,
-                                                                                    [row.webId]: option.value
-                                                                                }));
-                                                                                setShowLookupModal(prev => ({ ...prev, [row.webId]: false }));
-                                                                            }}
-                                                                            activeOpacity={0.7}
-                                                                        >
-                                                                            <Text style={[
-                                                                                styles.lookupOptionText,
-                                                                                selectedValue === option.value && styles.lookupOptionTextSelected
-                                                                            ]}>
-                                                                                {option.text}
-                                                                            </Text>
-                                                                            {selectedValue === option.value && (
-                                                                                <Text style={styles.lookupOptionCheck}>✓</Text>
-                                                                            )}
-                                                                        </TouchableOpacity>
-                                                                    ))}
-                                                                </ScrollView>
+                                                            ))}
+                                                        </ScrollView>
+                                                    </View>
+                                                </View>
+                                            );
+                                        }
+
+                                        // ATTACHEMENTS control
+                                        if (controlType === 'ATTACHEMENTS') {
+                                            const files = attachmentsByRow[controlId] || [];
+                                            const uploading = isUploadingAttachment[controlId] || false;
+                                            const showModal = showAttachmentModal[controlId] || false;
+
+                                            return (
+                                                <View key={uniqueId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}>
+                                                    <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                        <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
+                                                            {questionText || 'Attachments'}
+                                                        </Text>
+                                                    </View>
+
+                                                    <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
+                                                        <TouchableOpacity
+                                                            style={styles.attachmentCameraBtn}
+                                                            onPress={() => setShowAttachmentModal(prev => ({ ...prev, [controlId]: true }))}
+                                                            activeOpacity={0.7}
+                                                            disabled={uploading}
+                                                        >
+                                                            <CameraIcon />
+                                                        </TouchableOpacity>
+                                                        {uploading ? <ActivityIndicator size="small" color="#1292E6" style={{ marginLeft: 6 }} /> : null}
+
+                                                        <ScrollView
+                                                            horizontal
+                                                            showsHorizontalScrollIndicator={false}
+                                                            style={styles.attachmentScrollView}
+                                                            contentContainerStyle={styles.attachmentScrollContent}
+                                                        >
+                                                            {files.map(file => (
+                                                                <View key={file.id} style={styles.attachmentThumbBox}>
+                                                                    <TouchableOpacity onPress={() => file.uri && setPreviewUri(file.uri)}>
+                                                                        <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                                            <Text numberOfLines={1} style={styles.attachmentName}>{file.name || file.id}</Text>
+                                                                        </View>
+                                                                    </TouchableOpacity>
+                                                                    <TouchableOpacity
+                                                                        style={styles.attachmentRemove}
+                                                                        onPress={() => handleRemoveAttachment(controlId, file.id)}
+                                                                    >
+                                                                        <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                                    </TouchableOpacity>
+                                                                </View>
+                                                            ))}
+                                                        </ScrollView>
+                                                    </View>
+
+                                                    <Modal
+                                                        visible={showModal}
+                                                        transparent={false}
+                                                        animationType="slide"
+                                                        onRequestClose={() => setShowAttachmentModal(prev => ({ ...prev, [controlId]: false }))}
+                                                    >
+                                                        <View style={styles.attachmentModalContainer}>
+                                                            <View style={styles.attachmentModalHeader}>
+                                                                <TouchableOpacity
+                                                                    onPress={() => setShowAttachmentModal(prev => ({ ...prev, [controlId]: false }))}
+                                                                    style={styles.attachmentModalClose}
+                                                                >
+                                                                    <Text style={styles.attachmentModalCloseText}>✕</Text>
+                                                                </TouchableOpacity>
+                                                                <Text style={styles.attachmentModalTitle}>Upload</Text>
+                                                            </View>
+
+                                                            <View style={styles.attachmentModalContent}>
+                                                                <View style={styles.attachmentDropZone}>
+                                                                    <Text style={styles.attachmentDropIcon}>☁️</Text>
+                                                                    <TouchableOpacity
+                                                                        style={styles.attachmentBrowseBtn}
+                                                                        onPress={() => handleAddAttachments(controlId)}
+                                                                        disabled={uploading}
+                                                                    >
+                                                                        <Text style={styles.attachmentBrowseBtnText}>Browse Files</Text>
+                                                                    </TouchableOpacity>
+                                                                    <Text style={styles.attachmentDropText}>
+                                                                        {files.length === 0 ? 'No files added.' : `${files.length} file(s) added.`}
+                                                                    </Text>
+                                                                </View>
+
+                                                                {files.length > 0 && (
+                                                                    <View style={styles.attachmentFileList}>
+                                                                        {files.map((file, index) => (
+                                                                            <View key={file.id} style={styles.attachmentFileItem}>
+                                                                                <View style={styles.attachmentFileInfo}>
+                                                                                    <Text style={styles.attachmentFileName} numberOfLines={1}>
+                                                                                        {file.name}
+                                                                                    </Text>
+                                                                                    {file.size && (
+                                                                                        <Text style={styles.attachmentFileSize}>
+                                                                                            {(file.size / 1024).toFixed(1)} KB
+                                                                                        </Text>
+                                                                                    )}
+                                                                                </View>
+                                                                                <TouchableOpacity
+                                                                                    style={styles.attachmentFileDelete}
+                                                                                    onPress={() => handleRemoveAttachment(controlId, file.id)}
+                                                                                >
+                                                                                    <Text style={styles.attachmentFileDeleteText}>✕</Text>
+                                                                                </TouchableOpacity>
+                                                                            </View>
+                                                                        ))}
+                                                                    </View>
+                                                                )}
+
+                                                                {uploading && (
+                                                                    <View style={styles.attachmentUploading}>
+                                                                        <ActivityIndicator size="small" color="#0088E7" />
+                                                                        <Text style={styles.attachmentUploadingText}>Uploading...</Text>
+                                                                    </View>
+                                                                )}
+                                                            </View>
+
+                                                            <View style={styles.attachmentModalFooter}>
+                                                                <TouchableOpacity
+                                                                    style={styles.attachmentUploadBtn}
+                                                                    onPress={() => setShowAttachmentModal(prev => ({ ...prev, [controlId]: false }))}
+                                                                >
+                                                                    <Text style={styles.attachmentUploadBtnText}>Upload</Text>
+                                                                </TouchableOpacity>
                                                             </View>
                                                         </View>
                                                     </Modal>
                                                 </View>
-                                            </View>
-                                        );
-                                    }
+                                            );
+                                        }
 
-                                    // If it's the last row and Take Pictures → render ONLY media row
-                                    if (hasCamera) {
-                                        return (
-                                            <View
-                                                key={row.webId}
-                                                style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
-                                            >
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>Take Pictures</Text>
-                                                </View>
+                                        // SIGNATURE control
+                                        if (controlType === 'SIGNATURE') {
+                                            signatureRowIdsRef.current.add(controlId);
 
-                                                <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
-                                                    {/* Camera Icon - Always on the left */}
-                                                    <TouchableOpacity
-                                                        style={styles.attachmentCameraBtn}
-                                                        onPress={() => handleAddImages(row.webId)}
-                                                        activeOpacity={0.7}
-                                                    >
-                                                        <CameraIcon />
-                                                    </TouchableOpacity>
-
-                                                    {/* Horizontal Scroll for Image Boxes */}
-                                                    <ScrollView
-                                                        horizontal
-                                                        showsHorizontalScrollIndicator={false}
-                                                        style={styles.attachmentScrollView}
-                                                        contentContainerStyle={styles.attachmentScrollContent}
-                                                    >
-                                                        {(rowImages[row.webId] || []).map(img => (
-                                                            <View key={img.id} style={styles.attachmentThumbBox}>
-                                                                <TouchableOpacity onPress={() => setPreviewUri(img.uri)}>
-                                                                    <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
-                                                                </TouchableOpacity>
-                                                                <TouchableOpacity
-                                                                    style={styles.attachmentRemove}
-                                                                    onPress={() => handleRemoveImage(row.webId, img.id)}
-                                                                >
-                                                                    <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
-                                                                </TouchableOpacity>
-                                                            </View>
-                                                        ))}
-                                                    </ScrollView>
-                                                </View>
-                                            </View>
-                                        );
-                                    }
-
-                                    // ATTACHEMENTS row (file uploads producing file IDs)
-                                    const hasAttachments = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'ATTACHEMENTS')
-                                    );
-                                    if (hasAttachments) {
-                                        const files = attachmentsByRow[row.webId] || [];
-                                        const uploading = isUploadingAttachment[row.webId] || false;
-                                        const showModal = showAttachmentModal[row.webId] || false;
-
-                                        return (
-                                            <View key={row.webId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
-                                            >
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
-                                                        {row.columns[0]?.components[0]?.text || 'Attachments'}
-                                                    </Text>
-                                                </View>
-
-                                                <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
-                                                    {/* Camera Icon - Always on the left */}
-                                                    <TouchableOpacity
-                                                        style={styles.attachmentCameraBtn}
-                                                        onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: true }))}
-                                                        activeOpacity={0.7}
-                                                        disabled={uploading}
-                                                    >
-                                                        <CameraIcon />
-                                                    </TouchableOpacity>
-                                                    {uploading ? <ActivityIndicator size="small" color="#1292E6" style={{ marginLeft: 6 }} /> : null}
-
-                                                    {/* Horizontal Scroll for Image Boxes */}
-                                                    <ScrollView
-                                                        horizontal
-                                                        showsHorizontalScrollIndicator={false}
-                                                        style={styles.attachmentScrollView}
-                                                        contentContainerStyle={styles.attachmentScrollContent}
-                                                    >
-                                                        {files.map(file => (
-                                                            <View key={file.id} style={styles.attachmentThumbBox}>
-                                                                <TouchableOpacity onPress={() => file.uri && setPreviewUri(file.uri)}>
-                                                                    <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
-                                                                        <Text numberOfLines={1} style={styles.attachmentName}>{file.name || file.id}</Text>
-                                                                    </View>
-                                                                </TouchableOpacity>
-                                                                <TouchableOpacity
-                                                                    style={styles.attachmentRemove}
-                                                                    onPress={() => handleRemoveAttachment(row.webId, file.id)}
-                                                                >
-                                                                    <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
-                                                                </TouchableOpacity>
-                                                            </View>
-                                                        ))}
-                                                    </ScrollView>
-                                                </View>
-
-                                                {/* Attachment Detail Modal */}
-                                                <Modal
-                                                    visible={showModal}
-                                                    transparent={false}
-                                                    animationType="slide"
-                                                    onRequestClose={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: false }))}
-                                                >
-                                                    <View style={styles.attachmentModalContainer}>
-                                                        <View style={styles.attachmentModalHeader}>
-                                                            <TouchableOpacity
-                                                                onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: false }))}
-                                                                style={styles.attachmentModalClose}
-                                                            >
-                                                                <Text style={styles.attachmentModalCloseText}>✕</Text>
-                                                            </TouchableOpacity>
-                                                            <Text style={styles.attachmentModalTitle}>Upload</Text>
-                                                        </View>
-
-                                                        <View style={styles.attachmentModalContent}>
-                                                            <View style={styles.attachmentDropZone}>
-                                                                <Text style={styles.attachmentDropIcon}>☁️</Text>
-                                                                <TouchableOpacity
-                                                                    style={styles.attachmentBrowseBtn}
-                                                                    onPress={() => handleAddAttachments(row.webId)}
-                                                                    disabled={uploading}
-                                                                >
-                                                                    <Text style={styles.attachmentBrowseBtnText}>Browse Files</Text>
-                                                                </TouchableOpacity>
-                                                                <Text style={styles.attachmentDropText}>
-                                                                    {files.length === 0 ? 'No files added.' : `${files.length} file(s) added.`}
-                                                                </Text>
-                                                            </View>
-
-                                                            {files.length > 0 && (
-                                                                <View style={styles.attachmentFileList}>
-                                                                    {files.map((file, index) => (
-                                                                        <View key={file.id} style={styles.attachmentFileItem}>
-                                                                            <View style={styles.attachmentFileInfo}>
-                                                                                <Text style={styles.attachmentFileName} numberOfLines={1}>
-                                                                                    {file.name}
-                                                                                </Text>
-                                                                                {file.size && (
-                                                                                    <Text style={styles.attachmentFileSize}>
-                                                                                        {(file.size / 1024).toFixed(1)} KB
-                                                                                    </Text>
-                                                                                )}
-                                                                            </View>
-                                                                            <TouchableOpacity
-                                                                                style={styles.attachmentFileDelete}
-                                                                                onPress={() => handleRemoveAttachment(row.webId, file.id)}
-                                                                            >
-                                                                                <Text style={styles.attachmentFileDeleteText}>✕</Text>
-                                                                            </TouchableOpacity>
-                                                                        </View>
-                                                                    ))}
-                                                                </View>
-                                                            )}
-
-                                                            {uploading && (
-                                                                <View style={styles.attachmentUploading}>
-                                                                    <ActivityIndicator size="small" color="#0088E7" />
-                                                                    <Text style={styles.attachmentUploadingText}>Uploading...</Text>
-                                                                </View>
-                                                            )}
-                                                        </View>
-
-                                                        <View style={styles.attachmentModalFooter}>
-                                                            <TouchableOpacity
-                                                                style={styles.attachmentUploadBtn}
-                                                                onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: false }))}
-                                                            >
-                                                                <Text style={styles.attachmentUploadBtnText}>Upload</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
+                                            return (
+                                                <View key={uniqueId} style={styles.signatureRow}>
+                                                    <View style={{ width: '50%', paddingLeft: getResponsive(10), justifyContent: 'center' }}>
+                                                        <Text style={styles.radioLabel}>{questionText || 'Signature'}</Text>
                                                     </View>
-                                                </Modal>
-                                            </View>
-                                        );
-                                    }
 
-                                    if (hasSignature) {
-                                        signatureRowIdsRef.current.add(row.webId);
-
-                                        return (
-                                            <View key={row.webId} style={styles.signatureRow}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10), justifyContent: 'center' }}>
-                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text || 'Signature'}</Text>
-                                                </View>
-
-                                                <View style={{ width: '50%', alignItems: 'flex-end', paddingRight: getResponsive(8) }}>
-                                                    <View style={[styles.signatureBox, { width: '100%', overflow: 'hidden', height: getResponsive(150) }]}>
-                                                        {/* Inline signature canvas using react-native-signature-canvas */}
-                                                        <Signature
-                                                            ref={(r) => { if (r) signatureRefs.current[row.webId] = r; }}
-                                                            onOK={(base64: string) => {
-                                                                const encoded = (base64 || '').replace(/^data:image\/\w+;base64,/, '');
-                                                                setSignatureValues(prev => ({
-                                                                    ...prev,
-                                                                    [row.webId]: { encoded, pathName: undefined }
-                                                                }));
-                                                                if (signatureWaiters.current[row.webId]) {
-                                                                    signatureWaiters.current[row.webId]!({ pathName: '', encoded });
-                                                                    delete signatureWaiters.current[row.webId];
-                                                                }
-                                                            }}
-                                                            onEnd={() => {
-                                                                safeReadSignature(row.webId);
-                                                            }}
+                                                    <View style={{ width: '50%', alignItems: 'flex-end', paddingRight: getResponsive(8) }}>
+                                                        <View style={[styles.signatureBox, { width: '100%', overflow: 'hidden', height: getResponsive(150) }]}>
+                                                            <Signature
+                                                                ref={(r) => { if (r) signatureRefs.current[controlId] = r; }}
+                                                                onOK={(base64: string) => {
+                                                                    const encoded = (base64 || '').replace(/^data:image\/\w+;base64,/, '');
+                                                                    setSignatureValues(prev => ({
+                                                                        ...prev,
+                                                                        [controlId]: { encoded, pathName: undefined }
+                                                                    }));
+                                                                    if (signatureWaiters.current[controlId]) {
+                                                                        signatureWaiters.current[controlId]!({ pathName: '', encoded });
+                                                                        delete signatureWaiters.current[controlId];
+                                                                    }
+                                                                }}
+                                                                onEnd={() => {
+                                                                    safeReadSignature(controlId);
+                                                                }}
                                                             webStyle={`
                 .m-signature-pad--footer { display:none; }
                 body,html { background: transparent; }
@@ -2079,613 +2015,87 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             autoClear={false}
                                                         />
 
-                                                        {/* Clear (↻) icon top-right, like the screenshot */}
-                                                        <TouchableOpacity
-                                                            onPress={() => {
-                                                                signatureRefs.current[row.webId]?.clearSignature();
-                                                                setSignatureValues(prev => {
-                                                                    const { [row.webId]: _, ...rest } = prev;
-                                                                    return rest;
-                                                                });
-                                                            }}
-                                                            style={styles.signatureOverlay}
-                                                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                                                        >
-                                                            <RefreshSignatureIcon width={getResponsive(16)} height={getResponsive(16)} />
-                                                        </TouchableOpacity>
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        );
-                                    }
-
-                                    // QR_CODE row
-                                    const hasQrCode = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'QR_CODE')
-                                    );
-                                    if (hasQrCode) {
-                                        const qrCodeValue = qrCodeValues[row.webId] || '';
-                                        const showScanner = showQrScanner[row.webId] || false;
-
-                                        return (
-                                            <View key={row.webId} style={styles.radioRow}>
-                                                <Text style={styles.radioLabel}>
-                                                    {row.columns[0]?.components[0]?.text}
-                                                </Text>
-                                                <View style={styles.radioChoiceRow}>
-                                                    {qrCodeValue ? (
-                                                        // After scanning - show input field and icon
-                                                        <>
-                                                            <View style={styles.inputFieldContainer}>
-                                                                <TextInput
-                                                                    style={styles.inputField}
-                                                                    value={qrCodeValue}
-                                                                    editable={false}
-                                                                    placeholder="Scanned QR Code"
-                                                                />
-                                                            </View>
                                                             <TouchableOpacity
-                                                                activeOpacity={0.8}
                                                                 onPress={() => {
-                                                                    setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                                    signatureRefs.current[controlId]?.clearSignature();
+                                                                    setSignatureValues(prev => {
+                                                                        const { [controlId]: _, ...rest } = prev;
+                                                                        return rest;
+                                                                    });
                                                                 }}
+                                                                style={styles.signatureOverlay}
+                                                                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                                                             >
-                                                                <View style={styles.qrCodeIconContainer}>
-                                                                    <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
-                                                                </View>
+                                                                <RefreshSignatureIcon width={getResponsive(16)} height={getResponsive(16)} />
                                                             </TouchableOpacity>
-                                                        </>
-                                                    ) : (
-                                                        // Initially - show only icon (tap to scan)
-                                                        <TouchableOpacity
-                                                            activeOpacity={0.8}
-                                                            onPress={() => {
-                                                                setShowQrScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                            }}
-                                                        >
-                                                            <View style={styles.qrCodeContainer}>
-                                                                <View style={styles.qrCodeIconContainer}>
-                                                                    <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
-                                                                </View>
-                                                                <Text style={styles.qrCodeText}>
-
-                                                                </Text>
-                                                            </View>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                </View>
-
-                                                {/* QR Code Scanner Modal */}
-                                                <Modal
-                                                    visible={showScanner}
-                                                    transparent={false}
-                                                    animationType="slide"
-                                                    onRequestClose={() => setShowQrScanner(prev => ({ ...prev, [row.webId]: false }))}
-                                                >
-                                                    <View style={styles.qrScannerContainer}>
-                                                        <View style={styles.qrScannerHeader}>
-                                                            <TouchableOpacity
-                                                                onPress={() => setShowQrScanner(prev => ({ ...prev, [row.webId]: false }))}
-                                                                style={styles.qrScannerClose}
-                                                            >
-                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
-                                                            </TouchableOpacity>
-                                                            <Text style={styles.qrScannerTitle}>Scan QR Code</Text>
                                                         </View>
-
-                                                        <Camera
-                                                            onReadCode={(event: any) => {
-                                                                const scannedValue = event.nativeEvent.codeStringValue;
-                                                                setQrCodeValues(prev => ({ ...prev, [row.webId]: scannedValue }));
-                                                                setShowQrScanner(prev => ({ ...prev, [row.webId]: false }));
-                                                                showSuccessToast('QR Code Scanned', `Value: ${scannedValue}`);
-                                                            }}
-                                                            scanBarcode={true}
-                                                            showFrame={true}
-                                                            laserColor="red"
-                                                            frameColor="white"
-                                                            style={styles.qrScannerCamera}
-                                                        />
                                                     </View>
-                                                </Modal>
-                                            </View>
-                                        );
-                                    }
-
-                                    // QR_VALIDATOR row
-                                    const hasQrValidator = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'QR_VALIDATOR')
-                                    );
-                                    if (hasQrValidator) {
-                                        const qrValidatorComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'QR_VALIDATOR');
-                                        const expectedValue = qrValidatorComp?.defaultValue || qrValidatorComp?.text || '';
-                                        const scannedValue = qrValidatorValues[row.webId] || '';
-                                        const validationStatus = qrValidatorStatus[row.webId] || 'pending';
-                                        const showValidatorScanner = showQrValidatorScanner[row.webId] || false;
-
-                                        const getStatusColor = () => {
-                                            switch (validationStatus) {
-                                                case 'valid': return '#28B446';
-                                                case 'invalid': return '#F44336';
-                                                default: return '#D8ECFA';
-                                            }
-                                        };
-
-                                        const getStatusText = () => {
-                                            switch (validationStatus) {
-                                                case 'valid': return '✓ Validated';
-                                                case 'invalid': return '✗ Invalid';
-                                                default: return 'Validate QR Code';
-                                            }
-                                        };
-
-                                        return (
-                                            <View key={row.webId} style={styles.radioRow}>
-                                                <Text style={styles.radioLabel}>
-                                                    {row.columns[0]?.components[0]?.text}
-                                                </Text>
-                                                <View style={styles.radioChoiceRow}>
-                                                    {validationStatus !== 'pending' ? (
-                                                        // After scanning - show validation message
-                                                        <View style={styles.validationMessageContainer}>
-                                                            <Text style={[styles.validationMessage, { color: validationStatus === 'valid' ? '#28B446' : '#F44336' }]}>
-                                                                {getStatusText()}
-                                                            </Text>
-                                                        </View>
-                                                    ) : (
-                                                        // Initially - show icon and text (keep icon close to Scan)
-                                                        <View style={[styles.qrCodeContainer, styles.validatorIconRow]}>
-                                                            <View style={styles.qrCodeIconContainer}>
-                                                                <QRCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
-                                                            </View>
-                                                            <Text style={styles.qrCodeText}>
-
-                                                            </Text>
-                                                        </View>
-                                                    )}
-                                                    <TouchableOpacity
-                                                        style={[styles.scanButton, { backgroundColor: getStatusColor() }]}
-                                                        activeOpacity={0.8}
-                                                        onPress={() => {
-                                                            setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                        }}
-                                                    >
-                                                        <Text style={[styles.scanButtonText, { color: validationStatus === 'pending' ? '#021639' : '#fff' }]}>Scan</Text>
-                                                    </TouchableOpacity>
                                                 </View>
+                                            );
+                                        }
 
-                                                {/* QR Validator Scanner Modal */}
-                                                <Modal
-                                                    visible={showValidatorScanner}
-                                                    transparent={false}
-                                                    animationType="slide"
-                                                    onRequestClose={() => setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: false }))}
-                                                >
-                                                    <View style={styles.qrScannerContainer}>
-                                                        <View style={styles.qrScannerHeader}>
-                                                            <TouchableOpacity
-                                                                onPress={() => setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: false }))}
-                                                                style={styles.qrScannerClose}
-                                                            >
-                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
-                                                            </TouchableOpacity>
-                                                            <Text style={styles.qrScannerTitle}>Validate QR Code</Text>
-                                                        </View>
-
-                                                        <View style={styles.qrValidatorInfo}>
-                                                            <Text style={styles.qrValidatorInfoText}>
-                                                                Expected Value: <Text style={styles.qrValidatorExpectedValue}>{expectedValue}</Text>
-                                                            </Text>
-                                                        </View>
-
-                                                        <Camera
-                                                            onReadCode={(event: any) => {
-                                                                const scannedValue = event.nativeEvent.codeStringValue;
-                                                                const isValid = scannedValue === expectedValue;
-
-                                                                setQrValidatorValues(prev => ({ ...prev, [row.webId]: scannedValue }));
-                                                                setQrValidatorStatus(prev => ({ ...prev, [row.webId]: isValid ? 'valid' : 'invalid' }));
-                                                                setShowQrValidatorScanner(prev => ({ ...prev, [row.webId]: false }));
-
-                                                                if (isValid) {
-                                                                    showSuccessToast('QR Code Validated', `Value matches: ${scannedValue}`);
-                                                                } else {
-                                                                    showErrorToast('QR Code Invalid', `Expected: ${expectedValue}, Got: ${scannedValue}`);
-                                                                }
-                                                            }}
-                                                            scanBarcode={true}
-                                                            showFrame={true}
-                                                            laserColor="red"
-                                                            frameColor="white"
-                                                            style={styles.qrScannerCamera}
-                                                        />
-                                                    </View>
-                                                </Modal>
-                                            </View>
-                                        );
-                                    }
-
-                                    // BAR_CODE row
-                                    const hasBarcode = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'BAR_CODE')
-                                    );
-                                    if (hasBarcode) {
-                                        const barcodeValue = barcodeValues[row.webId] || '';
-                                        const showScanner = showBarcodeScanner[row.webId] || false;
-
-                                        return (
-                                            <View key={row.webId} style={styles.radioRow}>
-                                                <Text style={styles.radioLabel}>
-                                                    {row.columns[0]?.components[0]?.text}
-                                                </Text>
-                                                <View style={styles.radioChoiceRow}>
-                                                    {/* Always show input field (empty initially) */}
-                                                    <View style={styles.inputFieldContainer}>
-                                                        <TextInput
-                                                            style={styles.inputField}
-                                                            value={barcodeValue}
-                                                            editable={false}
-                                                            placeholder="Barcode"
-                                                        />
-                                                    </View>
-                                                    {/* Icon on the right to trigger scan */}
-                                                    <TouchableOpacity
-                                                        activeOpacity={0.8}
-                                                        onPress={() => {
-                                                            setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                        }}
-                                                    >
-                                                        <View style={styles.barcodeIconContainer}>
-                                                            <BarCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
-                                                        </View>
-                                                    </TouchableOpacity>
-                                                </View>
-
-                                                {/* Barcode Scanner Modal */}
-                                                <Modal
-                                                    visible={showScanner}
-                                                    transparent={false}
-                                                    animationType="slide"
-                                                    onRequestClose={() => setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }))}
-                                                >
-                                                    <View style={styles.qrScannerContainer}>
-                                                        <View style={styles.qrScannerHeader}>
-                                                            <TouchableOpacity
-                                                                onPress={() => setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }))}
-                                                                style={styles.qrScannerClose}
-                                                            >
-                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
-                                                            </TouchableOpacity>
-                                                            <Text style={styles.qrScannerTitle}>Scan Barcode</Text>
-                                                        </View>
-
-                                                        <Camera
-                                                            onReadCode={(event: any) => {
-                                                                const scannedValue = event.nativeEvent.codeStringValue;
-                                                                setBarcodeValues(prev => ({ ...prev, [row.webId]: scannedValue }));
-                                                                setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }));
-                                                                showSuccessToast('Barcode Scanned', `Value: ${scannedValue}`);
-                                                            }}
-                                                            scanBarcode={true}
-                                                            showFrame={true}
-                                                            laserColor="red"
-                                                            frameColor="white"
-                                                            style={styles.qrScannerCamera}
-                                                        />
-                                                    </View>
-                                                </Modal>
-                                            </View>
-                                        );
-                                    }
-
-                                    // BAR_VALIDATOR row
-                                    const hasBarcodeValidator = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'BAR_VALIDATOR')
-                                    );
-                                    if (hasBarcodeValidator) {
-                                        const barcodeValidatorComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'BAR_VALIDATOR');
-                                        const expectedValue = barcodeValidatorComp?.defaultValue || barcodeValidatorComp?.text || '';
-                                        const scannedValue = barcodeValidatorValues[row.webId] || '';
-                                        const validationStatus = barcodeValidatorStatus[row.webId] || 'pending';
-                                        const showValidatorScanner = showBarcodeValidatorScanner[row.webId] || false;
-
-                                        const getStatusColor = () => {
-                                            switch (validationStatus) {
-                                                case 'valid': return '#28B446';
-                                                case 'invalid': return '#F44336';
-                                                default: return '#D8ECFA';
+                                        // RADIO_BUTTON control
+                                        if (controlType === 'RADIO_BUTTON') {
+                                            // Get all radio buttons in the same column that share the same name
+                                            const allRadioButtons = column.components?.filter((c: any) => c.component === 'RADIO_BUTTON' && c.name === control.name) || [];
+                                            
+                                            // Only render if this is the first radio button in the group
+                                            const isFirstInGroup = allRadioButtons.findIndex((c: any) => c.webId === control.webId) === 0;
+                                            
+                                            if (!isFirstInGroup) {
+                                                return null; // Skip rendering, will be handled by first radio button
                                             }
-                                        };
 
-                                        const getStatusText = () => {
-                                            switch (validationStatus) {
-                                                case 'valid': return '✓ Validated';
-                                                case 'invalid': return '✗ Invalid';
-                                                default: return 'Validate Barcode';
-                                            }
-                                        };
-
-                                        return (
-                                            <View key={row.webId} style={styles.radioRow}>
-                                                <Text style={styles.radioLabel}>
-                                                    {row.columns[0]?.components[0]?.text}
-                                                </Text>
-                                                <View style={styles.radioChoiceRow}>
-                                                    {validationStatus !== 'pending' ? (
-                                                        // After scanning - show validation message
-                                                        <View style={styles.validationMessageContainer}>
-                                                            <Text style={[styles.validationMessage, { color: validationStatus === 'valid' ? '#28B446' : '#F44336' }]}>
-                                                                {getStatusText()}
-                                                            </Text>
-                                                        </View>
-                                                    ) : (
-                                                        // Initially - show icon and text (keep icon close to Scan)
-                                                        <View style={[styles.barcodeContainer, styles.validatorIconRow]}>
-                                                            <View style={styles.barcodeIconContainer}>
-                                                                <BarCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
-                                                            </View>
-                                                            <Text style={styles.barcodeText}>
-
-                                                            </Text>
-                                                        </View>
-                                                    )}
-                                                    <TouchableOpacity
-                                                        style={[styles.scanButton, { backgroundColor: getStatusColor() }]}
-                                                        activeOpacity={0.8}
-                                                        onPress={() => {
-                                                            setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                        }}
-                                                    >
-                                                        <Text style={[styles.scanButtonText, { color: validationStatus === 'pending' ? '#021639' : '#fff' }]}>Scan</Text>
-                                                    </TouchableOpacity>
-                                                </View>
-
-                                                {/* Barcode Validator Scanner Modal */}
-                                                <Modal
-                                                    visible={showValidatorScanner}
-                                                    transparent={false}
-                                                    animationType="slide"
-                                                    onRequestClose={() => setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: false }))}
-                                                >
-                                                    <View style={styles.qrScannerContainer}>
-                                                        <View style={styles.qrScannerHeader}>
-                                                            <TouchableOpacity
-                                                                onPress={() => setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: false }))}
-                                                                style={styles.qrScannerClose}
-                                                            >
-                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
-                                                            </TouchableOpacity>
-                                                            <Text style={styles.qrScannerTitle}>Validate Barcode</Text>
-                                                        </View>
-
-                                                        <View style={styles.qrValidatorInfo}>
-                                                            <Text style={styles.qrValidatorInfoText}>
-                                                                Expected Value: <Text style={styles.qrValidatorExpectedValue}>{expectedValue}</Text>
-                                                            </Text>
-                                                        </View>
-
-                                                        <Camera
-                                                            onReadCode={(event: any) => {
-                                                                const scannedValue = event.nativeEvent.codeStringValue;
-                                                                const isValid = scannedValue === expectedValue;
-
-                                                                setBarcodeValidatorValues(prev => ({ ...prev, [row.webId]: scannedValue }));
-                                                                setBarcodeValidatorStatus(prev => ({ ...prev, [row.webId]: isValid ? 'valid' : 'invalid' }));
-                                                                setShowBarcodeValidatorScanner(prev => ({ ...prev, [row.webId]: false }));
-
-                                                                if (isValid) {
-                                                                    showSuccessToast('Barcode Validated', `Value matches: ${scannedValue}`);
-                                                                } else {
-                                                                    showErrorToast('Barcode Invalid', `Expected: ${expectedValue}, Got: ${scannedValue}`);
-                                                                }
-                                                            }}
-                                                            scanBarcode={true}
-                                                            showFrame={true}
-                                                            laserColor="red"
-                                                            frameColor="white"
-                                                            style={styles.qrScannerCamera}
-                                                        />
-                                                    </View>
-                                                </Modal>
-                                            </View>
-                                        );
-                                    }
-
-                                    // TIMER row
-                                    const hasTimer = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'TIMER')
-                                    );
-                                    if (hasTimer) {
-                                        const timerValue = timerValues[row.webId] || '00:00:00.0000000';
-                                        const isRunning = timerRunning[row.webId] || false;
-
-                                        const handleTimerStart = () => {
-                                            const now = Date.now();
-                                            setTimerStartTime(prev => ({ ...prev, [row.webId]: now }));
-                                            setTimerRunning(prev => ({ ...prev, [row.webId]: true }));
-                                        };
-
-                                        const handleTimerPause = () => {
-                                            if (isRunning) {
-                                                // Calculate elapsed time and store it
-                                                const now = Date.now();
-                                                const currentSessionTime = now - (timerStartTime[row.webId] || now);
-                                                const totalElapsed = (timerElapsedTime[row.webId] || 0) + currentSessionTime;
-
-                                                setTimerElapsedTime(prev => ({ ...prev, [row.webId]: totalElapsed }));
-                                                setTimerRunning(prev => ({ ...prev, [row.webId]: false }));
-                                            }
-                                        };
-
-                                        const handleTimerReset = () => {
-                                            setTimerRunning(prev => ({ ...prev, [row.webId]: false }));
-                                            setTimerStartTime(prev => ({ ...prev, [row.webId]: 0 }));
-                                            setTimerElapsedTime(prev => ({ ...prev, [row.webId]: 0 }));
-                                            setTimerValues(prev => ({ ...prev, [row.webId]: '00:00:00.0000000' }));
-                                        };
-
-                                        return (
-                                            <View key={row.webId} style={styles.radioRow}>
-                                                <Text style={styles.radioLabel}>
-                                                    {row.columns[0]?.components[0]?.text}
-                                                </Text>
-                                                <Timer
-                                                    value={timerValue}
-                                                    isRunning={isRunning}
-                                                    onStart={handleTimerStart}
-                                                    onPause={handleTimerPause}
-                                                    onReset={handleTimerReset}
-                                                />
-                                            </View>
-                                        );
-                                    }
-
-                                    // PARAGRAPH row
-                                    const hasParagraph = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'PARAGRAPH')
-                                    );
-                                    if (hasParagraph) {
-                                        const paragraphComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'PARAGRAPH');
-                                        const paragraphText = paragraphComp?.defaultValue || paragraphComp?.text || '';
-
-                                        return (
-                                            <View key={row.webId} style={styles.notesRow}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
-                                                </View>
-                                                <View style={[styles.textFieldBox, { width: '50%' }]}>
-                                                    <Text style={[styles.textFieldInput, {
-                                                        color: '#19233C',
-                                                        fontSize: getResponsive(14),
-                                                        lineHeight: getResponsive(20),
-                                                        fontWeight: '400'
-                                                    }]}>
-                                                        {paragraphText}
+                                            return (
+                                                <View key={uniqueId} style={styles.radioRow}>
+                                                    <Text style={styles.radioLabel}>
+                                                        {questionText}
                                                     </Text>
+                                                    <View style={styles.radioChoiceRow}>
+                                                        {allRadioButtons.map((radioComp: any) => {
+                                                            const radioControlId = radioComp.webId;
+                                                            const isSelected = answers[currentSection.webId]?.[radioControlId] === radioComp.text;
+                                                            
+                                                            return (
+                                                                <TouchableOpacity
+                                                                    key={radioComp.webId}
+                                                                    style={styles.radioOption}
+                                                                    activeOpacity={0.8}
+                                                                    onPress={() => {
+                                                                        setAnswers(prev => ({
+                                                                            ...prev,
+                                                                            [currentSection.webId]: {
+                                                                                ...(prev[currentSection.webId] || {}),
+                                                                                [radioControlId]: radioComp.text,
+                                                                            },
+                                                                        }));
+                                                                    }}
+                                                                >
+                                                                    <Radio selected={isSelected} />
+                                                                    <Text
+                                                                        style={[
+                                                                            styles.radioOptionText,
+                                                                            isSelected && {
+                                                                                color: '#0088E7',
+                                                                                fontWeight: 'bold',
+                                                                            },
+                                                                        ]}
+                                                                    >
+                                                                        {radioComp.text}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            );
+                                                        })}
+                                                    </View>
                                                 </View>
-                                            </View>
-                                        );
-                                    }
+                                            );
+                                        }
 
-                                    // FILE row
-                                    const hasFile = row.columns?.some(col =>
-                                        col.components?.some(comp => comp.component === 'FILE')
-                                    );
-                                    if (hasFile) {
-                                        const fileComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'FILE');
-                                        const fileId = fileComp?.defaultValue || fileComp?.attrs?.find(attr => attr.key === 'imageId')?.value || '';
-                                        const fileUrl = fileUrls[row.webId] || '';
-
-                                        const handleFilePress = async () => {
-                                            if (!fileUrl && fileId) {
-                                                try {
-                                                    const response = await fetchFileUrl(fileId);
-                                                    const url = (response as any)?.data?.redirect || (response as any)?.data?.url || '';
-                                                    setFileUrls(prev => ({ ...prev, [row.webId]: url }));
-
-                                                    // Open the file URL in external browser
-                                                    if (url) {
-                                                        const canOpen = await Linking.canOpenURL(url);
-                                                        if (canOpen) {
-                                                            await Linking.openURL(url);
-                                                        } else {
-                                                            showErrorToast('Error', 'Cannot open file URL');
-                                                        }
-                                                    }
-                                                } catch (error) {
-                                                    console.error('Error fetching file URL:', error);
-                                                    showErrorToast('Error', 'Failed to load file');
-                                                }
-                                            } else if (fileUrl) {
-                                                // Open the cached file URL in external browser
-                                                try {
-                                                    const canOpen = await Linking.canOpenURL(fileUrl);
-                                                    if (canOpen) {
-                                                        await Linking.openURL(fileUrl);
-                                                    } else {
-                                                        showErrorToast('Error', 'Cannot open file URL');
-                                                    }
-                                                } catch (error) {
-                                                    console.error('Error opening file URL:', error);
-                                                    showErrorToast('Error', 'Failed to open file');
-                                                }
-                                            }
-                                        };
-
-                                        return (
-                                            <View key={row.webId} style={styles.notesRow}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
-                                                </View>
-                                                <View style={[styles.textFieldBox, { width: '50%' }]}>
-                                                    <TouchableOpacity
-                                                        style={[styles.textFieldInput, {
-                                                            justifyContent: 'center',
-                                                            alignItems: 'center',
-                                                            backgroundColor: '#0088E7',
-                                                            paddingVertical: getResponsive(12)
-                                                        }]}
-                                                        onPress={handleFilePress}
-                                                        activeOpacity={0.8}
-                                                    >
-                                                        <Text style={{
-                                                            color: '#fff',
-                                                            fontSize: getResponsive(14),
-                                                            fontWeight: '600'
-                                                        }}>
-                                                            View File
-                                                        </Text>
-                                                    </TouchableOpacity>
-                                                </View>
-                                            </View>
-                                        );
-                                    }
-
-                                    // Otherwise → render the normal label + radio buttons
-                                    return (
-                                        <View key={row.webId} style={[styles.radioRow]}>
-                                            <Text style={styles.radioLabel}>
-                                                {row.columns[0]?.components[0]?.text}
-                                            </Text>
-
-                                            <View style={styles.radioChoiceRow}>
-                                                {(row.columns[1]?.components || []).map((comp, cIdx) =>
-                                                    comp.component === 'RADIO_BUTTON' ? (
-                                                        <TouchableOpacity
-                                                            key={comp.webId}
-                                                            style={styles.radioOption}
-                                                            activeOpacity={0.8}
-                                                            onPress={() => {
-                                                                setAnswers(prev => ({
-                                                                    ...prev,
-                                                                    [currentSection.webId]: {
-                                                                        ...(prev[currentSection.webId] || {}),
-                                                                        [row.webId]: comp.text,
-                                                                    },
-                                                                }));
-                                                            }}
-                                                        >
-                                                            <Radio
-                                                                selected={answers[currentSection.webId]?.[row.webId] === comp.text}
-                                                            />
-                                                            <Text
-                                                                style={[
-                                                                    styles.radioOptionText,
-                                                                    answers[currentSection.webId]?.[row.webId] === comp.text && {
-                                                                        color: '#0088E7',
-                                                                        fontWeight: 'bold',
-                                                                    },
-                                                                ]}
-                                                            >
-                                                                {comp.text}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    ) : null
-                                                )}
-                                            </View>
-                                        </View>
-                                    );
-                                })}
+                                            // For any other control types not handled above, return null
+                                            return null;
+                                        })
+                                        .filter((item) => item !== null);
+                                })()}
                             </View>
 
                             {/* Next/Previous navigation */}
