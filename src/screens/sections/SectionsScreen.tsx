@@ -1564,8 +1564,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                         return (
                                             <View key={row.webId} style={styles.notesRow}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10), flexShrink: 1 }}>
+                                                    <Text style={[styles.radioLabel, { width: undefined, flexShrink: 1 }]}>{row.columns[0]?.components[0]?.text}</Text>
                                                 </View>
                                                 <View style={[styles.textFieldBox, { width: '50%' }]}>
                                                     <TextInput
@@ -1667,8 +1667,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                         return (
                                             <View key={row.webId} style={styles.notesRow}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10), flexShrink: 1 }}>
+                                                    <Text style={[styles.radioLabel, { width: undefined, flexShrink: 1 }]}>{row.columns[0]?.components[0]?.text}</Text>
                                                 </View>
                                                 <View style={[styles.textFieldBox, { width: '50%' }]}>
                                                     <TextInput
