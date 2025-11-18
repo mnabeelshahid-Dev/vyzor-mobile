@@ -26,6 +26,7 @@ import { useLogout } from '../../hooks/useAuth';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { apiService } from '../../services/api';
+import { WebView } from 'react-native-webview';
 
 const STATUS_COLORS = {
   SUCCESS: '#28B446',
@@ -147,8 +148,9 @@ export default function EmailNotificationsScreen({ navigation }) {
     startDate: '',
     endDate: '',
   });
-  const [detailsVisible, setDetailsVisible] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<any | null>(null);
+  const [htmlHeight, setHtmlHeight] = useState(360);
+  const [metaExpanded, setMetaExpanded] = useState(false);
 
   const logoutMutation = useLogout({
     onSuccess: () => {
@@ -161,14 +163,7 @@ export default function EmailNotificationsScreen({ navigation }) {
     setShowDropdown(false);
   };
 
-  // Detail helpers and safe WebView fallback
-  const stripHtml = (html: string = '') =>
-    html
-      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
-      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-      .replace(/<\/?[^>]+(>|$)/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+// Detail helpers and safe WebView fallback
   const formatDateTime = (iso?: string) => {
     if (!iso) return '';
     const d = new Date(iso);
@@ -353,6 +348,11 @@ export default function EmailNotificationsScreen({ navigation }) {
     };
   }, [search]);
 
+  useEffect(() => {
+    setHtmlHeight(360);
+    setMetaExpanded(false);
+  }, [selectedEmail]);
+
   // Helper function to get cleared filters with current user
   // Replace the existing getClearedFiltersWithCurrentUser function with this:
   const getClearedFiltersWithCurrentUser = () => {
@@ -397,7 +397,6 @@ export default function EmailNotificationsScreen({ navigation }) {
         activeOpacity={0.9}
         onPress={() => {
           setSelectedEmail(item);
-          setDetailsVisible(true);
         }}
       >
         <View style={[styles.emailRow, { padding: containerPadding }]}> 
@@ -625,6 +624,266 @@ export default function EmailNotificationsScreen({ navigation }) {
     );
   };
 
+  const renderUserDropdown = () => (
+    <Modal
+      visible={showDropdown}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowDropdown(false)}
+    >
+      <TouchableOpacity
+        style={styles.dropdownOverlayIcon}
+        activeOpacity={1}
+        onPress={() => setShowDropdown(false)}
+      >
+        <View style={styles.dropdownMenuIcon}>
+          <TouchableOpacity
+            style={styles.dropdownItemIcon}
+            onPress={() => {
+              setShowDropdown(false);
+              navigation.navigate('Profile');
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <SettingsIcon
+                width={18}
+                height={18}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.dropdownTextIcon}>Settings</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.dropdownItemIcon}
+            onPress={handleLogout}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
+              <Text style={styles.dropdownTextIcon}>Logout</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  const renderEmailDetailScreen = () => {
+    const formattedType = selectedEmail?.type
+      ? selectedEmail.type.replace(/_/g, ' ')
+      : 'Notification';
+    const emailBodyHtml =
+      selectedEmail?.body && selectedEmail.body.trim().length > 0
+        ? selectedEmail.body
+        : '<p>No email content available.</p>';
+    const htmlTemplate = `
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+              background-color: #ffffff;
+              color: #1A1A1A;
+            }
+            .email-wrapper {
+              padding: 0 0 16px 0;
+            }
+            .email-body {
+              line-height: 1.6;
+              font-size: 15px;
+              padding: 0;
+            }
+            .email-body * {
+              max-width: 100%;
+            }
+            img {
+              max-width: 100%;
+              height: auto;
+            }
+            table {
+              width: 100% !important;
+              border-collapse: collapse;
+            }
+            pre {
+              white-space: pre-wrap;
+            }
+            a {
+              color: #1292E6;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-wrapper">
+            <div class="email-body">
+              ${emailBodyHtml}
+            </div>
+          </div>
+          <script>
+            setTimeout(function() {
+              var height = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+              window.ReactNativeWebView.postMessage(String(height));
+            }, 80);
+          </script>
+        </body>
+      </html>
+    `;
+
+    const metaRows = [
+      { label: 'To', value: selectedEmail?.recipientEmails || '-' },
+      {
+        label: 'Created',
+        value: formatDateTime(selectedEmail?.createdDate) || '-',
+      },
+      {
+        label: 'Scheduled',
+        value: selectedEmail?.startDate
+          ? formatDateTime(selectedEmail?.startDate)
+          : 'Not scheduled',
+      },
+      { label: 'Type', value: formattedType },
+    ];
+
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
+        <StatusBar barStyle="dark-content" backgroundColor="#007AFF" />
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => setSelectedEmail(null)}>
+              <BackArrowIcon width={17} height={17} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Email Details</Text>
+            <TouchableOpacity>
+              <ThreeDotIcon
+                width={20}
+                height={20}
+                onPress={() => setShowDropdown(true)}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={styles.detailScreenContainer}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.detailScreenCard}>
+              <View style={styles.detailHero}>
+                <Text style={styles.detailHeroEyebrow}>{formattedType}</Text>
+                <Text style={styles.detailSubject}>
+                  {selectedEmail?.subject || 'No subject'}
+                </Text>
+                <View style={styles.detailHeroMeta}>
+                  <View style={styles.detailBadge}>
+                    <View
+                      style={[
+                        styles.detailBadgeDot,
+                        {
+                          backgroundColor:
+                            STATUS_COLORS[selectedEmail?.status || 'SUCCESS'],
+                        },
+                      ]}
+                    />
+                    <Text style={styles.detailBadgeText}>
+                      {selectedEmail?.status || '-'}
+                    </Text>
+                  </View>
+                  <Text style={styles.detailTime}>
+                    {formatDateTime(selectedEmail?.createdDate)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.detailMetaSection}>
+                <TouchableOpacity
+                  style={styles.detailMetaHeader}
+                  activeOpacity={0.8}
+                  onPress={() => setMetaExpanded(prev => !prev)}
+                >
+                  <Text style={styles.detailMetaHeaderText}>Message details</Text>
+                  <Text style={styles.detailMetaHeaderToggle}>
+                    {metaExpanded ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
+                {metaExpanded ? (
+                  <View style={styles.detailMetaContent}>
+                    {metaRows.map((info, index) => (
+                      <View
+                        key={info.label}
+                        style={[
+                          styles.detailInfoRow,
+                          index === metaRows.length - 1 && styles.detailInfoRowLast,
+                        ]}
+                      >
+                        <Text style={styles.detailInfoLabel}>{info.label}</Text>
+                        <Text style={styles.detailInfoValue}>{info.value}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+
+              <View style={styles.detailBodySection}>
+                <View style={styles.detailBodyCard}>
+                  {selectedEmail?.body ? (
+                    <WebView
+                      key={
+                        selectedEmail?.id ||
+                        selectedEmail?.webId ||
+                        selectedEmail?.subject
+                      }
+                      originWhitelist={['*']}
+                      scalesPageToFit={false}
+                      javaScriptEnabled
+                      automaticallyAdjustContentInsets={false}
+                      showsVerticalScrollIndicator={false}
+                      domStorageEnabled
+                      style={{
+                        width: '100%',
+                        height: Math.max(200, htmlHeight),
+                        backgroundColor: 'transparent',
+                      }}
+                      source={{ html: htmlTemplate }}
+                      injectedJavaScript={`
+                        (function() {
+                          const sendHeight = () => {
+                            const height = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+                            window.ReactNativeWebView.postMessage(String(height));
+                          };
+                          sendHeight();
+                          window.addEventListener('load', sendHeight);
+                        })();
+                        true;
+                      `}
+                      onMessage={event => {
+                        const nextHeight = Number(event.nativeEvent.data);
+                        if (!Number.isNaN(nextHeight)) {
+                          setHtmlHeight(Math.max(200, nextHeight));
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Text style={styles.detailBodyFallback}>
+                      No email content available.
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+        {renderUserDropdown()}
+      </SafeAreaView>
+    );
+  };
+
+  if (selectedEmail) {
+    return renderEmailDetailScreen();
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#007AFF" />
@@ -699,24 +958,6 @@ export default function EmailNotificationsScreen({ navigation }) {
           /* No Data State */
           <View style={styles.noDataContainer}>
             <Text style={styles.noDataTitle}>No emails found</Text>
-            {/* <Text style={styles.noDataMessage}>
-              No data found for this query or filter. Try adjusting your search
-              criteria.
-            </Text>
-            <TouchableOpacity
-              style={styles.clearFiltersButton}
-              onPress={() => {
-                const clearedFilters = getClearedFiltersWithCurrentUser();
-                setFilters(clearedFilters);
-                setAppliedFilters(clearedFilters);
-                setDropdown({ field: null, visible: false });
-                setFilterModal(false);
-              }}
-            >
-              <Text style={styles.clearFiltersButtonText}>
-                Clear All Filters
-              </Text>
-            </TouchableOpacity> */}
           </View>
         ) : (
           /* Email List */
@@ -926,112 +1167,7 @@ export default function EmailNotificationsScreen({ navigation }) {
         </Pressable>
       </Modal>
 
-      {/* Email Details Modal */}
-      <Modal
-        visible={detailsVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDetailsVisible(false)}
-      >
-        <Pressable
-          style={styles.detailModalBackdrop}
-          onPress={() => setDetailsVisible(false)}
-        >
-          <Pressable
-            style={[styles.detailModalBox, { width: modalWidth }]}
-            onPress={e => e.stopPropagation()}
-          >
-            <View style={styles.detailHeaderRow}>
-              <View style={styles.detailBadge}>
-                <View
-                  style={[
-                    styles.detailBadgeDot,
-                    {
-                      backgroundColor:
-                        STATUS_COLORS[selectedEmail?.status || 'SUCCESS'],
-                    },
-                  ]}
-                />
-                <Text style={styles.detailBadgeText}>Delivered</Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setDetailsVisible(false)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text style={styles.closeBtn}>x</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              style={{ maxHeight: 560 }}
-              showsVerticalScrollIndicator
-              contentContainerStyle={{ paddingBottom: 16 }}
-            >
-              <Text style={styles.detailSubject}>
-                {selectedEmail?.subject || ''}
-              </Text>
-              <View style={styles.detailMetaRow}>
-                <Text style={styles.detailMetaLabel}>To:</Text>
-                <Text style={styles.detailMetaValue}>
-                  {selectedEmail?.recipientEmails || '-'}
-                </Text>
-              </View>
-              <Text style={styles.detailTime}>
-                {formatDateTime(selectedEmail?.createdDate)}
-              </Text>
-
-              <View style={styles.detailBodyWrap}>
-                <Text style={styles.detailBodyFallback}>
-                  {stripHtml(selectedEmail?.body || '')}
-                </Text>
-              </View>
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
-      {/* Dropdown Modal */}
-      <Modal
-        visible={showDropdown}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowDropdown(false)}
-      >
-        <TouchableOpacity
-          style={styles.dropdownOverlayIcon}
-          activeOpacity={1}
-          onPress={() => setShowDropdown(false)}
-        >
-          <View style={styles.dropdownMenuIcon}>
-            <TouchableOpacity
-              style={styles.dropdownItemIcon}
-              onPress={() => {
-                setShowDropdown(false);
-                // Add navigation to settings here
-                navigation.navigate('Profile');
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <SettingsIcon
-                  width={18}
-                  height={18}
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={styles.dropdownTextIcon}>Settings</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.dropdownItemIcon}
-              onPress={handleLogout}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <LogoutIcon width={18} height={18} style={{ marginRight: 8 }} />
-                <Text style={styles.dropdownTextIcon}>Logout</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      {renderUserDropdown()}
     </SafeAreaView>
   );
 }
@@ -1056,6 +1192,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
     paddingHorizontal: 24,
+    paddingVertical: 5,
   },
   headerTitle: {
     color: '#fff',
@@ -1360,18 +1497,103 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 12,
   },
-  detailBodyWrap: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E8EE',
-    overflow: 'hidden',
-  },
   detailBodyFallback: {
     padding: 14,
     fontSize: 14,
     color: '#1A1A1A',
     lineHeight: 20,
+  },
+  detailScreenContainer: {
+    flex: 1,
+    backgroundColor: '#F2F2F2',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+  },
+  detailScreenCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  detailHero: {
+    marginBottom: 18,
+    gap: 6,
+  },
+  detailHeroEyebrow: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: '#7A8194',
+  },
+  detailHeroMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  detailMetaSection: {
+    borderWidth: 1,
+    borderColor: '#E5E8EE',
+    borderRadius: 12,
+    marginBottom: 18,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+  },
+  detailMetaHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#F7F9FC',
+  },
+  detailMetaHeaderText: {
+    color: '#1A1A1A',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  detailMetaHeaderToggle: {
+    fontSize: 13,
+    color: '#7A8194',
+  },
+  detailMetaContent: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E8EE',
+    paddingVertical: 4,
+  },
+  detailInfoRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F2F6',
+  },
+  detailInfoRowLast: {
+    borderBottomWidth: 0,
+  },
+  detailInfoLabel: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    color: '#7A8194',
+    marginBottom: 2,
+  },
+  detailInfoValue: {
+    fontSize: 15,
+    color: '#1A1A1A',
+  },
+  detailBodySection: {
+    marginTop: 8,
+  },
+  detailBodyCard: {
+    borderWidth: 1,
+    borderColor: '#E5E8EE',
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    padding: 14,
   },
   dropdownOverlayIcon: {
     flex: 1,
