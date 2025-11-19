@@ -764,12 +764,49 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     };
 
 
-    // for multi sections 
+    // Fetch definition sections with sequence
+    const {
+        data: definitionSectionsData,
+    } = useQuery({
+        queryKey: ['definitionSections', formDefinitionId],
+        queryFn: async () => {
+            if (!formDefinitionId) return null;
+            const response = await apiService.get<any>(
+                `/api/forms/definitionSections?formDefinitionId=${formDefinitionId}&status=ACTIVE`
+            );
+            if (response.success && response.data) {
+                return response.data;
+            }
+            return null;
+        },
+        enabled: !!formDefinitionId,
+    });
 
-    const sectionKeys = React.useMemo(
-        () => Object.keys(formSectionIds || {}).sort((a, b) => Number(a.replace('id', '')) - Number(b.replace('id', ''))),
-        [formSectionIds]
-    );
+    // for multi sections 
+    // Create a mapping from formSectionId to sequence
+    const sectionSequenceMap = React.useMemo(() => {
+        if (!definitionSectionsData?.content) return {};
+        const map: { [key: number]: number } = {};
+        definitionSectionsData.content.forEach((section: any) => {
+            if (section.formSectionId && typeof section.sequence === 'number') {
+                map[section.formSectionId] = section.sequence;
+            }
+        });
+        return map;
+    }, [definitionSectionsData]);
+
+    const sectionKeys = React.useMemo(() => {
+        const keys = Object.keys(formSectionIds || {});
+        // Sort by sequence if available, otherwise fallback to numeric key sorting
+        return keys.sort((a, b) => {
+            const sectionIdA = formSectionIds?.[a];
+            const sectionIdB = formSectionIds?.[b];
+            const sequenceA = sectionSequenceMap[sectionIdA] ?? Number(a.replace('id', ''));
+            const sequenceB = sectionSequenceMap[sectionIdB] ?? Number(b.replace('id', ''));
+            return sequenceA - sequenceB;
+        });
+    }, [formSectionIds, sectionSequenceMap]);
+
     const sectionIds = React.useMemo(
         () => sectionKeys.map(k => formSectionIds?.[k]).filter(Boolean),
         [sectionKeys, formSectionIds]
@@ -1527,8 +1564,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                         return (
                                             <View key={row.webId} style={styles.notesRow}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10), flexShrink: 1 }}>
+                                                    <Text style={[styles.radioLabel, { width: undefined, flexShrink: 1 }]}>{row.columns[0]?.components[0]?.text}</Text>
                                                 </View>
                                                 <View style={[styles.textFieldBox, { width: '50%' }]}>
                                                     <TextInput
@@ -1630,8 +1667,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                         return (
                                             <View key={row.webId} style={styles.notesRow}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                    <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10), flexShrink: 1 }}>
+                                                    <Text style={[styles.radioLabel, { width: undefined, flexShrink: 1 }]}>{row.columns[0]?.components[0]?.text}</Text>
                                                 </View>
                                                 <View style={[styles.textFieldBox, { width: '50%' }]}>
                                                     <TextInput
