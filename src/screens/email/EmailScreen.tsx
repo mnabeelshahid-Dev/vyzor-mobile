@@ -681,12 +681,18 @@ export default function EmailNotificationsScreen({ navigation }) {
         <head>
           <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
           <style>
-            body {
+            *, *::before, *::after {
+              box-sizing: border-box;
+            }
+            html, body {
               margin: 0;
               padding: 0;
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            }
+            body {
               background-color: #ffffff;
               color: #1A1A1A;
+              padding: 12px 0;
             }
             .email-wrapper {
               padding: 0 0 16px 0;
@@ -713,6 +719,25 @@ export default function EmailNotificationsScreen({ navigation }) {
             a {
               color: #1292E6;
             }
+            .emailbox,
+            .innerbox,
+            .email-body .emailbox,
+            .email-body .innerbox {
+              width: 100% !important;
+              max-width: 100% !important;
+              margin: 12px 0 !important;
+              padding-left: 16px !important;
+              padding-right: 16px !important;
+              box-sizing: border-box !important;
+            }
+            .innerbox {
+              border-radius: 12px !important;
+              border: 1px solid #E5E8EE !important;
+              text-align: left !important;
+            }
+            .email-body p {
+              text-align: left !important;
+            }
           </style>
         </head>
         <body>
@@ -733,16 +758,6 @@ export default function EmailNotificationsScreen({ navigation }) {
 
     const metaRows = [
       { label: 'To', value: selectedEmail?.recipientEmails || '-' },
-      {
-        label: 'Created',
-        value: formatDateTime(selectedEmail?.createdDate) || '-',
-      },
-      {
-        label: 'Scheduled',
-        value: selectedEmail?.startDate
-          ? formatDateTime(selectedEmail?.startDate)
-          : 'Not scheduled',
-      },
       { label: 'Type', value: formattedType },
     ];
 
@@ -767,12 +782,15 @@ export default function EmailNotificationsScreen({ navigation }) {
         <View style={styles.detailScreenContainer}>
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+            contentContainerStyle={{
+              paddingTop: 16,
+              paddingBottom: 40,
+              paddingHorizontal: 24,
+            }}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.detailScreenCard}>
               <View style={styles.detailHero}>
-                <Text style={styles.detailHeroEyebrow}>{formattedType}</Text>
                 <Text style={styles.detailSubject}>
                   {selectedEmail?.subject || 'No subject'}
                 </Text>
@@ -1521,13 +1539,6 @@ const styles = StyleSheet.create({
   detailHero: {
     marginBottom: 18,
     gap: 6,
-  },
-  detailHeroEyebrow: {
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    color: '#7A8194',
   },
   detailHeroMeta: {
     flexDirection: 'row',
