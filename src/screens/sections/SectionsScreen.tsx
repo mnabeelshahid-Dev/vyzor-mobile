@@ -2841,7 +2841,8 @@ const styles = StyleSheet.create({
         // light blue like the image
         backgroundColor: '#D9ECFF',
         borderRadius: getResponsive(10),
-        padding: getResponsive(8),
+        paddingVertical: getResponsive(8),
+        paddingHorizontal: getResponsive(14),
         minHeight: getResponsive(50),
         justifyContent: 'center',
         borderWidth: 1,
@@ -3104,6 +3105,7 @@ const styles = StyleSheet.create({
         padding: getResponsive(10),
         flexDirection: 'row',
         minHeight: getResponsive(80),
+        alignItems: 'center',
     },
     notesBox: {
         backgroundColor: '#0088E733',
