@@ -21,6 +21,7 @@ import {
     Linking
 
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Camera } from 'react-native-camera-kit';
@@ -85,6 +86,41 @@ const CameraIcon = () => (
         }}
     >
         <CamaraIcon width={getResponsive(28)} height={getResponsive(28)} />
+    </View>
+);
+
+const AttachmentIcon = () => (
+    <View
+        style={{
+            width: getResponsive(46),
+            height: getResponsive(46),
+            borderRadius: getResponsive(23),
+            backgroundColor: '#1292E6',
+            justifyContent: 'center',
+            alignItems: 'center',
+        }}
+    >
+        <Svg
+            width={getResponsive(26)}
+            height={getResponsive(26)}
+            viewBox="0 0 24 24"
+            fill="none"
+        >
+            <Path
+                d="M8.5 10.75V7a3.5 3.5 0 1 1 7 0v6a4.5 4.5 0 1 1-9 0V8.75"
+                stroke="white"
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            <Path
+                d="M12 7.25v5.25a1.75 1.75 0 1 1-3.5 0V9.5"
+                stroke="white"
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </Svg>
     </View>
 );
 
@@ -1955,7 +1991,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         activeOpacity={0.7}
                                                         disabled={uploading}
                                                     >
-                                                        <CameraIcon />
+                                                        <AttachmentIcon />
                                                     </TouchableOpacity>
                                                     {uploading ? <ActivityIndicator size="small" color="#1292E6" style={{ marginLeft: 6 }} /> : null}
 
@@ -2841,7 +2877,8 @@ const styles = StyleSheet.create({
         // light blue like the image
         backgroundColor: '#D9ECFF',
         borderRadius: getResponsive(10),
-        padding: getResponsive(8),
+        paddingVertical: getResponsive(8),
+        paddingHorizontal: getResponsive(14),
         minHeight: getResponsive(50),
         justifyContent: 'center',
         borderWidth: 1,
@@ -3104,6 +3141,7 @@ const styles = StyleSheet.create({
         padding: getResponsive(10),
         flexDirection: 'row',
         minHeight: getResponsive(80),
+        alignItems: 'center',
     },
     notesBox: {
         backgroundColor: '#0088E733',
