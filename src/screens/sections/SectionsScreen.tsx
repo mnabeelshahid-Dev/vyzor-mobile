@@ -1109,28 +1109,31 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             .filter((i: any) => i.value);
                     })() : [];
 
-                    // CAMERA (array of IDs)
-                    const cameraComp = comps.find((c: any) => c.component === 'CAMERA');
-
-                    const cameraData = cameraComp
-                        ? [{
-                            value: (rowImages[row.webId] || []).map((img) => img.id),
+                    // CAMERA - handle both single column and multi-column cases
+                    const cameraComps = comps.filter((c: any) => c.component === 'CAMERA');
+                    const cameraData = cameraComps.map((cameraComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const images = rowImages[cameraComp.webId] || rowImages[row.webId] || [];
+                        return {
+                            value: images.map((img) => img.id),
                             controlId: cameraComp.controlId || '',
                             groupName: cameraComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // ATTACHEMENTS (array of file IDs)
-                    const attachComp = comps.find((c: any) => c.component === 'ATTACHEMENTS');
-                    const attachmentsData = attachComp
-                        ? [{
-                            value: (attachmentsByRow[row.webId] || []).map((f) => f.id),
+                    // ATTACHEMENTS - handle both single column and multi-column cases
+                    const attachComps = comps.filter((c: any) => c.component === 'ATTACHEMENTS');
+                    const attachmentsData = attachComps.map((attachComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const files = attachmentsByRow[attachComp.webId] || attachmentsByRow[row.webId] || [];
+                        return {
+                            value: files.map((f) => f.id),
                             controlId: attachComp.controlId || '',
                             groupName: attachComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
                     // TEXT_FIELD - handle both single column and multi-column cases
                     const textFieldComps = comps.filter((c: any) => c.component === 'TEXT_FIELD');
@@ -1223,77 +1226,83 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         };
                     });
 
-                    // SIGNATURE
-                    const signatureComp = comps.find((c: any) => c.component === 'SIGNATURE');
-                    const signatureVal = signatureValues[row.webId]?.encoded || '';
-                    const signatureData = signatureComp
-                        ? [{
+                    // SIGNATURE - handle both single column and multi-column cases
+                    const signatureComps = comps.filter((c: any) => c.component === 'SIGNATURE');
+                    const signatureData = signatureComps.map((signatureComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const signatureVal = signatureValues[signatureComp.webId]?.encoded || signatureValues[row.webId]?.encoded || '';
+                        return {
                             value: signatureVal,
                             controlId: signatureComp.controlId || '',
                             groupName: signatureComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // QR_CODE
-                    const qrCodeComp = comps.find((c: any) => c.component === 'QR_CODE');
-                    const qrCodeVal = qrCodeValues[row.webId] || '';
-                    const qrCodeData = qrCodeComp
-                        ? [{
+                    // QR_CODE - handle both single column and multi-column cases
+                    const qrCodeComps = comps.filter((c: any) => c.component === 'QR_CODE');
+                    const qrCodeData = qrCodeComps.map((qrCodeComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const qrCodeVal = qrCodeValues[qrCodeComp.webId] || qrCodeValues[row.webId] || '';
+                        return {
                             value: qrCodeVal,
                             controlId: qrCodeComp.controlId || '',
                             groupName: qrCodeComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // QR_VALIDATOR
-                    const qrValidatorComp = comps.find((c: any) => c.component === 'QR_VALIDATOR');
-                    const qrValidatorVal = qrValidatorValues[row.webId] || '';
-                    const qrValidatorData = qrValidatorComp
-                        ? [{
+                    // QR_VALIDATOR - handle both single column and multi-column cases
+                    const qrValidatorComps = comps.filter((c: any) => c.component === 'QR_VALIDATOR');
+                    const qrValidatorData = qrValidatorComps.map((qrValidatorComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const qrValidatorVal = qrValidatorValues[qrValidatorComp.webId] || qrValidatorValues[row.webId] || '';
+                        return {
                             value: qrValidatorVal,
                             controlId: qrValidatorComp.controlId || '',
                             groupName: qrValidatorComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // BAR_CODE
-                    const barcodeComp = comps.find((c: any) => c.component === 'BAR_CODE');
-                    const barcodeVal = barcodeValues[row.webId] || '';
-                    const barcodeData = barcodeComp
-                        ? [{
+                    // BAR_CODE - handle both single column and multi-column cases
+                    const barcodeComps = comps.filter((c: any) => c.component === 'BAR_CODE');
+                    const barcodeData = barcodeComps.map((barcodeComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const barcodeVal = barcodeValues[barcodeComp.webId] || barcodeValues[row.webId] || '';
+                        return {
                             value: barcodeVal,
                             controlId: barcodeComp.controlId || '',
                             groupName: barcodeComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // BAR_VALIDATOR
-                    const barcodeValidatorComp = comps.find((c: any) => c.component === 'BAR_VALIDATOR');
-                    const barcodeValidatorVal = barcodeValidatorValues[row.webId] || '';
-                    const barcodeValidatorData = barcodeValidatorComp
-                        ? [{
+                    // BAR_VALIDATOR - handle both single column and multi-column cases
+                    const barcodeValidatorComps = comps.filter((c: any) => c.component === 'BAR_VALIDATOR');
+                    const barcodeValidatorData = barcodeValidatorComps.map((barcodeValidatorComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const barcodeValidatorVal = barcodeValidatorValues[barcodeValidatorComp.webId] || barcodeValidatorValues[row.webId] || '';
+                        return {
                             value: barcodeValidatorVal,
                             controlId: barcodeValidatorComp.controlId || '',
                             groupName: barcodeValidatorComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // TIMER
-                    const timerComp = comps.find((c: any) => c.component === 'TIMER');
-                    const timerVal = timerValues[row.webId] || '00:00:00.0000000';
-                    const timerData = timerComp
-                        ? [{
+                    // TIMER - handle both single column and multi-column cases
+                    const timerComps = comps.filter((c: any) => c.component === 'TIMER');
+                    const timerData = timerComps.map((timerComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const timerVal = timerValues[timerComp.webId] || timerValues[row.webId] || '00:00:00.0000000';
+                        return {
                             value: timerVal,
                             controlId: timerComp.controlId || '',
                             groupName: timerComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
                     return [
                         ...radioData,
@@ -1895,6 +1904,685 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                         </Text>
                                                                     </TouchableOpacity>
                                                                 ))}
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'CAMERA' && (
+                                                        <View style={[styles.attachmentContainer, { marginBottom: getResponsive(8) }]}>
+                                                            <TouchableOpacity
+                                                                style={styles.attachmentCameraBtn}
+                                                                onPress={() => handleAddImages(mainControlId)}
+                                                                activeOpacity={0.7}
+                                                            >
+                                                                <CameraIcon />
+                                                            </TouchableOpacity>
+                                                            <ScrollView
+                                                                horizontal
+                                                                showsHorizontalScrollIndicator={false}
+                                                                style={styles.attachmentScrollView}
+                                                                contentContainerStyle={styles.attachmentScrollContent}
+                                                            >
+                                                                {(rowImages[mainControlId] || []).map(img => (
+                                                                    <View key={img.id} style={styles.attachmentThumbBox}>
+                                                                        <TouchableOpacity onPress={() => setPreviewUri(img.uri)}>
+                                                                            <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
+                                                                        </TouchableOpacity>
+                                                                        <TouchableOpacity
+                                                                            style={styles.attachmentRemove}
+                                                                            onPress={() => handleRemoveImage(mainControlId, img.id)}
+                                                                        >
+                                                                            <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                                        </TouchableOpacity>
+                                                                    </View>
+                                                                ))}
+                                                            </ScrollView>
+                                                        </View>
+                                                    )}
+
+                                                    {mainControlComp?.component === 'SIGNATURE' && (() => {
+                                                        signatureRowIdsRef.current.add(mainControlId);
+                                                        return (
+                                                            <View style={[styles.signatureBox, { width: '100%', overflow: 'hidden', height: getResponsive(150), marginBottom: getResponsive(8) }]}>
+                                                                <Signature
+                                                                    ref={(r) => { if (r) signatureRefs.current[mainControlId] = r; }}
+                                                                    onOK={(base64: string) => {
+                                                                        const encoded = (base64 || '').replace(/^data:image\/\w+;base64,/, '');
+                                                                        setSignatureValues(prev => ({
+                                                                            ...prev,
+                                                                            [mainControlId]: { encoded, pathName: undefined }
+                                                                        }));
+                                                                        if (signatureWaiters.current[mainControlId]) {
+                                                                            signatureWaiters.current[mainControlId]!({ pathName: '', encoded });
+                                                                            delete signatureWaiters.current[mainControlId];
+                                                                        }
+                                                                    }}
+                                                                    onEnd={() => {
+                                                                        safeReadSignature(mainControlId);
+                                                                    }}
+                                                                    webStyle={`
+                                                                        .m-signature-pad--footer { display:none; }
+                                                                        body,html { background: transparent; }
+                                                                        .m-signature-pad { 
+                                                                            box-shadow:none; 
+                                                                            border:0; 
+                                                                            background: transparent; 
+                                                                            width: 100%;
+                                                                            height: 100%;
+                                                                        }
+                                                                        canvas { 
+                                                                            background-color: transparent;
+                                                                            width: 100% !important;
+                                                                            height: 100% !important;
+                                                                        }
+                                                                    `}
+                                                                    backgroundColor="#31AAFF33"
+                                                                    penColor="#000"
+                                                                    descriptionText=""
+                                                                    clearText=""
+                                                                    confirmText=""
+                                                                    autoClear={false}
+                                                                />
+                                                                <TouchableOpacity
+                                                                    onPress={() => {
+                                                                        signatureRefs.current[mainControlId]?.clearSignature();
+                                                                        setSignatureValues(prev => {
+                                                                            const { [mainControlId]: _, ...rest } = prev;
+                                                                            return rest;
+                                                                        });
+                                                                    }}
+                                                                    style={styles.signatureOverlay}
+                                                                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                                                                >
+                                                                    <RefreshSignatureIcon width={getResponsive(16)} height={getResponsive(16)} />
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'QR_CODE' && (() => {
+                                                        const qrCodeValue = qrCodeValues[mainControlId] || '';
+                                                        const showScanner = showQrScanner[mainControlId] || false;
+
+                                                        return (
+                                                            <View style={{ marginBottom: getResponsive(8) }}>
+                                                                {qrCodeValue ? (
+                                                                    <View style={styles.inputFieldContainer}>
+                                                                        <TextInput
+                                                                            style={styles.inputField}
+                                                                            value={qrCodeValue}
+                                                                            editable={false}
+                                                                            placeholder="Scanned QR Code"
+                                                                        />
+                                                                        <TouchableOpacity
+                                                                            activeOpacity={0.8}
+                                                                            onPress={() => {
+                                                                                setShowQrScanner(prev => ({ ...prev, [mainControlId]: true }));
+                                                                            }}
+                                                                        >
+                                                                            <View style={styles.qrCodeIconContainer}>
+                                                                                <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                                            </View>
+                                                                        </TouchableOpacity>
+                                                                    </View>
+                                                                ) : (
+                                                                    <TouchableOpacity
+                                                                        activeOpacity={0.8}
+                                                                        onPress={() => {
+                                                                            setShowQrScanner(prev => ({ ...prev, [mainControlId]: true }));
+                                                                        }}
+                                                                    >
+                                                                        <View style={styles.qrCodeContainer}>
+                                                                            <View style={styles.qrCodeIconContainer}>
+                                                                                <QRCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                                            </View>
+                                                                        </View>
+                                                                    </TouchableOpacity>
+                                                                )}
+
+                                                                <Modal
+                                                                    visible={showScanner}
+                                                                    transparent={false}
+                                                                    animationType="slide"
+                                                                    onRequestClose={() => setShowQrScanner(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                >
+                                                                    <View style={styles.qrScannerContainer}>
+                                                                        <View style={styles.qrScannerHeader}>
+                                                                            <TouchableOpacity
+                                                                                onPress={() => setShowQrScanner(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                                style={styles.qrScannerClose}
+                                                                            >
+                                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
+                                                                            </TouchableOpacity>
+                                                                            <Text style={styles.qrScannerTitle}>Scan QR Code</Text>
+                                                                        </View>
+                                                                        <Camera
+                                                                            onReadCode={(event: any) => {
+                                                                                const scannedValue = event.nativeEvent.codeStringValue;
+                                                                                setQrCodeValues(prev => ({ ...prev, [mainControlId]: scannedValue }));
+                                                                                setShowQrScanner(prev => ({ ...prev, [mainControlId]: false }));
+                                                                                showSuccessToast('QR Code Scanned', `Value: ${scannedValue}`);
+                                                                            }}
+                                                                            scanBarcode={true}
+                                                                            showFrame={true}
+                                                                            laserColor="red"
+                                                                            frameColor="white"
+                                                                            style={styles.qrScannerCamera}
+                                                                        />
+                                                                    </View>
+                                                                </Modal>
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'QR_VALIDATOR' && (() => {
+                                                        const expectedValue = mainControlComp?.defaultValue || mainControlComp?.text || '';
+                                                        const scannedValue = qrValidatorValues[mainControlId] || '';
+                                                        const validationStatus = qrValidatorStatus[mainControlId] || 'pending';
+                                                        const showValidatorScanner = showQrValidatorScanner[mainControlId] || false;
+
+                                                        const getStatusColor = () => {
+                                                            switch (validationStatus) {
+                                                                case 'valid': return '#28B446';
+                                                                case 'invalid': return '#F44336';
+                                                                default: return '#D8ECFA';
+                                                            }
+                                                        };
+
+                                                        const getStatusText = () => {
+                                                            switch (validationStatus) {
+                                                                case 'valid': return '✓ Validated';
+                                                                case 'invalid': return '✗ Invalid';
+                                                                default: return 'Validate QR Code';
+                                                            }
+                                                        };
+
+                                                        return (
+                                                            <View style={{ marginBottom: getResponsive(8) }}>
+                                                                <View style={styles.radioChoiceRow}>
+                                                                    {validationStatus !== 'pending' ? (
+                                                                        <View style={styles.validationMessageContainer}>
+                                                                            <Text style={[styles.validationMessage, { color: validationStatus === 'valid' ? '#28B446' : '#F44336' }]}>
+                                                                                {getStatusText()}
+                                                                            </Text>
+                                                                        </View>
+                                                                    ) : (
+                                                                        <View style={[styles.qrCodeContainer, styles.validatorIconRow]}>
+                                                                            <View style={styles.qrCodeIconContainer}>
+                                                                                <QRCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                                            </View>
+                                                                        </View>
+                                                                    )}
+                                                                    <TouchableOpacity
+                                                                        style={[styles.scanButton, { backgroundColor: getStatusColor() }]}
+                                                                        activeOpacity={0.8}
+                                                                        onPress={() => {
+                                                                            setShowQrValidatorScanner(prev => ({ ...prev, [mainControlId]: true }));
+                                                                        }}
+                                                                    >
+                                                                        <Text style={[styles.scanButtonText, { color: validationStatus === 'pending' ? '#021639' : '#fff' }]}>Scan</Text>
+                                                                    </TouchableOpacity>
+                                                                </View>
+
+                                                                <Modal
+                                                                    visible={showValidatorScanner}
+                                                                    transparent={false}
+                                                                    animationType="slide"
+                                                                    onRequestClose={() => setShowQrValidatorScanner(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                >
+                                                                    <View style={styles.qrScannerContainer}>
+                                                                        <View style={styles.qrScannerHeader}>
+                                                                            <TouchableOpacity
+                                                                                onPress={() => setShowQrValidatorScanner(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                                style={styles.qrScannerClose}
+                                                                            >
+                                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
+                                                                            </TouchableOpacity>
+                                                                            <Text style={styles.qrScannerTitle}>Validate QR Code</Text>
+                                                                        </View>
+                                                                        <View style={styles.qrValidatorInfo}>
+                                                                            <Text style={styles.qrValidatorInfoText}>
+                                                                                Expected Value: <Text style={styles.qrValidatorExpectedValue}>{expectedValue}</Text>
+                                                                            </Text>
+                                                                        </View>
+                                                                        <Camera
+                                                                            onReadCode={(event: any) => {
+                                                                                const scannedValue = event.nativeEvent.codeStringValue;
+                                                                                const isValid = scannedValue === expectedValue;
+
+                                                                                setQrValidatorValues(prev => ({ ...prev, [mainControlId]: scannedValue }));
+                                                                                setQrValidatorStatus(prev => ({ ...prev, [mainControlId]: isValid ? 'valid' : 'invalid' }));
+                                                                                setShowQrValidatorScanner(prev => ({ ...prev, [mainControlId]: false }));
+
+                                                                                if (isValid) {
+                                                                                    showSuccessToast('QR Code Validated', `Value matches: ${scannedValue}`);
+                                                                                } else {
+                                                                                    showErrorToast('QR Code Invalid', `Expected: ${expectedValue}, Got: ${scannedValue}`);
+                                                                                }
+                                                                            }}
+                                                                            scanBarcode={true}
+                                                                            showFrame={true}
+                                                                            laserColor="red"
+                                                                            frameColor="white"
+                                                                            style={styles.qrScannerCamera}
+                                                                        />
+                                                                    </View>
+                                                                </Modal>
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'BAR_CODE' && (() => {
+                                                        const barcodeValue = barcodeValues[mainControlId] || '';
+                                                        const showScanner = showBarcodeScanner[mainControlId] || false;
+
+                                                        return (
+                                                            <View style={{ marginBottom: getResponsive(8) }}>
+                                                                <View style={styles.inputFieldContainer}>
+                                                                    <TextInput
+                                                                        style={styles.inputField}
+                                                                        value={barcodeValue}
+                                                                        editable={false}
+                                                                        placeholder="Barcode"
+                                                                    />
+                                                                    <TouchableOpacity
+                                                                        activeOpacity={0.8}
+                                                                        onPress={() => {
+                                                                            setShowBarcodeScanner(prev => ({ ...prev, [mainControlId]: true }));
+                                                                        }}
+                                                                    >
+                                                                        <View style={styles.barcodeIconContainer}>
+                                                                            <BarCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                                        </View>
+                                                                    </TouchableOpacity>
+                                                                </View>
+
+                                                                <Modal
+                                                                    visible={showScanner}
+                                                                    transparent={false}
+                                                                    animationType="slide"
+                                                                    onRequestClose={() => setShowBarcodeScanner(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                >
+                                                                    <View style={styles.qrScannerContainer}>
+                                                                        <View style={styles.qrScannerHeader}>
+                                                                            <TouchableOpacity
+                                                                                onPress={() => setShowBarcodeScanner(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                                style={styles.qrScannerClose}
+                                                                            >
+                                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
+                                                                            </TouchableOpacity>
+                                                                            <Text style={styles.qrScannerTitle}>Scan Barcode</Text>
+                                                                        </View>
+                                                                        <Camera
+                                                                            onReadCode={(event: any) => {
+                                                                                const scannedValue = event.nativeEvent.codeStringValue;
+                                                                                setBarcodeValues(prev => ({ ...prev, [mainControlId]: scannedValue }));
+                                                                                setShowBarcodeScanner(prev => ({ ...prev, [mainControlId]: false }));
+                                                                                showSuccessToast('Barcode Scanned', `Value: ${scannedValue}`);
+                                                                            }}
+                                                                            scanBarcode={true}
+                                                                            showFrame={true}
+                                                                            laserColor="red"
+                                                                            frameColor="white"
+                                                                            style={styles.qrScannerCamera}
+                                                                        />
+                                                                    </View>
+                                                                </Modal>
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'BAR_VALIDATOR' && (() => {
+                                                        const expectedValue = mainControlComp?.defaultValue || mainControlComp?.text || '';
+                                                        const scannedValue = barcodeValidatorValues[mainControlId] || '';
+                                                        const validationStatus = barcodeValidatorStatus[mainControlId] || 'pending';
+                                                        const showValidatorScanner = showBarcodeValidatorScanner[mainControlId] || false;
+
+                                                        const getStatusColor = () => {
+                                                            switch (validationStatus) {
+                                                                case 'valid': return '#28B446';
+                                                                case 'invalid': return '#F44336';
+                                                                default: return '#D8ECFA';
+                                                            }
+                                                        };
+
+                                                        const getStatusText = () => {
+                                                            switch (validationStatus) {
+                                                                case 'valid': return '✓ Validated';
+                                                                case 'invalid': return '✗ Invalid';
+                                                                default: return 'Validate Barcode';
+                                                            }
+                                                        };
+
+                                                        return (
+                                                            <View style={{ marginBottom: getResponsive(8) }}>
+                                                                <View style={styles.radioChoiceRow}>
+                                                                    {validationStatus !== 'pending' ? (
+                                                                        <View style={styles.validationMessageContainer}>
+                                                                            <Text style={[styles.validationMessage, { color: validationStatus === 'valid' ? '#28B446' : '#F44336' }]}>
+                                                                                {getStatusText()}
+                                                                            </Text>
+                                                                        </View>
+                                                                    ) : (
+                                                                        <View style={[styles.qrCodeContainer, styles.validatorIconRow]}>
+                                                                            <View style={styles.qrCodeIconContainer}>
+                                                                                <BarCodeValidatorIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                                            </View>
+                                                                        </View>
+                                                                    )}
+                                                                    <TouchableOpacity
+                                                                        style={[styles.scanButton, { backgroundColor: getStatusColor() }]}
+                                                                        activeOpacity={0.8}
+                                                                        onPress={() => {
+                                                                            setShowBarcodeValidatorScanner(prev => ({ ...prev, [mainControlId]: true }));
+                                                                        }}
+                                                                    >
+                                                                        <Text style={[styles.scanButtonText, { color: validationStatus === 'pending' ? '#021639' : '#fff' }]}>Scan</Text>
+                                                                    </TouchableOpacity>
+                                                                </View>
+
+                                                                <Modal
+                                                                    visible={showValidatorScanner}
+                                                                    transparent={false}
+                                                                    animationType="slide"
+                                                                    onRequestClose={() => setShowBarcodeValidatorScanner(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                >
+                                                                    <View style={styles.qrScannerContainer}>
+                                                                        <View style={styles.qrScannerHeader}>
+                                                                            <TouchableOpacity
+                                                                                onPress={() => setShowBarcodeValidatorScanner(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                                style={styles.qrScannerClose}
+                                                                            >
+                                                                                <Text style={styles.qrScannerCloseText}>✕</Text>
+                                                                            </TouchableOpacity>
+                                                                            <Text style={styles.qrScannerTitle}>Validate Barcode</Text>
+                                                                        </View>
+                                                                        <View style={styles.qrValidatorInfo}>
+                                                                            <Text style={styles.qrValidatorInfoText}>
+                                                                                Expected Value: <Text style={styles.qrValidatorExpectedValue}>{expectedValue}</Text>
+                                                                            </Text>
+                                                                        </View>
+                                                                        <Camera
+                                                                            onReadCode={(event: any) => {
+                                                                                const scannedValue = event.nativeEvent.codeStringValue;
+                                                                                const isValid = scannedValue === expectedValue;
+
+                                                                                setBarcodeValidatorValues(prev => ({ ...prev, [mainControlId]: scannedValue }));
+                                                                                setBarcodeValidatorStatus(prev => ({ ...prev, [mainControlId]: isValid ? 'valid' : 'invalid' }));
+                                                                                setShowBarcodeValidatorScanner(prev => ({ ...prev, [mainControlId]: false }));
+
+                                                                                if (isValid) {
+                                                                                    showSuccessToast('Barcode Validated', `Value matches: ${scannedValue}`);
+                                                                                } else {
+                                                                                    showErrorToast('Barcode Invalid', `Expected: ${expectedValue}, Got: ${scannedValue}`);
+                                                                                }
+                                                                            }}
+                                                                            scanBarcode={true}
+                                                                            showFrame={true}
+                                                                            laserColor="red"
+                                                                            frameColor="white"
+                                                                            style={styles.qrScannerCamera}
+                                                                        />
+                                                                    </View>
+                                                                </Modal>
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'TIMER' && (() => {
+                                                        const timerValue = timerValues[mainControlId] || '00:00:00.0000000';
+                                                        const isRunning = timerRunning[mainControlId] || false;
+
+                                                        const handleTimerStart = () => {
+                                                            const now = Date.now();
+                                                            const elapsed = timerElapsedTime[mainControlId] || 0;
+                                                            setTimerStartTime(prev => ({ ...prev, [mainControlId]: now - elapsed }));
+                                                            setTimerRunning(prev => ({ ...prev, [mainControlId]: true }));
+                                                        };
+
+                                                        const handleTimerPause = () => {
+                                                            setTimerRunning(prev => ({ ...prev, [mainControlId]: false }));
+                                                        };
+
+                                                        const handleTimerReset = () => {
+                                                            setTimerRunning(prev => ({ ...prev, [mainControlId]: false }));
+                                                            setTimerValues(prev => ({ ...prev, [mainControlId]: '00:00:00.0000000' }));
+                                                            setTimerElapsedTime(prev => ({ ...prev, [mainControlId]: 0 }));
+                                                            setTimerStartTime(prev => ({ ...prev, [mainControlId]: 0 }));
+                                                        };
+
+                                                        return (
+                                                            <View style={{ marginBottom: getResponsive(8) }}>
+                                                                <Timer
+                                                                    value={timerValue}
+                                                                    isRunning={isRunning}
+                                                                    onStart={handleTimerStart}
+                                                                    onPause={handleTimerPause}
+                                                                    onReset={handleTimerReset}
+                                                                />
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'ATTACHEMENTS' && (() => {
+                                                        const files = attachmentsByRow[mainControlId] || [];
+                                                        const uploading = isUploadingAttachment[mainControlId] || false;
+                                                        const showModal = showAttachmentModal[mainControlId] || false;
+
+                                                        return (
+                                                            <View style={{ marginBottom: getResponsive(8) }}>
+                                                                <View style={styles.attachmentContainer}>
+                                                                    <TouchableOpacity
+                                                                        style={styles.attachmentCameraBtn}
+                                                                        onPress={() => setShowAttachmentModal(prev => ({ ...prev, [mainControlId]: true }))}
+                                                                        activeOpacity={0.7}
+                                                                        disabled={uploading}
+                                                                    >
+                                                                        <AttachmentIcon />
+                                                                    </TouchableOpacity>
+                                                                    {uploading ? <ActivityIndicator size="small" color="#1292E6" style={{ marginLeft: 6 }} /> : null}
+
+                                                                    <ScrollView
+                                                                        horizontal
+                                                                        showsHorizontalScrollIndicator={false}
+                                                                        style={styles.attachmentScrollView}
+                                                                        contentContainerStyle={styles.attachmentScrollContent}
+                                                                    >
+                                                                        {files.map(file => (
+                                                                            <View key={file.id} style={styles.attachmentThumbBox}>
+                                                                                <TouchableOpacity onPress={() => file.uri && setPreviewUri(file.uri)}>
+                                                                                    <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                                                        <Text numberOfLines={1} style={styles.attachmentName}>{file.name || file.id}</Text>
+                                                                                    </View>
+                                                                                </TouchableOpacity>
+                                                                                <TouchableOpacity
+                                                                                    style={styles.attachmentRemove}
+                                                                                    onPress={() => handleRemoveAttachment(mainControlId, file.id)}
+                                                                                >
+                                                                                    <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                                                </TouchableOpacity>
+                                                                            </View>
+                                                                        ))}
+                                                                    </ScrollView>
+                                                                </View>
+
+                                                                <Modal
+                                                                    visible={showModal}
+                                                                    transparent={false}
+                                                                    animationType="slide"
+                                                                    onRequestClose={() => setShowAttachmentModal(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                >
+                                                                    <View style={styles.attachmentModalContainer}>
+                                                                        <View style={styles.attachmentModalHeader}>
+                                                                            <TouchableOpacity
+                                                                                onPress={() => setShowAttachmentModal(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                                style={styles.attachmentModalClose}
+                                                                            >
+                                                                                <Text style={styles.attachmentModalCloseText}>✕</Text>
+                                                                            </TouchableOpacity>
+                                                                            <Text style={styles.attachmentModalTitle}>Upload</Text>
+                                                                        </View>
+
+                                                                        <View style={styles.attachmentModalContent}>
+                                                                            <View style={styles.attachmentDropZone}>
+                                                                                <Text style={styles.attachmentDropIcon}>☁️</Text>
+                                                                                <TouchableOpacity
+                                                                                    style={styles.attachmentBrowseBtn}
+                                                                                    onPress={() => handleAddAttachments(mainControlId)}
+                                                                                    disabled={uploading}
+                                                                                >
+                                                                                    <Text style={styles.attachmentBrowseBtnText}>Browse Files</Text>
+                                                                                </TouchableOpacity>
+                                                                                <Text style={styles.attachmentDropText}>
+                                                                                    {files.length === 0 ? 'No files added.' : `${files.length} file(s) added.`}
+                                                                                </Text>
+                                                                            </View>
+
+                                                                            {files.length > 0 && (
+                                                                                <View style={styles.attachmentFileList}>
+                                                                                    {files.map((file, index) => (
+                                                                                        <View key={file.id} style={styles.attachmentFileItem}>
+                                                                                            <View style={styles.attachmentFileInfo}>
+                                                                                                <Text style={styles.attachmentFileName} numberOfLines={1}>
+                                                                                                    {file.name}
+                                                                                                </Text>
+                                                                                                {file.size && (
+                                                                                                    <Text style={styles.attachmentFileSize}>
+                                                                                                        {(file.size / 1024).toFixed(1)} KB
+                                                                                                    </Text>
+                                                                                                )}
+                                                                                            </View>
+                                                                                            <TouchableOpacity
+                                                                                                style={styles.attachmentFileDelete}
+                                                                                                onPress={() => handleRemoveAttachment(mainControlId, file.id)}
+                                                                                            >
+                                                                                                <Text style={styles.attachmentFileDeleteText}>✕</Text>
+                                                                                            </TouchableOpacity>
+                                                                                        </View>
+                                                                                    ))}
+                                                                                </View>
+                                                                            )}
+
+                                                                            {uploading && (
+                                                                                <View style={styles.attachmentUploading}>
+                                                                                    <ActivityIndicator size="small" color="#0088E7" />
+                                                                                    <Text style={styles.attachmentUploadingText}>Uploading...</Text>
+                                                                                </View>
+                                                                            )}
+                                                                        </View>
+
+                                                                        <View style={styles.attachmentModalFooter}>
+                                                                            <TouchableOpacity
+                                                                                style={styles.attachmentUploadBtn}
+                                                                                onPress={() => setShowAttachmentModal(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                            >
+                                                                                <Text style={styles.attachmentUploadBtnText}>Upload</Text>
+                                                                            </TouchableOpacity>
+                                                                        </View>
+                                                                    </View>
+                                                                </Modal>
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'IMAGE' && (() => {
+                                                        const imageUrl = getImageUrl(row);
+                                                        return (
+                                                            <View style={[styles.attachmentContainer, { marginBottom: getResponsive(8) }]}>
+                                                                {imageUrl ? (
+                                                                    <TouchableOpacity onPress={() => setPreviewUri(imageUrl)} activeOpacity={0.85}>
+                                                                        <Image
+                                                                            key={imageUrl}
+                                                                            source={{ uri: getUri(imageUrl) }}
+                                                                            style={[styles.multiImgThumb, { width: getResponsive(120), height: getResponsive(90) }]}
+                                                                            resizeMode="cover"
+                                                                        />
+                                                                    </TouchableOpacity>
+                                                                ) : (
+                                                                    <View style={styles.attachmentThumbBox}>
+                                                                        <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                                            <ActivityIndicator size="small" color="#1292E6" />
+                                                                        </View>
+                                                                    </View>
+                                                                )}
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'PARAGRAPH' && (() => {
+                                                        const paragraphText = mainControlComp?.defaultValue || mainControlComp?.text || '';
+                                                        return (
+                                                            <View style={[styles.textFieldBox, { marginBottom: getResponsive(8) }]}>
+                                                                <Text style={[styles.textFieldInput, {
+                                                                    color: '#19233C',
+                                                                    fontSize: getResponsive(14),
+                                                                    lineHeight: getResponsive(20),
+                                                                    fontWeight: '400'
+                                                                }]}>
+                                                                    {paragraphText}
+                                                                </Text>
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'FILE' && (() => {
+                                                        const fileId = mainControlComp?.defaultValue || mainControlComp?.attrs?.find(attr => attr.key === 'imageId')?.value || '';
+                                                        const fileUrl = fileUrls[mainControlId] || '';
+
+                                                        const handleFilePress = async () => {
+                                                            if (!fileUrl && fileId) {
+                                                                try {
+                                                                    const response = await fetchFileUrl(fileId);
+                                                                    const url = (response as any)?.data?.redirect || (response as any)?.data?.url || '';
+                                                                    setFileUrls(prev => ({ ...prev, [mainControlId]: url }));
+
+                                                                    if (url) {
+                                                                        const canOpen = await Linking.canOpenURL(url);
+                                                                        if (canOpen) {
+                                                                            await Linking.openURL(url);
+                                                                        } else {
+                                                                            showErrorToast('Error', 'Cannot open file URL');
+                                                                        }
+                                                                    }
+                                                                } catch (error) {
+                                                                    console.error('Error fetching file URL:', error);
+                                                                    showErrorToast('Error', 'Failed to load file');
+                                                                }
+                                                            } else if (fileUrl) {
+                                                                try {
+                                                                    const canOpen = await Linking.canOpenURL(fileUrl);
+                                                                    if (canOpen) {
+                                                                        await Linking.openURL(fileUrl);
+                                                                    } else {
+                                                                        showErrorToast('Error', 'Cannot open file URL');
+                                                                    }
+                                                                } catch (error) {
+                                                                    console.error('Error opening file URL:', error);
+                                                                    showErrorToast('Error', 'Failed to open file');
+                                                                }
+                                                            }
+                                                        };
+
+                                                        return (
+                                                            <View style={[styles.textFieldBox, { marginBottom: getResponsive(8) }]}>
+                                                                <TouchableOpacity
+                                                                    style={[styles.textFieldInput, {
+                                                                        justifyContent: 'center',
+                                                                        alignItems: 'center',
+                                                                        backgroundColor: '#0088E7',
+                                                                        paddingVertical: getResponsive(12)
+                                                                    }]}
+                                                                    onPress={handleFilePress}
+                                                                    activeOpacity={0.8}
+                                                                >
+                                                                    <Text style={{
+                                                                        color: '#fff',
+                                                                        fontSize: getResponsive(14),
+                                                                        fontWeight: '600'
+                                                                    }}>
+                                                                        View File
+                                                                    </Text>
+                                                                </TouchableOpacity>
                                                             </View>
                                                         );
                                                     })()}
