@@ -144,7 +144,7 @@ const Checkbox = ({ selected }: { selected: boolean }) => (
     </View>
 );
 
-const Switch = ({ value, onValueChange }: { value: boolean; onValueChange: (value: boolean) => void }) => (
+const CustomSwitch = ({ value, onValueChange }: { value: boolean; onValueChange: (value: boolean) => void }) => (
     <TouchableOpacity
         style={{
             width: getResponsive(44),
@@ -1090,21 +1090,24 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     var keyuuid = row?.key;
                     const comps = row.columns?.flatMap((col: any) => col.components || []) || [];
 
-                    // RADIO_BUTTON (only include the selected one)
-                    const answer = answers[sectionId]?.[row.webId];
-                    const radioData =
-                        comps
-                            .filter((c: any) => c.component === 'RADIO_BUTTON')
+                    // RADIO_BUTTON (only include the selected one) - handle both single column and multi-column
+                    const radioButtons = comps.filter((c: any) => c.component === 'RADIO_BUTTON');
+                    const radioData = radioButtons.length > 0 ? (() => {
+                        // Try to get answer from row.webId first, then from first radio button's webId (multi-column case)
+                        const firstRadioId = radioButtons[0]?.webId;
+                        const answer = answers[sectionId]?.[row.webId] || answers[sectionId]?.[firstRadioId];
+                        
+                        return radioButtons
                             .map((c: any) => {
                                 return {
-
                                     value: answer === c.text ? c.text : '',
                                     controlId: c.controlId || '',
                                     groupName: c.name || null,
                                     senserData: null,
                                 }
                             })
-                            .filter((i: any) => i.value) || [];
+                            .filter((i: any) => i.value);
+                    })() : [];
 
                     // CAMERA (array of IDs)
                     const cameraComp = comps.find((c: any) => c.component === 'CAMERA');
@@ -1129,89 +1132,96 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         }]
                         : [];
 
-                    // TEXT_FIELD
-                    const textComp = comps.find((c: any) => c.component === 'TEXT_FIELD');
-                    const textVal = textInputs[row.webId] || '';
-                    const textData = textComp
-                        ? [{
+                    // TEXT_FIELD - handle both single column and multi-column cases
+                    const textFieldComps = comps.filter((c: any) => c.component === 'TEXT_FIELD');
+                    const textData = textFieldComps.map((textComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const textVal = textInputs[textComp.webId] || textInputs[row.webId] || '';
+                        return {
                             value: textVal,
                             controlId: textComp.controlId || '',
                             groupName: textComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // CHECK_BOX (boolean)
-                    const checkboxComp = comps.find((c: any) => c.component === 'CHECK_BOX');
-                    const checkboxVal = checkboxValues[row.webId] ?? false;
-                    const checkboxData = checkboxComp
-                        ? [{
+                    // CHECK_BOX - handle both single column and multi-column cases
+                    const checkboxComps = comps.filter((c: any) => c.component === 'CHECK_BOX');
+                    const checkboxData = checkboxComps.map((checkboxComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const checkboxVal = checkboxValues[checkboxComp.webId] ?? checkboxValues[row.webId] ?? false;
+                        return {
                             value: checkboxVal,
                             controlId: checkboxComp.controlId || '',
                             groupName: checkboxComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // SWITCH_BUTTON (boolean)
-                    const switchComp = comps.find((c: any) => c.component === 'SWITCH_BUTTON');
-                    const switchVal = switchValues[row.webId] ?? false;
-                    const switchData = switchComp
-                        ? [{
+                    // SWITCH_BUTTON - handle both single column and multi-column cases
+                    const switchComps = comps.filter((c: any) => c.component === 'SWITCH_BUTTON');
+                    const switchData = switchComps.map((switchComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const switchVal = switchValues[switchComp.webId] ?? switchValues[row.webId] ?? false;
+                        return {
                             value: switchVal,
                             controlId: switchComp.controlId || '',
                             groupName: switchComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // TEXT_AREA
-                    const textAreaComp = comps.find((c: any) => c.component === 'TEXT_AREA');
-                    const textAreaVal = textAreaInputs[row.webId] || '';
-                    const textAreaData = textAreaComp
-                        ? [{
+                    // TEXT_AREA - handle both single column and multi-column cases
+                    const textAreaComps = comps.filter((c: any) => c.component === 'TEXT_AREA');
+                    const textAreaData = textAreaComps.map((textAreaComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const textAreaVal = textAreaInputs[textAreaComp.webId] || textAreaInputs[row.webId] || '';
+                        return {
                             value: textAreaVal,
                             controlId: textAreaComp.controlId || '',
                             groupName: textAreaComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // DATE (YYYY-MM-DD)
-                    const dateComp = comps.find((c: any) => c.component === 'DATE');
-                    const dateVal = dateValues[row.webId] || '';
-                    const dateData = dateComp
-                        ? [{
+                    // DATE - handle both single column and multi-column cases
+                    const dateComps = comps.filter((c: any) => c.component === 'DATE');
+                    const dateData = dateComps.map((dateComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const dateVal = dateValues[dateComp.webId] || dateValues[row.webId] || '';
+                        return {
                             value: dateVal,
                             controlId: dateComp.controlId || '',
                             groupName: dateComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // RATING (number)
-                    const ratingComp = comps.find((c: any) => c.component === 'RATING');
-                    const ratingVal = ratingValues[row.webId] ?? 0;
-                    const ratingData = ratingComp
-                        ? [{
+                    // RATING - handle both single column and multi-column cases
+                    const ratingComps = comps.filter((c: any) => c.component === 'RATING');
+                    const ratingData = ratingComps.map((ratingComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const ratingVal = ratingValues[ratingComp.webId] ?? ratingValues[row.webId] ?? 0;
+                        return {
                             value: Number(ratingVal),
                             controlId: ratingComp.controlId || '',
                             groupName: ratingComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
-                    // LOOKUP
-                    const lookupComp = comps.find((c: any) => c.component === 'LOOKUP');
-                    const lookupVal = lookupValues[row.webId] || '';
-                    const lookupData = lookupComp
-                        ? [{
+                    // LOOKUP - handle both single column and multi-column cases
+                    const lookupComps = comps.filter((c: any) => c.component === 'LOOKUP');
+                    const lookupData = lookupComps.map((lookupComp: any) => {
+                        // Try component.webId first (for multi-column), then row.webId (for single column)
+                        const lookupVal = lookupValues[lookupComp.webId] || lookupValues[row.webId] || '';
+                        return {
                             value: lookupVal,
                             controlId: lookupComp.controlId || '',
                             groupName: lookupComp.name || null,
                             senserData: null,
-                        }]
-                        : [];
+                        };
+                    });
 
                     // SIGNATURE
                     const signatureComp = comps.find((c: any) => c.component === 'SIGNATURE');
@@ -1593,6 +1603,332 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                     console.log("hassss imagee", hasImage)
 
+                                    // Multi-column with feedback control (3 columns: question, control, feedback)
+                                    const isMultiColumnWithFeedback = row.columns?.length === 3 &&
+                                        row.columns[0]?.components?.[0]?.component === 'LABEL' &&
+                                        row.columns[1]?.components?.[0] &&
+                                        row.columns[1]?.components[0]?.component !== 'LABEL' &&
+                                        (row.columns[2]?.components?.[0]?.component === 'TEXT_FIELD' || 
+                                         row.columns[2]?.components?.[0]?.component === 'TEXT_AREA');
+
+                                    if (isMultiColumnWithFeedback) {
+                                        const labelComp = row.columns[0]?.components[0];
+                                        const mainControlComp = row.columns[1]?.components[0];
+                                        const feedbackComp = row.columns[2]?.components[0];
+                                        const feedbackPlaceholder = feedbackComp?.placeholder || (feedbackComp?.component === 'TEXT_AREA' ? 'Type your comments...' : 'Type your answer...');
+
+                                        // Generate unique IDs for main control and feedback control
+                                        const mainControlId = mainControlComp?.webId;
+                                        const feedbackControlId = feedbackComp?.webId;
+
+                                        return (
+                                            <View key={row.webId} style={styles.notesRow}>
+                                                {/* Question Column */}
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10), flexShrink: 1 }}>
+                                                    <Text style={[styles.radioLabel, { width: undefined, flexShrink: 1 }]}>
+                                                        {labelComp?.text}
+                                                    </Text>
+                                                </View>
+
+                                                {/* Control + Feedback Column */}
+                                                <View style={{ width: '50%' }}>
+                                                    {/* Main Control Rendering */}
+                                                    {mainControlComp?.component === 'SWITCH_BUTTON' && (
+                                                        <View style={[styles.radioChoiceRow, { marginBottom: getResponsive(8) }]}>
+                                                            <CustomSwitch
+                                                                value={switchValues[mainControlId] || false}
+                                                                onValueChange={(value) => {
+                                                                    setSwitchValues(prev => ({
+                                                                        ...prev,
+                                                                        [mainControlId]: value
+                                                                    }));
+                                                                }}
+                                                            />
+                                                            <Text style={[
+                                                                styles.radioOptionText,
+                                                                switchValues[mainControlId] && {
+                                                                    color: '#0088E7',
+                                                                    fontWeight: 'bold',
+                                                                }
+                                                            ]}>
+                                                                {switchValues[mainControlId] ? 'On' : 'Off'}
+                                                            </Text>
+                                                        </View>
+                                                    )}
+
+                                                    {mainControlComp?.component === 'CHECK_BOX' && (
+                                                        <TouchableOpacity
+                                                            style={[styles.radioChoiceRow, { marginBottom: getResponsive(8) }]}
+                                                            activeOpacity={0.8}
+                                                            onPress={() => {
+                                                                setCheckboxValues(prev => ({
+                                                                    ...prev,
+                                                                    [mainControlId]: !prev[mainControlId]
+                                                                }));
+                                                            }}
+                                                        >
+                                                            <Checkbox selected={checkboxValues[mainControlId] || false} />
+                                                            <Text style={[
+                                                                styles.radioOptionText,
+                                                                checkboxValues[mainControlId] && {
+                                                                    color: '#0088E7',
+                                                                    fontWeight: 'bold',
+                                                                }
+                                                            ]}>
+                                                                {checkboxValues[mainControlId] ? 'Yes' : 'No'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    )}
+
+                                                    {mainControlComp?.component === 'RATING' && (
+                                                        <View style={[styles.radioChoiceRow, { marginBottom: getResponsive(8) }]}>
+                                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                                <TouchableOpacity
+                                                                    key={star}
+                                                                    onPress={() => {
+                                                                        setRatingValues(prev => ({
+                                                                            ...prev,
+                                                                            [mainControlId]: star
+                                                                        }));
+                                                                    }}
+                                                                    activeOpacity={0.7}
+                                                                    style={{ marginHorizontal: getResponsive(4) }}
+                                                                >
+                                                                    <Text style={{
+                                                                        fontSize: getResponsive(24),
+                                                                        color: star <= (ratingValues[mainControlId] || 0) ? '#FFB800' : '#E0E0E0'
+                                                                    }}>
+                                                                        ★
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    )}
+
+                                                    {mainControlComp?.component === 'DATE' && (
+                                                        <View style={{ marginBottom: getResponsive(8) }}>
+                                                            <TouchableOpacity
+                                                                style={styles.dateInputContainer}
+                                                                activeOpacity={0.8}
+                                                                onPress={() => {
+                                                                    setShowDatePicker(prev => ({ ...prev, [mainControlId]: true }));
+                                                                }}
+                                                            >
+                                                                <View style={styles.dateInputField}>
+                                                                    <Text style={styles.dateInputText}>
+                                                                        {dateValues[mainControlId] ? new Date(dateValues[mainControlId]).toLocaleDateString('en-US', {
+                                                                            month: 'numeric',
+                                                                            day: 'numeric',
+                                                                            year: 'numeric'
+                                                                        }) : 'Select Date'}
+                                                                    </Text>
+                                                                    <View style={styles.dateInputSeparator} />
+                                                                    <View style={styles.calendarIconContainer}>
+                                                                        <CalendarIcon width={getResponsive(20)} height={getResponsive(20)} />
+                                                                    </View>
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                            {showDatePicker[mainControlId] && (
+                                                                <DateTimePicker
+                                                                    value={dateValues[mainControlId] ? new Date(dateValues[mainControlId]) : new Date()}
+                                                                    mode="date"
+                                                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                                    onChange={(event: any, selectedDate?: Date) => {
+                                                                        setShowDatePicker(prev => ({ ...prev, [mainControlId]: false }));
+                                                                        if (selectedDate) {
+                                                                            const formattedDate = selectedDate.toISOString().split('T')[0];
+                                                                            setDateValues(prev => ({ ...prev, [mainControlId]: formattedDate }));
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </View>
+                                                    )}
+
+                                                    {mainControlComp?.component === 'LOOKUP' && (() => {
+                                                        const options = lookupOptions[mainControlId] || [];
+                                                        const selectedValue = lookupValues[mainControlId] || '';
+                                                        const selectedText = options.find(opt => opt.value === selectedValue)?.text || 'Select an option';
+                                                        const showModal = showLookupModal[mainControlId] || false;
+
+                                                        return (
+                                                            <View style={{ marginBottom: getResponsive(8) }}>
+                                                                <TouchableOpacity
+                                                                    style={[styles.textFieldBox, {
+                                                                        paddingVertical: getResponsive(12),
+                                                                        flexDirection: 'row',
+                                                                        justifyContent: 'space-between',
+                                                                        alignItems: 'center'
+                                                                    }]}
+                                                                    onPress={() => setShowLookupModal(prev => ({ ...prev, [mainControlId]: true }))}
+                                                                    activeOpacity={0.7}
+                                                                >
+                                                                    <Text style={[
+                                                                        styles.textFieldInput,
+                                                                        !selectedValue && { color: '#02163980' }
+                                                                    ]}>
+                                                                        {selectedText}
+                                                                    </Text>
+                                                                    <Text style={{ color: '#021639', fontSize: getResponsive(12) }}>▼</Text>
+                                                                </TouchableOpacity>
+
+                                                                <Modal
+                                                                    visible={showModal}
+                                                                    transparent
+                                                                    animationType="fade"
+                                                                    onRequestClose={() => setShowLookupModal(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                >
+                                                                    <View style={styles.lookupModalOverlay}>
+                                                                        <View style={styles.lookupModalContent}>
+                                                                            <View style={styles.lookupModalHeader}>
+                                                                                <Text style={styles.lookupModalTitle}>
+                                                                                    {mainControlComp?.text}
+                                                                                </Text>
+                                                                                <TouchableOpacity
+                                                                                    onPress={() => setShowLookupModal(prev => ({ ...prev, [mainControlId]: false }))}
+                                                                                    style={styles.lookupModalClose}
+                                                                                >
+                                                                                    <Text style={styles.lookupModalCloseText}>✕</Text>
+                                                                                </TouchableOpacity>
+                                                                            </View>
+                                                                            <ScrollView style={styles.lookupModalScroll}>
+                                                                                {options.map((option) => (
+                                                                                    <TouchableOpacity
+                                                                                        key={option.value}
+                                                                                        style={[
+                                                                                            styles.lookupOption,
+                                                                                            selectedValue === option.value && styles.lookupOptionSelected
+                                                                                        ]}
+                                                                                        onPress={() => {
+                                                                                            setLookupValues(prev => ({
+                                                                                                ...prev,
+                                                                                                [mainControlId]: option.value
+                                                                                            }));
+                                                                                            setShowLookupModal(prev => ({ ...prev, [mainControlId]: false }));
+                                                                                        }}
+                                                                                        activeOpacity={0.7}
+                                                                                    >
+                                                                                        <Text style={[
+                                                                                            styles.lookupOptionText,
+                                                                                            selectedValue === option.value && styles.lookupOptionTextSelected
+                                                                                        ]}>
+                                                                                            {option.text}
+                                                                                        </Text>
+                                                                                        {selectedValue === option.value && (
+                                                                                            <Text style={styles.lookupOptionCheck}>✓</Text>
+                                                                                        )}
+                                                                                    </TouchableOpacity>
+                                                                                ))}
+                                                                            </ScrollView>
+                                                                        </View>
+                                                                    </View>
+                                                                </Modal>
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {mainControlComp?.component === 'TEXT_FIELD' && (
+                                                        <View style={[styles.textFieldBox, { marginBottom: getResponsive(8) }]}>
+                                                            <TextInput
+                                                                style={styles.textFieldInput}
+                                                                multiline
+                                                                value={textInputs[mainControlId] || ''}
+                                                                onChangeText={(v) =>
+                                                                    setTextInputs(prev => ({ ...prev, [mainControlId]: v }))
+                                                                }
+                                                                placeholder={mainControlComp?.placeholder || 'Type your answer...'}
+                                                                placeholderTextColor="#02163980"
+                                                            />
+                                                        </View>
+                                                    )}
+
+                                                    {mainControlComp?.component === 'TEXT_AREA' && (
+                                                        <View style={[styles.textFieldBox, { marginBottom: getResponsive(8) }]}>
+                                                            <TextInput
+                                                                style={[styles.textFieldInput, { minHeight: getResponsive(80) }]}
+                                                                multiline
+                                                                numberOfLines={4}
+                                                                value={textAreaInputs[mainControlId] || ''}
+                                                                onChangeText={(v) =>
+                                                                    setTextAreaInputs(prev => ({ ...prev, [mainControlId]: v }))
+                                                                }
+                                                                placeholder={mainControlComp?.placeholder || 'Type your comments...'}
+                                                                placeholderTextColor="#02163980"
+                                                                textAlignVertical="top"
+                                                            />
+                                                        </View>
+                                                    )}
+
+                                                    {mainControlComp?.component === 'RADIO_BUTTON' && (() => {
+                                                        // Get all radio buttons in column 1 for this row
+                                                        const radioButtons = row.columns[1]?.components?.filter(c => c.component === 'RADIO_BUTTON') || [];
+                                                        return (
+                                                            <View style={{ marginBottom: getResponsive(8) }}>
+                                                                {radioButtons.map((comp) => (
+                                                                    <TouchableOpacity
+                                                                        key={comp.webId}
+                                                                        style={styles.radioOption}
+                                                                        activeOpacity={0.8}
+                                                                        onPress={() => {
+                                                                            setAnswers(prev => ({
+                                                                                ...prev,
+                                                                                [currentSection.webId]: {
+                                                                                    ...(prev[currentSection.webId] || {}),
+                                                                                    [mainControlId]: comp.text,
+                                                                                },
+                                                                            }));
+                                                                        }}
+                                                                    >
+                                                                        <Radio
+                                                                            selected={answers[currentSection.webId]?.[mainControlId] === comp.text}
+                                                                        />
+                                                                        <Text
+                                                                            style={[
+                                                                                styles.radioOptionText,
+                                                                                answers[currentSection.webId]?.[mainControlId] === comp.text && {
+                                                                                    color: '#0088E7',
+                                                                                    fontWeight: 'bold',
+                                                                                },
+                                                                            ]}
+                                                                        >
+                                                                            {comp.text}
+                                                                        </Text>
+                                                                    </TouchableOpacity>
+                                                                ))}
+                                                            </View>
+                                                        );
+                                                    })()}
+
+                                                    {/* Feedback Control */}
+                                                    <View style={styles.textFieldBox}>
+                                                        <TextInput
+                                                            style={[
+                                                                styles.textFieldInput,
+                                                                feedbackComp?.component === 'TEXT_AREA' && { minHeight: getResponsive(80) }
+                                                            ]}
+                                                            multiline
+                                                            numberOfLines={feedbackComp?.component === 'TEXT_AREA' ? 4 : undefined}
+                                                            value={
+                                                                feedbackComp?.component === 'TEXT_AREA'
+                                                                    ? (textAreaInputs[feedbackControlId] || '')
+                                                                    : (textInputs[feedbackControlId] || '')
+                                                            }
+                                                            onChangeText={(v) => {
+                                                                if (feedbackComp?.component === 'TEXT_AREA') {
+                                                                    setTextAreaInputs(prev => ({ ...prev, [feedbackControlId]: v }));
+                                                                } else {
+                                                                    setTextInputs(prev => ({ ...prev, [feedbackControlId]: v }));
+                                                                }
+                                                            }}
+                                                            placeholder={feedbackPlaceholder}
+                                                            placeholderTextColor="#02163980"
+                                                            textAlignVertical={feedbackComp?.component === 'TEXT_AREA' ? 'top' : 'center'}
+                                                        />
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        );
+                                    }
 
                                     if (hasTextField) {
                                         const textComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'TEXT_FIELD');
@@ -1670,7 +2006,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     {row.columns[0]?.components[0]?.text}
                                                 </Text>
                                                 <View style={styles.radioChoiceRow}>
-                                                    <Switch
+                                                    <CustomSwitch
                                                         value={switchValue}
                                                         onValueChange={(value) => {
                                                             setSwitchValues(prev => ({
