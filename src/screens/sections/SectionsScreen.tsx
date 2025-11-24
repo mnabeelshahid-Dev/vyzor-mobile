@@ -1568,62 +1568,21 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         col.components?.some(comp => comp.component === "IMAGE")
                                     );
 
+                                    const mainColumnComponents = row.columns[1]?.components?.filter((c: any) => !c.deleted) || [];
+                                    const activeMainControl = mainColumnComponents.find((comp: any) => comp.component !== 'LABEL');
+                                    const feedbackComponents = row.columns[2]?.components?.filter((c: any) => !c.deleted) || [];
+                                    const feedbackComp = feedbackComponents[0];
 
-                                    if (hasImage) {
-                                        const imageComp = row.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'IMAGE');
-                                        const imageUrl = getImageUrl(row);
-
-                                        console.log('====================================');
-                                        console.log('hassss imagee', imageUrl);
-                                        console.log('====================================');
-
-                                        return (
-                                            <View key={row.webId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}>
-                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-
-                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
-                                                        {imageComp?.text || 'Image'}
-                                                    </Text>
-                                                </View>
-
-                                                <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
-                                                    {imageUrl ? (
-                                                        <TouchableOpacity onPress={() => setPreviewUri(imageUrl)} activeOpacity={0.85}>
-                                                            <Image
-                                                                key={imageUrl}
-                                                                source={{ uri: getUri(imageUrl) }}
-                                                                style={[styles.multiImgThumb, { width: getResponsive(120), height: getResponsive(90) }]}
-                                                                resizeMode="cover"
-                                                                onLoad={() => console.log('[IMAGE] loaded for row', row.webId)}
-                                                                onError={(e) => console.warn('[IMAGE] failed to render for row', row.webId, e?.nativeEvent)}
-                                                            />
-                                                        </TouchableOpacity>
-                                                    ) : (
-                                                        <View style={styles.attachmentThumbBox}>
-                                                            <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
-                                                                <ActivityIndicator size="small" color="#1292E6" />
-                                                            </View>
-                                                        </View>
-                                                    )}
-                                                </View>
-                                            </View>
-                                        );
-                                    }
-
-                                    console.log("hassss imagee", hasImage)
-
-                                    // Multi-column with feedback control (3 columns: question, control, feedback)
-                                    const isMultiColumnWithFeedback = row.columns?.length === 3 &&
+                                    const isMultiColumnWithFeedback = row.columns?.length >= 3 &&
                                         row.columns[0]?.components?.[0]?.component === 'LABEL' &&
-                                        row.columns[1]?.components?.[0] &&
-                                        row.columns[1]?.components[0]?.component !== 'LABEL' &&
-                                        (row.columns[2]?.components?.[0]?.component === 'TEXT_FIELD' || 
-                                         row.columns[2]?.components?.[0]?.component === 'TEXT_AREA');
+                                        activeMainControl &&
+                                        activeMainControl.component !== 'LABEL' &&
+                                        (feedbackComp?.component === 'TEXT_FIELD' ||
+                                            feedbackComp?.component === 'TEXT_AREA');
 
                                     if (isMultiColumnWithFeedback) {
                                         const labelComp = row.columns[0]?.components[0];
-                                        const mainControlComp = row.columns[1]?.components[0];
-                                        const feedbackComp = row.columns[2]?.components[0];
+                                        const mainControlComp = activeMainControl; // Use filtered active control
                                         const feedbackPlaceholder = feedbackComp?.placeholder || (feedbackComp?.component === 'TEXT_AREA' ? 'Type your comments...' : 'Type your answer...');
 
                                         // Generate unique IDs for main control and feedback control
@@ -1869,8 +1828,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     )}
 
                                                     {mainControlComp?.component === 'RADIO_BUTTON' && (() => {
-                                                        // Get all radio buttons in column 1 for this row
-                                                        const radioButtons = row.columns[1]?.components?.filter(c => c.component === 'RADIO_BUTTON') || [];
+                                                        // Get all active radio buttons in column 1 for this row
+                                                        const radioButtons = mainColumnComponents.filter(c => c.component === 'RADIO_BUTTON');
                                                         return (
                                                             <View style={{ marginBottom: getResponsive(8) }}>
                                                                 {radioButtons.map((comp) => (
@@ -2613,6 +2572,43 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             textAlignVertical={feedbackComp?.component === 'TEXT_AREA' ? 'top' : 'center'}
                                                         />
                                                     </View>
+                                                </View>
+                                            </View>
+                                        );
+                                    }
+
+                                    if (hasImage) {
+                                        const imageComp = row.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'IMAGE');
+                                        const labelText = row.columns[0]?.components?.[0]?.text || imageComp?.text || 'Image';
+                                        const imageUrl = getImageUrl(row);
+
+                                        return (
+                                            <View key={row.webId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}>
+                                                <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                    <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
+                                                        {labelText}
+                                                    </Text>
+                                                </View>
+
+                                                <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }]}>
+                                                    {imageUrl ? (
+                                                        <TouchableOpacity onPress={() => setPreviewUri(imageUrl)} activeOpacity={0.85}>
+                                                            <Image
+                                                                key={imageUrl}
+                                                                source={{ uri: getUri(imageUrl) }}
+                                                                style={[styles.multiImgThumb, { width: getResponsive(120), height: getResponsive(90) }]}
+                                                                resizeMode="cover"
+                                                                onLoad={() => console.log('[IMAGE] loaded for row', row.webId)}
+                                                                onError={(e) => console.warn('[IMAGE] failed to render for row', row.webId, e?.nativeEvent)}
+                                                            />
+                                                        </TouchableOpacity>
+                                                    ) : (
+                                                        <View style={styles.attachmentThumbBox}>
+                                                            <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center' }]}>
+                                                                <ActivityIndicator size="small" color="#1292E6" />
+                                                            </View>
+                                                        </View>
+                                                    )}
                                                 </View>
                                             </View>
                                         );
