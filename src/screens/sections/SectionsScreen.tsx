@@ -392,6 +392,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [timerStartTime, setTimerStartTime] = useState<{ [key: string]: number }>({});
     const [timerElapsedTime, setTimerElapsedTime] = useState<{ [key: string]: number }>({});
     const [fileUrls, setFileUrls] = useState<{ [key: string]: string }>({});
+    const [showFeedbackInputs, setShowFeedbackInputs] = useState<{ [key: string]: boolean }>({});
     const [showLookupModal, setShowLookupModal] = useState<{ [rowId: string]: boolean }>({});
     const [answers, setAnswers] = useState<{ [sectionId: string]: { [rowId: string]: string } }>({});
     const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
@@ -1583,11 +1584,15 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                     if (isMultiColumnWithFeedback) {
                                         const labelComp = row.columns[0]?.components[0];
                                         const mainControlComp = activeMainControl; // Use filtered active control
-                                        const feedbackPlaceholder = feedbackComp?.placeholder || (feedbackComp?.component === 'TEXT_AREA' ? 'Type your comments...' : 'Type your answer...');
+                                        const feedbackPlaceholder = feedbackComp
+                                            ? (feedbackComp?.placeholder || (feedbackComp?.component === 'TEXT_AREA' ? 'Type your comments...' : 'Type your answer...'))
+                                            : 'Type your answer...';
 
                                         // Generate unique IDs for main control and feedback control
                                         const mainControlId = mainControlComp?.webId;
-                                        const feedbackControlId = feedbackComp?.webId;
+                                        const feedbackControlId = feedbackComp?.webId || '';
+                                        const hasFeedbackControl = Boolean(feedbackComp);
+                                        const isFeedbackVisible = feedbackControlId ? (showFeedbackInputs[feedbackControlId] ?? false) : false;
 
                                         return (
                                             <View key={row.webId} style={styles.notesRow}>
@@ -2546,32 +2551,61 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         );
                                                     })()}
 
+                                                    {/* Feedback toggle icon */}
+                                                    {hasFeedbackControl && (
+                                                        <View style={{ alignItems: 'flex-end', marginBottom: getResponsive(6) }}>
+                                                            <TouchableOpacity
+                                                                activeOpacity={0.8}
+                                                                onPress={() => {
+                                                                    setShowFeedbackInputs(prev => ({
+                                                                        ...prev,
+                                                                        [feedbackControlId]: !prev[feedbackControlId]
+                                                                    }));
+                                                                }}
+                                                                style={{
+                                                                    width: getResponsive(28),
+                                                                    height: getResponsive(28),
+                                                                    borderRadius: getResponsive(14),
+                                                                    backgroundColor: '#E9F4FF',
+                                                                    justifyContent: 'center',
+                                                                    alignItems: 'center',
+                                                                    borderWidth: 1,
+                                                                    borderColor: '#1292E6'
+                                                                }}
+                                                            >
+                                                                <Text style={{ fontSize: getResponsive(14), color: '#1292E6' }}>✎</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    )}
+
                                                     {/* Feedback Control */}
-                                                    <View style={styles.textFieldBox}>
-                                                        <TextInput
-                                                            style={[
-                                                                styles.textFieldInput,
-                                                                feedbackComp?.component === 'TEXT_AREA' && { minHeight: getResponsive(80) }
-                                                            ]}
-                                                            multiline
-                                                            numberOfLines={feedbackComp?.component === 'TEXT_AREA' ? 4 : undefined}
-                                                            value={
-                                                                feedbackComp?.component === 'TEXT_AREA'
-                                                                    ? (textAreaInputs[feedbackControlId] || '')
-                                                                    : (textInputs[feedbackControlId] || '')
-                                                            }
-                                                            onChangeText={(v) => {
-                                                                if (feedbackComp?.component === 'TEXT_AREA') {
-                                                                    setTextAreaInputs(prev => ({ ...prev, [feedbackControlId]: v }));
-                                                                } else {
-                                                                    setTextInputs(prev => ({ ...prev, [feedbackControlId]: v }));
+                                                    {hasFeedbackControl && isFeedbackVisible && (
+                                                        <View style={styles.textFieldBox}>
+                                                            <TextInput
+                                                                style={[
+                                                                    styles.textFieldInput,
+                                                                    feedbackComp?.component === 'TEXT_AREA' && { minHeight: getResponsive(80) }
+                                                                ]}
+                                                                multiline
+                                                                numberOfLines={feedbackComp?.component === 'TEXT_AREA' ? 4 : undefined}
+                                                                value={
+                                                                    feedbackComp?.component === 'TEXT_AREA'
+                                                                        ? (textAreaInputs[feedbackControlId] || '')
+                                                                        : (textInputs[feedbackControlId] || '')
                                                                 }
-                                                            }}
-                                                            placeholder={feedbackPlaceholder}
-                                                            placeholderTextColor="#02163980"
-                                                            textAlignVertical={feedbackComp?.component === 'TEXT_AREA' ? 'top' : 'center'}
-                                                        />
-                                                    </View>
+                                                                onChangeText={(v) => {
+                                                                    if (feedbackComp?.component === 'TEXT_AREA') {
+                                                                        setTextAreaInputs(prev => ({ ...prev, [feedbackControlId]: v }));
+                                                                    } else {
+                                                                        setTextInputs(prev => ({ ...prev, [feedbackControlId]: v }));
+                                                                    }
+                                                                }}
+                                                                placeholder={feedbackPlaceholder}
+                                                                placeholderTextColor="#02163980"
+                                                                textAlignVertical={feedbackComp?.component === 'TEXT_AREA' ? 'top' : 'center'}
+                                                            />
+                                                        </View>
+                                                    )}
                                                 </View>
                                             </View>
                                         );
