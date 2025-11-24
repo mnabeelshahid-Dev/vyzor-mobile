@@ -1604,7 +1604,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 </View>
 
                                                 {/* Control + Feedback Column */}
-                                                <View style={{ width: '50%' }}>
+                                                <View style={{ width: '50%', position: 'relative', paddingRight: hasFeedbackControl ? getResponsive(32) : 0 }}>
                                                     {/* Main Control Rendering */}
                                                     {mainControlComp?.component === 'SWITCH_BUTTON' && (
                                                         <View style={[styles.radioChoiceRow, { marginBottom: getResponsive(8) }]}>
@@ -2553,29 +2553,30 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                                     {/* Feedback toggle icon */}
                                                     {hasFeedbackControl && (
-                                                        <View style={{ alignItems: 'flex-end', marginBottom: getResponsive(6) }}>
-                                                            <TouchableOpacity
-                                                                activeOpacity={0.8}
-                                                                onPress={() => {
-                                                                    setShowFeedbackInputs(prev => ({
-                                                                        ...prev,
-                                                                        [feedbackControlId]: !prev[feedbackControlId]
-                                                                    }));
-                                                                }}
-                                                                style={{
-                                                                    width: getResponsive(28),
-                                                                    height: getResponsive(28),
-                                                                    borderRadius: getResponsive(14),
-                                                                    backgroundColor: '#E9F4FF',
-                                                                    justifyContent: 'center',
-                                                                    alignItems: 'center',
-                                                                    borderWidth: 1,
-                                                                    borderColor: '#1292E6'
-                                                                }}
-                                                            >
-                                                                <Text style={{ fontSize: getResponsive(14), color: '#1292E6' }}>✎</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
+                                                        <TouchableOpacity
+                                                            activeOpacity={0.8}
+                                                            onPress={() => {
+                                                                setShowFeedbackInputs(prev => ({
+                                                                    ...prev,
+                                                                    [feedbackControlId]: !prev[feedbackControlId]
+                                                                }));
+                                                            }}
+                                                            style={{
+                                                                position: 'absolute',
+                                                                top: 0,
+                                                                right: 0,
+                                                                width: getResponsive(28),
+                                                                height: getResponsive(28),
+                                                                borderRadius: getResponsive(14),
+                                                                backgroundColor: '#E9F4FF',
+                                                                justifyContent: 'center',
+                                                                alignItems: 'center',
+                                                                borderWidth: 1,
+                                                                borderColor: '#1292E6'
+                                                            }}
+                                                        >
+                                                            <Text style={{ fontSize: getResponsive(14), color: '#1292E6' }}>✎</Text>
+                                                        </TouchableOpacity>
                                                     )}
 
                                                     {/* Feedback Control */}
@@ -2584,10 +2585,14 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             <TextInput
                                                                 style={[
                                                                     styles.textFieldInput,
-                                                                    feedbackComp?.component === 'TEXT_AREA' && { minHeight: getResponsive(80) }
+                                                                    {
+                                                                        minHeight: getResponsive(40),
+                                                                        maxHeight: getResponsive(50)
+                                                                    },
+                                                                    feedbackComp?.component === 'TEXT_AREA' && { textAlignVertical: 'top' }
                                                                 ]}
                                                                 multiline
-                                                                numberOfLines={feedbackComp?.component === 'TEXT_AREA' ? 4 : undefined}
+                                                                numberOfLines={feedbackComp?.component === 'TEXT_AREA' ? 3 : 2}
                                                                 value={
                                                                     feedbackComp?.component === 'TEXT_AREA'
                                                                         ? (textAreaInputs[feedbackControlId] || '')
