@@ -1,5 +1,5 @@
 
-import { StyleSheet, Platform,Dimensions } from 'react-native';
+import { StyleSheet, Platform, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -44,6 +44,15 @@ export const styles = StyleSheet.create({
         justifyContent: 'center',
         borderWidth: 1,
         borderColor: '#8CC7FF',
+    },
+
+    errorText: {
+        color: '#F44336',
+        fontSize: getResponsive(11),
+        marginTop: getResponsive(4),
+        marginLeft: getResponsive(4),
+        fontWeight: '500',
+        flexWrap: 'wrap',
     },
     textFieldInput: {
         color: '#021639',
