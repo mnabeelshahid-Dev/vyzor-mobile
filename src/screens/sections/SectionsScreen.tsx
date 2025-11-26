@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchSectionRows, syncDocument, fetchLookupOptions, fetchFileUrl, fetchMediaUrl, normalizeMediaUrl } from '../../api/statistics';
 import Signature from 'react-native-signature-canvas';
+import { request, check, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import {
     View,
     Text,
@@ -26,7 +27,6 @@ import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Camera } from 'react-native-camera-kit';
 import { pick, types } from '@react-native-documents/picker';
-import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import RefreshSignatureIcon from '../../assets/svgs/RefreshSignature.svg';
@@ -407,6 +407,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [fieldTouched, setFieldTouched] = useState<{ [key: string]: boolean }>({});
     const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
     const [touchedFields, setTouchedFields] = useState<{ [key: string]: boolean }>({});
+    const [paragraphAcknowledged, setParagraphAcknowledged] = useState<{ [key: string]: boolean }>({});
 
     const validateField = (value: any, component: string, attrs: any[]): string => {
         const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
@@ -417,6 +418,12 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         if (required) {
             if (component === 'CHECK_BOX' && (value === false || value === undefined || value === null)) {
                 return maskMessage || 'This field must be checked';
+            }
+            if (component === 'FILE' && (!value || value === '')) {
+                return maskMessage || 'Please view the required file';
+            }
+            if (component === 'PARAGRAPH' && required && (!value || value === '')) {
+                return maskMessage || 'Please acknowledge this information';
             }
             if (component === 'SWITCH_BUTTON' && (value === false || value === undefined || value === null)) {
                 return maskMessage || 'This switch must be turned on';
@@ -562,6 +569,14 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     case 'TIMER':
                         value = timerValues[row.webId] || '00:00:00.0000000';
                         break;
+                    case 'FILE':
+                        value = fileUrls[row.webId] || '';
+                        break;
+                    case 'PARAGRAPH':
+                        // You might want to track if paragraph was acknowledged
+                        value = paragraphAcknowledged[row.webId] || ''; // or some other tracking mechanism
+                        break;
+
                     default:
                         return; // Skip unknown components
                 }
@@ -747,9 +762,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     const cameraPermission = await request(PERMISSIONS.IOS.CAMERA);
                     const photoPermission = await request(PERMISSIONS.IOS.PHOTO_LIBRARY);
 
+                    console.log('iOS Camera permission:', cameraPermission);
+                    console.log('iOS Photo permission:', photoPermission);
+
                     return cameraPermission === RESULTS.GRANTED && photoPermission === RESULTS.GRANTED;
                 } else {
                     const cameraPermission = await request(PERMISSIONS.ANDROID.CAMERA);
+                    console.log('Android Camera permission:', cameraPermission);
 
                     // For Android 13+ (API 33+), we need READ_MEDIA_IMAGES
                     // For older versions, we need READ_EXTERNAL_STORAGE
@@ -758,11 +777,17 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                     if (androidVersion >= 33) {
                         storagePermission = await request(PERMISSIONS.ANDROID.READ_MEDIA_IMAGES);
+                        console.log('Android READ_MEDIA_IMAGES permission:', storagePermission);
                     } else {
                         storagePermission = await request(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);
+                        console.log('Android READ_EXTERNAL_STORAGE permission:', storagePermission);
                     }
 
-                    return cameraPermission === RESULTS.GRANTED && storagePermission === RESULTS.GRANTED;
+                    const hasPermissions = cameraPermission === RESULTS.GRANTED &&
+                        (storagePermission === RESULTS.GRANTED || storagePermission === RESULTS.LIMITED);
+
+                    console.log('Final permission result:', hasPermissions);
+                    return hasPermissions;
                 }
             } catch (error) {
                 console.log('Permission request failed:', error);
@@ -825,11 +850,16 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             [rowId]: (prev[rowId] || []).map(item => item.id === localId ? ({ uri: uploaded.uri, id: uploaded.id }) : item)
                         }));
 
-                        // Trigger validation after successful upload
-                        if (cameraComp) {
-                            const updatedImages = rowImages[rowId] || [];
-                            handleCameraChange(rowId, [...updatedImages, { uri: uploaded.uri, id: uploaded.id }], cameraComp);
-                        }
+                        // Add validation trigger after successful upload
+                        setTimeout(() => {
+                            const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
+                            const currentRow = rows.find(row => row.webId === rowId);
+                            const cameraComp = currentRow?.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'CAMERA');
+                            if (cameraComp) {
+                                const updatedImages = (rowImages[rowId] || []).map(item => item.id === localId ? ({ uri: uploaded.uri, id: uploaded.id }) : item);
+                                handleCameraChange(rowId, updatedImages, cameraComp);
+                            }
+                        }, 100);
                     } else {
                         showErrorToast('Upload failed', 'Server did not return file info');
                     }
@@ -842,13 +872,17 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
         // camera / library selection handlers
         const fromCamera = async (): Promise<void> => {
+            console.log('Attempting to open camera...');
             const hasPermission = await requestCameraPermission();
+            console.log('Camera permission granted:', hasPermission);
+
             if (!hasPermission) {
                 showErrorToast('Camera blocked', 'Please grant Camera and Photos permissions in Settings.');
                 return;
             }
 
             try {
+                console.log('Launching camera...');
                 const res = await launchCamera({
                     mediaType: 'photo',
                     saveToPhotos: true,
@@ -859,25 +893,40 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     maxHeight: 2000
                 });
 
-                if (res.didCancel) return;
+                console.log('Camera result:', res);
+
+                if (res.didCancel) {
+                    console.log('User cancelled camera');
+                    return;
+                }
                 if (res.errorCode) {
+                    console.log('Camera error:', res.errorCode, res.errorMessage);
                     showErrorToast('Camera error', res.errorMessage || res.errorCode);
                     return;
                 }
-                if (res.assets?.length) await handleAssetsAndUpload(res.assets);
+                if (res.assets?.length) {
+                    console.log('Camera assets received:', res.assets.length);
+                    await handleAssetsAndUpload(res.assets);
+                }
             } catch (e: any) {
+                console.log('Camera launch error:', e);
                 showErrorToast('Camera error', e?.message || 'Failed to open camera');
             }
         };
 
+        // Update the fromLibrary function:
         const fromLibrary = async (): Promise<void> => {
+            console.log('Attempting to open library...');
             const hasPermission = await requestCameraPermission();
+            console.log('Library permission granted:', hasPermission);
+
             if (!hasPermission) {
                 showErrorToast('Photos blocked', 'Please grant Photos permission in Settings.');
                 return;
             }
 
             try {
+                console.log('Launching image library...');
                 const res = await launchImageLibrary({
                     mediaType: 'photo',
                     selectionLimit: remaining,
@@ -887,13 +936,23 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     maxHeight: 2000
                 });
 
-                if (res.didCancel) return;
+                console.log('Library result:', res);
+
+                if (res.didCancel) {
+                    console.log('User cancelled library');
+                    return;
+                }
                 if (res.errorCode) {
+                    console.log('Library error:', res.errorCode, res.errorMessage);
                     showErrorToast('Library error', res.errorMessage || res.errorCode);
                     return;
                 }
-                if (res.assets?.length) await handleAssetsAndUpload(res.assets);
+                if (res.assets?.length) {
+                    console.log('Library assets received:', res.assets.length);
+                    await handleAssetsAndUpload(res.assets);
+                }
             } catch (e: any) {
+                console.log('Library launch error:', e);
                 showErrorToast('Library error', e?.message || 'Failed to open library');
             }
         };
@@ -1232,6 +1291,12 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         0;
 
     const handleNext = () => {
+        // Validate current section before proceeding
+        if (!validateAllFields()) {
+            showErrorToast('Validation Error', 'Please fill in all required fields before proceeding to the next section');
+            return; // Don't proceed to next section
+        }
+
         if (currentSectionIdx < totalSections - 1) {
             const nextIdx = currentSectionIdx + 1;
             setCurrentSectionIdx(nextIdx);
@@ -1239,6 +1304,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     };
 
     const handlePrev = () => {
+        // Optionally validate current section before going back
+        // You can remove this if you want to allow going back without validation
+        if (!validateAllFields()) {
+            showErrorToast('Validation Error', 'Please fill in all required fields');
+            return;
+        }
+
         if (currentSectionIdx > 0) {
             setCurrentSectionIdx(currentSectionIdx - 1);
         }
@@ -2043,6 +2115,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         checkInitialPermissions();
     }, []);
 
+
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#0088E7' }}>
             <StatusBar barStyle="dark-content" backgroundColor="#0088E7" />
@@ -2424,7 +2497,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                 setShowDatePicker(prev => ({ ...prev, [row.webId]: true }));
                                                             }}
                                                         >
-                                                            <View style={styles.dateInputField}>
+                                                            <View style={[
+                                                                styles.dateInputField,
+                                                                hasDateError && { borderColor: '#F44336', borderWidth: 2 }
+                                                            ]}>
                                                                 <Text style={styles.dateInputText}>
                                                                     {dateValue ? new Date(dateValue).toLocaleDateString('en-US', {
                                                                         month: 'numeric',
@@ -2636,11 +2712,11 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                 style={[styles.attachmentCameraBtn]}
                                                                 onPress={async () => {
                                                                     try {
+                                                                        console.log('Camera button pressed for row:', row.webId);
                                                                         await handleAddImages(row.webId);
-                                                                        // Validation is now handled inside handleAddImages
                                                                     } catch (error) {
-                                                                        console.error('Camera error:', error);
-                                                                        showErrorToast('Camera Error', 'Failed to access camera. Please check permissions.');
+                                                                        console.error('Camera button error:', error);
+                                                                        showErrorToast('Camera Error', 'Failed to access camera. Please check permissions in Settings.');
                                                                     }
                                                                 }}
                                                                 activeOpacity={0.7}
@@ -2948,7 +3024,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         {qrCodeValue ? (
                                                             // After scanning - show input field and icon
                                                             <>
-                                                                <View style={styles.inputFieldContainer}>
+                                                                <View style={[
+                                                                    styles.inputFieldContainer,
+                                                                    hasError && { borderColor: '#F44336', borderWidth: 2 }
+                                                                ]}>
                                                                     <TextInput
                                                                         style={styles.inputField}
                                                                         value={qrCodeValue}
@@ -3423,12 +3502,19 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         );
                                         if (hasParagraph) {
                                             const paragraphComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'PARAGRAPH');
+                                            const attrs = getComponentAttributes(paragraphComp);
+                                            const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+                                            const hasError = touchedFields[row.webId] && validationErrors[row.webId];
                                             const paragraphText = paragraphComp?.defaultValue || paragraphComp?.text || '';
+                                            const isAcknowledged = paragraphAcknowledged[row.webId] || false;
 
                                             return (
                                                 <View key={row.webId} style={styles.notesRow}>
                                                     <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                        <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                        <Text style={styles.radioLabel}>
+                                                            {row.columns[0]?.components[0]?.text}
+                                                            {required && <Text style={{ color: '#F44336' }}> *</Text>}
+                                                        </Text>
                                                     </View>
                                                     <View style={[styles.textFieldBox, { width: '50%' }]}>
                                                         <Text style={[styles.textFieldInput, {
@@ -3439,6 +3525,35 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         }]}>
                                                             {paragraphText}
                                                         </Text>
+
+                                                        {/* Add acknowledgment checkbox if required */}
+                                                        {required && (
+                                                            <TouchableOpacity
+                                                                style={{
+                                                                    flexDirection: 'row',
+                                                                    alignItems: 'center',
+                                                                    marginTop: getResponsive(8)
+                                                                }}
+                                                                onPress={() => {
+                                                                    const newValue = !isAcknowledged;
+                                                                    setParagraphAcknowledged(prev => ({ ...prev, [row.webId]: newValue }));
+
+                                                                    // Validate
+                                                                    const error = validateField(newValue ? 'acknowledged' : '', 'PARAGRAPH', attrs);
+                                                                    setValidationErrors(prev => ({ ...prev, [row.webId]: error }));
+                                                                    setTouchedFields(prev => ({ ...prev, [row.webId]: true }));
+                                                                }}
+                                                            >
+                                                                <Checkbox selected={isAcknowledged} />
+                                                                <Text style={styles.radioOptionText}>I have read this information</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+
+                                                        {hasError && (
+                                                            <Text style={styles.errorText}>
+                                                                {validationErrors[row.webId]}
+                                                            </Text>
+                                                        )}
                                                     </View>
                                                 </View>
                                             );
@@ -3450,8 +3565,12 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         );
                                         if (hasFile) {
                                             const fileComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'FILE');
+                                            const attrs = getComponentAttributes(fileComp);
+                                            const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+                                            const hasError = touchedFields[row.webId] && validationErrors[row.webId];
                                             const fileId = fileComp?.defaultValue || fileComp?.attrs?.find(attr => attr.key === 'imageId')?.value || '';
                                             const fileUrl = fileUrls[row.webId] || '';
+
 
                                             const handleFilePress = async () => {
                                                 if (!fileUrl && fileId) {
@@ -3459,6 +3578,17 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         const response = await fetchFileUrl(fileId);
                                                         const url = (response as any)?.data?.redirect || (response as any)?.data?.url || '';
                                                         setFileUrls(prev => ({ ...prev, [row.webId]: url }));
+
+                                                        // Trigger validation after file URL is loaded
+                                                        const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
+                                                        const currentRow = rows.find(row => row.webId === row.webId);
+                                                        const fileComp = currentRow?.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'FILE');
+                                                        if (fileComp) {
+                                                            const attrs = getComponentAttributes(fileComp);
+                                                            const error = validateField(url, 'FILE', attrs);
+                                                            setValidationErrors(prev => ({ ...prev, [row.webId]: error }));
+                                                            setTouchedFields(prev => ({ ...prev, [row.webId]: true }));
+                                                        }
 
                                                         // Open the file URL in external browser
                                                         if (url) {
@@ -3474,7 +3604,17 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         showErrorToast('Error', 'Failed to load file');
                                                     }
                                                 } else if (fileUrl) {
-                                                    // Open the cached file URL in external browser
+                                                    // Mark as viewed when opening cached URL
+                                                    const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
+                                                    const currentRow = rows.find(row => row.webId === row.webId);
+                                                    const fileComp = currentRow?.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'FILE');
+                                                    if (fileComp) {
+                                                        const attrs = getComponentAttributes(fileComp);
+                                                        const error = validateField(fileUrl, 'FILE', attrs);
+                                                        setValidationErrors(prev => ({ ...prev, [row.webId]: error }));
+                                                        setTouchedFields(prev => ({ ...prev, [row.webId]: true }));
+                                                    }
+
                                                     try {
                                                         const canOpen = await Linking.canOpenURL(fileUrl);
                                                         if (canOpen) {
@@ -3492,7 +3632,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             return (
                                                 <View key={row.webId} style={styles.notesRow}>
                                                     <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                        <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text}</Text>
+                                                        <Text style={styles.radioLabel}>
+                                                            {row.columns[0]?.components[0]?.text}
+                                                            {required && <Text style={{ color: '#F44336' }}> *</Text>}
+                                                        </Text>
                                                     </View>
                                                     <View style={[styles.textFieldBox, { width: '50%' }]}>
                                                         <TouchableOpacity
@@ -3501,7 +3644,9 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                 alignItems: 'center',
                                                                 backgroundColor: '#0088E7',
                                                                 paddingVertical: getResponsive(12)
-                                                            }]}
+                                                            },
+                                                            hasError && { borderColor: '#F44336', borderWidth: 2 }
+                                                            ]}
                                                             onPress={handleFilePress}
                                                             activeOpacity={0.8}
                                                         >
@@ -3513,6 +3658,11 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                 View File
                                                             </Text>
                                                         </TouchableOpacity>
+                                                        {hasError && (
+                                                            <Text style={styles.errorText}>
+                                                                {validationErrors[row.webId]}
+                                                            </Text>
+                                                        )}
                                                     </View>
                                                 </View>
                                             );
