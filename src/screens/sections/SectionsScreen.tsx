@@ -408,6 +408,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
     const [touchedFields, setTouchedFields] = useState<{ [key: string]: boolean }>({});
     const [paragraphAcknowledged, setParagraphAcknowledged] = useState<{ [key: string]: boolean }>({});
+    const [showFeedbackInputs, setShowFeedbackInputs] = useState<{ [feedbackControlId: string]: boolean }>({});
 
     const validateField = (value: any, component: string, attrs: any[]): string => {
         const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
@@ -504,6 +505,51 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
     const getComponentAttributes = (comp: any) => {
         return comp?.attrs || [];
+    };
+
+    // Helper function to detect multi-column rows with feedback
+    const isMultiColumnWithFeedback = (row: any): { isMultiColumn: boolean; mainControlComp?: any; feedbackComp?: any } => {
+        if (!row.columns || row.columns.length < 3) {
+            return { isMultiColumn: false };
+        }
+
+        // Filter out deleted components
+        const col0 = row.columns.find((col: any) => col.columnOrder === 0);
+        const col1 = row.columns.find((col: any) => col.columnOrder === 1);
+        const col2 = row.columns.find((col: any) => col.columnOrder === 2);
+
+        if (!col0 || !col1 || !col2) {
+            return { isMultiColumn: false };
+        }
+
+        // Check if column 0 has LABEL
+        const labelComp = col0.components?.find((c: any) => c.component === 'LABEL' && !c.deleted);
+        if (!labelComp) {
+            return { isMultiColumn: false };
+        }
+
+        // Check if column 1 has a main control (not display-only)
+        const displayOnlyControls = ['IMAGE', 'PARAGRAPH', 'FILE'];
+        const mainControlComp = col1.components?.find((c: any) =>
+            !c.deleted && !displayOnlyControls.includes(c.component)
+        );
+        if (!mainControlComp) {
+            return { isMultiColumn: false };
+        }
+
+        // Check if column 2 has TEXT_FIELD or TEXT_AREA
+        const feedbackComp = col2.components?.find((c: any) =>
+            !c.deleted && (c.component === 'TEXT_FIELD' || c.component === 'TEXT_AREA')
+        );
+        if (!feedbackComp) {
+            return { isMultiColumn: false };
+        }
+
+        return {
+            isMultiColumn: true,
+            mainControlComp,
+            feedbackComp
+        };
     };
 
     const validateAllFields = (): boolean => {
@@ -1664,6 +1710,20 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         var keyuuid = row?.key;
                         const comps = row.columns?.flatMap((col: any) => col.components || []) || [];
 
+                        // Check if this is a multi-column row with feedback
+                        const multiColumnCheck = isMultiColumnWithFeedback(row);
+                        const isMultiColumn = multiColumnCheck.isMultiColumn;
+                        const mainControlComp = multiColumnCheck.mainControlComp;
+                        const feedbackComp = multiColumnCheck.feedbackComp;
+
+                        // Determine the key to use for state lookup (component.webId for multi-column, row.webId for regular)
+                        const getStateKey = (comp: any) => {
+                            if (isMultiColumn && comp) {
+                                return comp.webId.toString();
+                            }
+                            return row.webId;
+                        };
+
                         // RADIO_BUTTON (only include the selected one)
                         const answer = answers[sectionId]?.[row.webId];
                         const radioData =
@@ -1682,10 +1742,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // CAMERA (array of IDs)
                         const cameraComp = comps.find((c: any) => c.component === 'CAMERA');
-
+                        const cameraStateKey = getStateKey(cameraComp);
                         const cameraData = cameraComp
                             ? [{
-                                value: (rowImages[row.webId] || []).map((img) => img.id),
+                                value: (rowImages[cameraStateKey] || []).map((img) => img.id),
                                 controlId: cameraComp.controlId || '',
                                 groupName: cameraComp.name || null,
                                 senserData: null,
@@ -1694,30 +1754,47 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // ATTACHEMENTS (array of file IDs)
                         const attachComp = comps.find((c: any) => c.component === 'ATTACHEMENTS');
+                        const attachStateKey = getStateKey(attachComp);
                         const attachmentsData = attachComp
                             ? [{
-                                value: (attachmentsByRow[row.webId] || []).map((f) => f.id),
+                                value: (attachmentsByRow[attachStateKey] || []).map((f) => f.id),
                                 controlId: attachComp.controlId || '',
                                 groupName: attachComp.name || null,
                                 senserData: null,
                             }]
                             : [];
 
-                        // TEXT_FIELD
+                        // TEXT_FIELD - check if it's a feedback control or regular
                         const textComp = comps.find((c: any) => c.component === 'TEXT_FIELD');
-                        const textVal = textInputs[row.webId] || '';
-                        const textData = textComp
-                            ? [{
-                                value: textVal,
-                                controlId: textComp.controlId || '',
-                                groupName: textComp.name || null,
-                                senserData: null,
-                            }]
-                            : [];
+                        let textData: any[] = [];
+                        if (textComp) {
+                            // If this is a feedback control, use feedbackComp.webId
+                            if (isMultiColumn && feedbackComp && feedbackComp.component === 'TEXT_FIELD' && textComp.webId === feedbackComp.webId) {
+                                const feedbackStateKey = feedbackComp.webId.toString();
+                                const textVal = textInputs[feedbackStateKey] || '';
+                                textData = [{
+                                    value: textVal,
+                                    controlId: textComp.controlId || '',
+                                    groupName: textComp.name || null,
+                                    senserData: null,
+                                }];
+                            } else {
+                                // Regular TEXT_FIELD
+                                const textStateKey = getStateKey(textComp);
+                                const textVal = textInputs[textStateKey] || '';
+                                textData = [{
+                                    value: textVal,
+                                    controlId: textComp.controlId || '',
+                                    groupName: textComp.name || null,
+                                    senserData: null,
+                                }];
+                            }
+                        }
 
                         // CHECK_BOX (boolean)
                         const checkboxComp = comps.find((c: any) => c.component === 'CHECK_BOX');
-                        const checkboxVal = checkboxValues[row.webId] ?? false;
+                        const checkboxStateKey = getStateKey(checkboxComp);
+                        const checkboxVal = checkboxValues[checkboxStateKey] ?? false;
                         const checkboxData = checkboxComp
                             ? [{
                                 value: checkboxVal,
@@ -1729,7 +1806,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // SWITCH_BUTTON (boolean)
                         const switchComp = comps.find((c: any) => c.component === 'SWITCH_BUTTON');
-                        const switchVal = switchValues[row.webId] ?? false;
+                        const switchStateKey = getStateKey(switchComp);
+                        const switchVal = switchValues[switchStateKey] ?? false;
                         const switchData = switchComp
                             ? [{
                                 value: switchVal,
@@ -1739,21 +1817,37 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             }]
                             : [];
 
-                        // TEXT_AREA
+                        // TEXT_AREA - check if it's a feedback control or regular
                         const textAreaComp = comps.find((c: any) => c.component === 'TEXT_AREA');
-                        const textAreaVal = textAreaInputs[row.webId] || '';
-                        const textAreaData = textAreaComp
-                            ? [{
-                                value: textAreaVal,
-                                controlId: textAreaComp.controlId || '',
-                                groupName: textAreaComp.name || null,
-                                senserData: null,
-                            }]
-                            : [];
+                        let textAreaData: any[] = [];
+                        if (textAreaComp) {
+                            // If this is a feedback control, use feedbackComp.webId
+                            if (isMultiColumn && feedbackComp && feedbackComp.component === 'TEXT_AREA' && textAreaComp.webId === feedbackComp.webId) {
+                                const feedbackStateKey = feedbackComp.webId.toString();
+                                const textAreaVal = textAreaInputs[feedbackStateKey] || '';
+                                textAreaData = [{
+                                    value: textAreaVal,
+                                    controlId: textAreaComp.controlId || '',
+                                    groupName: textAreaComp.name || null,
+                                    senserData: null,
+                                }];
+                            } else {
+                                // Regular TEXT_AREA
+                                const textAreaStateKey = getStateKey(textAreaComp);
+                                const textAreaVal = textAreaInputs[textAreaStateKey] || '';
+                                textAreaData = [{
+                                    value: textAreaVal,
+                                    controlId: textAreaComp.controlId || '',
+                                    groupName: textAreaComp.name || null,
+                                    senserData: null,
+                                }];
+                            }
+                        }
 
                         // DATE (YYYY-MM-DD)
                         const dateComp = comps.find((c: any) => c.component === 'DATE');
-                        const dateVal = dateValues[row.webId] || '';
+                        const dateStateKey = getStateKey(dateComp);
+                        const dateVal = dateValues[dateStateKey] || '';
                         const dateData = dateComp
                             ? [{
                                 value: dateVal,
@@ -1765,7 +1859,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // RATING (number)
                         const ratingComp = comps.find((c: any) => c.component === 'RATING');
-                        const ratingVal = ratingValues[row.webId] ?? 0;
+                        const ratingStateKey = getStateKey(ratingComp);
+                        const ratingVal = ratingValues[ratingStateKey] ?? 0;
                         const ratingData = ratingComp
                             ? [{
                                 value: Number(ratingVal),
@@ -1777,7 +1872,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // LOOKUP
                         const lookupComp = comps.find((c: any) => c.component === 'LOOKUP');
-                        const lookupVal = lookupValues[row.webId] || '';
+                        const lookupStateKey = getStateKey(lookupComp);
+                        const lookupVal = lookupValues[lookupStateKey] || '';
                         const lookupData = lookupComp
                             ? [{
                                 value: lookupVal,
@@ -1789,7 +1885,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // SIGNATURE
                         const signatureComp = comps.find((c: any) => c.component === 'SIGNATURE');
-                        const signatureVal = signatureValues[row.webId]?.encoded || '';
+                        const signatureStateKey = getStateKey(signatureComp);
+                        const signatureVal = signatureValues[signatureStateKey]?.encoded || '';
                         const signatureData = signatureComp
                             ? [{
                                 value: signatureVal,
@@ -1801,7 +1898,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // QR_CODE
                         const qrCodeComp = comps.find((c: any) => c.component === 'QR_CODE');
-                        const qrCodeVal = qrCodeValues[row.webId] || '';
+                        const qrCodeStateKey = getStateKey(qrCodeComp);
+                        const qrCodeVal = qrCodeValues[qrCodeStateKey] || '';
                         const qrCodeData = qrCodeComp
                             ? [{
                                 value: qrCodeVal,
@@ -1813,7 +1911,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // QR_VALIDATOR
                         const qrValidatorComp = comps.find((c: any) => c.component === 'QR_VALIDATOR');
-                        const qrValidatorVal = qrValidatorValues[row.webId] || '';
+                        const qrValidatorStateKey = getStateKey(qrValidatorComp);
+                        const qrValidatorVal = qrValidatorValues[qrValidatorStateKey] || '';
                         const qrValidatorData = qrValidatorComp
                             ? [{
                                 value: qrValidatorVal,
@@ -1825,7 +1924,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // BAR_CODE
                         const barcodeComp = comps.find((c: any) => c.component === 'BAR_CODE');
-                        const barcodeVal = barcodeValues[row.webId] || '';
+                        const barcodeStateKey = getStateKey(barcodeComp);
+                        const barcodeVal = barcodeValues[barcodeStateKey] || '';
                         const barcodeData = barcodeComp
                             ? [{
                                 value: barcodeVal,
@@ -1837,7 +1937,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // BAR_VALIDATOR
                         const barcodeValidatorComp = comps.find((c: any) => c.component === 'BAR_VALIDATOR');
-                        const barcodeValidatorVal = barcodeValidatorValues[row.webId] || '';
+                        const barcodeValidatorStateKey = getStateKey(barcodeValidatorComp);
+                        const barcodeValidatorVal = barcodeValidatorValues[barcodeValidatorStateKey] || '';
                         const barcodeValidatorData = barcodeValidatorComp
                             ? [{
                                 value: barcodeValidatorVal,
@@ -1849,7 +1950,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                         // TIMER
                         const timerComp = comps.find((c: any) => c.component === 'TIMER');
-                        const timerVal = timerValues[row.webId] || '00:00:00.0000000';
+                        const timerStateKey = getStateKey(timerComp);
+                        const timerVal = timerValues[timerStateKey] || '00:00:00.0000000';
                         const timerData = timerComp
                             ? [{
                                 value: timerVal,
@@ -2228,6 +2330,127 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             col.components?.some(comp => comp.component === "IMAGE")
                                         );
 
+                                        const multiColumnCheck = isMultiColumnWithFeedback(row);
+                                        const isMultiColumn = multiColumnCheck.isMultiColumn;
+                                        const mainControlComp = multiColumnCheck.mainControlComp;
+                                        const feedbackComp = multiColumnCheck.feedbackComp;
+                                        const feedbackControlId = feedbackComp?.webId?.toString();
+                                        const showFeedback = feedbackControlId ? showFeedbackInputs[feedbackControlId] : false;
+                                        const feedbackIsTextArea = feedbackComp?.component === 'TEXT_AREA';
+                                        const feedbackValue = (() => {
+                                            if (!feedbackControlId) return '';
+                                            if (feedbackIsTextArea) {
+                                                return textAreaInputs[feedbackControlId] || '';
+                                            }
+                                            return textInputs[feedbackControlId] || '';
+                                        })();
+                                        const hasFeedbackData = Boolean(
+                                            typeof feedbackValue === 'string'
+                                                ? feedbackValue.trim()
+                                                : feedbackValue
+                                        );
+                                        const feedbackAttrs = feedbackComp ? getComponentAttributes(feedbackComp) : [];
+                                        const feedbackHasError = feedbackControlId
+                                            ? Boolean(touchedFields[feedbackControlId] && validationErrors[feedbackControlId])
+                                            : false;
+                                        const feedbackPlaceholder = feedbackComp
+                                            ? feedbackComp.placeholder || (feedbackIsTextArea ? 'Type your comments...' : 'Type your answer...')
+                                            : '';
+
+                                        const renderFeedbackToggle = () => {
+                                            if (!feedbackControlId || !feedbackComp) return null;
+                                            return (
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        setShowFeedbackInputs(prev => ({
+                                                            ...prev,
+                                                            [feedbackControlId]: !prev[feedbackControlId],
+                                                        }));
+                                                    }}
+                                                    style={[
+                                                        styles.feedbackToggle,
+                                                        hasFeedbackData && styles.feedbackToggleActive,
+                                                    ]}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.feedbackToggleText,
+                                                            hasFeedbackData && styles.feedbackToggleTextActive,
+                                                        ]}
+                                                    >
+                                                        ✎
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        };
+
+                                        const renderFeedbackInput = () => {
+                                            if (!feedbackControlId || !feedbackComp || !showFeedback) return null;
+                                            const isTextArea = feedbackComp.component === 'TEXT_AREA';
+                                            const value = isTextArea
+                                                ? (textAreaInputs[feedbackControlId] || '')
+                                                : (textInputs[feedbackControlId] || '');
+                                            const placeholder = feedbackPlaceholder;
+                                            return (
+                                                <View style={styles.feedbackInputWrapper}>
+                                                    <View style={[
+                                                        styles.textFieldBox,
+                                                        isTextArea && { minHeight: getResponsive(80) },
+                                                        feedbackHasError && { borderColor: '#F44336', borderWidth: 2 },
+                                                    ]}>
+                                                        <TextInput
+                                                            style={[
+                                                                styles.textFieldInput,
+                                                                isTextArea && { minHeight: getResponsive(80) },
+                                                            ]}
+                                                            multiline={isTextArea}
+                                                            numberOfLines={isTextArea ? 4 : 1}
+                                                            value={value}
+                                                            onChangeText={(v) => {
+                                                                if (isTextArea) {
+                                                                    handleTextAreaChange(feedbackControlId, v, feedbackComp);
+                                                                } else {
+                                                                    handleTextInputChange(feedbackControlId, v, feedbackComp);
+                                                                }
+                                                            }}
+                                                            onBlur={() => {
+                                                                if (isTextArea) {
+                                                                    handleTextAreaBlur(feedbackControlId, feedbackComp);
+                                                                } else {
+                                                                    handleTextInputBlur(feedbackControlId, feedbackComp);
+                                                                }
+                                                            }}
+                                                            placeholder={placeholder}
+                                                            placeholderTextColor="#02163980"
+                                                            textAlignVertical={isTextArea ? 'top' : 'center'}
+                                                        />
+                                                    </View>
+                                                    {feedbackHasError && (
+                                                        <Text style={styles.errorText}>
+                                                            {validationErrors[feedbackControlId]}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                            );
+                                        };
+
+                                        const wrapRowWithFeedback = (element: React.ReactElement) => {
+                                            if (!feedbackControlId || !feedbackComp) {
+                                                return React.cloneElement(element, { key: row.webId });
+                                            }
+
+                                            return (
+                                                <View key={row.webId} style={styles.feedbackRowWrapper}>
+                                                    <View style={[styles.feedbackRowInner, styles.feedbackRowInnerWithToggle]}>
+                                                        {renderFeedbackToggle()}
+                                                        {React.cloneElement(element, { key: undefined })}
+                                                    </View>
+                                                    {renderFeedbackInput()}
+                                                </View>
+                                            );
+                                        };
+
 
                                         if (hasImage) {
                                             const imageComp = row.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'IMAGE');
@@ -2237,8 +2460,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             console.log('hassss imagee', imageUrl);
                                             console.log('====================================');
 
-                                            return (
-                                                <View key={row.webId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}>
+                                            return wrapRowWithFeedback(
+                                                <View style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}>
                                                     <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
 
                                                         <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
@@ -2274,45 +2497,52 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
 
                                         if (hasTextField) {
-                                            const textComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'TEXT_FIELD');
-                                            const placeholder = textComp?.placeholder || 'Type your answer...';
-                                            const attrs = getComponentAttributes(textComp);
-                                            const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
-                                            const maskMessage = attrs.find((attr: any) => attr.key === 'maskMessage')?.value;
-                                            const hasError = touchedFields[row.webId] && validationErrors[row.webId];
-                                            const fieldValue = textInputs[row.webId] || '';
+                                            const textComp = row.columns
+                                                ?.find((col: any) => col.columnOrder === 1)
+                                                ?.components?.find((c: any) => c.component === 'TEXT_FIELD');
+                                            const shouldRenderTextField = textComp && (!isMultiColumn || mainControlComp?.component === 'TEXT_FIELD');
+                                            if (shouldRenderTextField && textComp) {
+                                                const placeholder = textComp?.placeholder || 'Type your answer...';
+                                                const attrs = getComponentAttributes(textComp);
+                                                const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+                                                const textStateKey = (isMultiColumn && textComp?.webId)
+                                                    ? textComp.webId.toString()
+                                                    : row.webId;
+                                                const hasError = touchedFields[textStateKey] && validationErrors[textStateKey];
+                                                const fieldValue = textInputs[textStateKey] || '';
 
-                                            return (
-                                                <View key={row.webId} style={styles.notesRow}>
-                                                    <View style={{ width: '50%', paddingLeft: getResponsive(10), flexShrink: 1 }}>
-                                                        <Text style={[styles.radioLabel, { width: undefined, flexShrink: 1 }]}>
-                                                            {row.columns[0]?.components[0]?.text}
-                                                            {required && <Text style={{ color: '#F44336' }}> *</Text>}
-                                                        </Text>
-                                                    </View>
-                                                    <View style={{ width: '50%' }}>
-                                                        <View style={[
-                                                            styles.textFieldBox,
-                                                            hasError && { borderColor: '#F44336', borderWidth: 2 }
-                                                        ]}>
-                                                            <TextInput
-                                                                style={styles.textFieldInput}
-                                                                multiline
-                                                                value={fieldValue}
-                                                                onChangeText={(v) => handleTextInputChange(row.webId, v, textComp)}
-                                                                onBlur={() => handleTextInputBlur(row.webId, textComp)}
-                                                                placeholder={placeholder}
-                                                                placeholderTextColor="#02163980"
-                                                            />
-                                                        </View>
-                                                        {hasError && (
-                                                            <Text style={styles.errorText}>
-                                                                {validationErrors[row.webId]}
+                                                return wrapRowWithFeedback(
+                                                    <View style={styles.notesRow}>
+                                                        <View style={{ width: '50%', paddingLeft: getResponsive(10), flexShrink: 1 }}>
+                                                            <Text style={[styles.radioLabel, { width: undefined, flexShrink: 1 }]}>
+                                                                {row.columns[0]?.components[0]?.text}
+                                                                {required && <Text style={{ color: '#F44336' }}> *</Text>}
                                                             </Text>
-                                                        )}
+                                                        </View>
+                                                        <View style={{ width: '50%' }}>
+                                                            <View style={[
+                                                                styles.textFieldBox,
+                                                                hasError && { borderColor: '#F44336', borderWidth: 2 }
+                                                            ]}>
+                                                                <TextInput
+                                                                    style={styles.textFieldInput}
+                                                                    multiline
+                                                                    value={fieldValue}
+                                                                    onChangeText={(v) => handleTextInputChange(textStateKey, v, textComp)}
+                                                                    onBlur={() => handleTextInputBlur(textStateKey, textComp)}
+                                                                    placeholder={placeholder}
+                                                                    placeholderTextColor="#02163980"
+                                                                />
+                                                            </View>
+                                                            {hasError && (
+                                                                <Text style={styles.errorText}>
+                                                                    {validationErrors[textStateKey]}
+                                                                </Text>
+                                                            )}
+                                                        </View>
                                                     </View>
-                                                </View>
-                                            );
+                                                );
+                                            }
                                         }
 
                                         // CHECK_BOX row
@@ -2320,43 +2550,52 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             col.components?.some(comp => comp.component === 'CHECK_BOX')
                                         );
                                         if (hasCheckbox) {
-                                            const checkboxComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'CHECK_BOX');
-                                            const attrs = getComponentAttributes(checkboxComp);
-                                            const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
-                                            const hasError = touchedFields[row.webId] && validationErrors[row.webId];
-                                            const isChecked = checkboxValues[row.webId] || false;
+                                            const checkboxComp = row.columns
+                                                ?.find((col: any) => col.columnOrder === 1)
+                                                ?.components?.find((comp: any) => comp.component === 'CHECK_BOX');
+                                            const shouldRenderCheckbox = checkboxComp && (!isMultiColumn || mainControlComp?.component === 'CHECK_BOX');
 
-                                            return (
-                                                <View key={row.webId} style={styles.radioRow}>
-                                                    <Text style={styles.radioLabel}>
-                                                        {row.columns[0]?.components[0]?.text}
-                                                        {required && <Text style={{ color: '#F44336' }}> *</Text>}
-                                                    </Text>
-                                                    <TouchableOpacity
-                                                        style={styles.radioChoiceRow}
-                                                        activeOpacity={0.8}
-                                                        onPress={() => {
-                                                            handleCheckboxChange(row.webId, !isChecked, checkboxComp);
-                                                        }}
-                                                    >
-                                                        <Checkbox selected={isChecked} />
-                                                        <Text style={[
-                                                            styles.radioOptionText,
-                                                            isChecked && {
-                                                                color: '#0088E7',
-                                                                fontWeight: 'bold',
-                                                            }
-                                                        ]}>
-                                                            {isChecked ? 'Yes' : 'No'}
+                                            if (shouldRenderCheckbox && checkboxComp) {
+                                                const attrs = getComponentAttributes(checkboxComp);
+                                                const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+                                                const checkboxStateKey = (isMultiColumn && checkboxComp?.webId)
+                                                    ? checkboxComp.webId.toString()
+                                                    : row.webId;
+                                                const hasError = touchedFields[checkboxStateKey] && validationErrors[checkboxStateKey];
+                                                const isChecked = checkboxValues[checkboxStateKey] || false;
+
+                                                return wrapRowWithFeedback(
+                                                    <View style={styles.radioRow}>
+                                                        <Text style={styles.radioLabel}>
+                                                            {row.columns[0]?.components[0]?.text}
+                                                            {required && <Text style={{ color: '#F44336' }}> *</Text>}
                                                         </Text>
-                                                    </TouchableOpacity>
-                                                    {hasError && (
-                                                        <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
-                                                            {validationErrors[row.webId]}
-                                                        </Text>
-                                                    )}
-                                                </View>
-                                            );
+                                                        <TouchableOpacity
+                                                            style={styles.radioChoiceRow}
+                                                            activeOpacity={0.8}
+                                                            onPress={() => {
+                                                                handleCheckboxChange(checkboxStateKey, !isChecked, checkboxComp);
+                                                            }}
+                                                        >
+                                                            <Checkbox selected={isChecked} />
+                                                            <Text style={[
+                                                                styles.radioOptionText,
+                                                                isChecked && {
+                                                                    color: '#0088E7',
+                                                                    fontWeight: 'bold',
+                                                                }
+                                                            ]}>
+                                                                {isChecked ? 'Yes' : 'No'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                        {hasError && (
+                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
+                                                                {validationErrors[checkboxStateKey]}
+                                                            </Text>
+                                                        )}
+                                                    </View>
+                                                );
+                                            }
                                         }
 
                                         // SWITCH_BUTTON row
@@ -2364,42 +2603,51 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             col.components?.some(comp => comp.component === 'SWITCH_BUTTON')
                                         );
                                         if (hasSwitch) {
-                                            const switchComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'SWITCH_BUTTON');
-                                            const attrs = getComponentAttributes(switchComp);
-                                            const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
-                                            const hasError = touchedFields[row.webId] && validationErrors[row.webId];
-                                            const switchValue = switchValues[row.webId] || false;
+                                            const switchComp = row.columns
+                                                ?.find((c: any) => c.columnOrder === 1)
+                                                ?.components?.find((comp: any) => comp.component === 'SWITCH_BUTTON');
+                                            const shouldRenderSwitch = switchComp && (!isMultiColumn || mainControlComp?.component === 'SWITCH_BUTTON');
 
-                                            return (
-                                                <View key={row.webId} style={styles.radioRow}>
-                                                    <Text style={styles.radioLabel}>
-                                                        {row.columns[0]?.components[0]?.text}
-                                                        {required && <Text style={{ color: '#F44336' }}> *</Text>}
-                                                    </Text>
-                                                    <View style={styles.radioChoiceRow}>
-                                                        <Switch
-                                                            value={switchValue}
-                                                            onValueChange={(value) => {
-                                                                handleSwitchChange(row.webId, value, switchComp);
-                                                            }}
-                                                        />
-                                                        <Text style={[
-                                                            styles.radioOptionText,
-                                                            switchValue && {
-                                                                color: '#0088E7',
-                                                                fontWeight: 'bold',
-                                                            }
-                                                        ]}>
-                                                            {switchValue ? 'On' : 'Off'}
+                                            if (shouldRenderSwitch && switchComp) {
+                                                const attrs = getComponentAttributes(switchComp);
+                                                const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+                                                const switchStateKey = (isMultiColumn && switchComp?.webId)
+                                                    ? switchComp.webId.toString()
+                                                    : row.webId;
+                                                const hasError = touchedFields[switchStateKey] && validationErrors[switchStateKey];
+                                                const switchValue = switchValues[switchStateKey] || false;
+
+                                                return wrapRowWithFeedback(
+                                                    <View style={styles.radioRow}>
+                                                        <Text style={styles.radioLabel}>
+                                                            {row.columns[0]?.components[0]?.text}
+                                                            {required && <Text style={{ color: '#F44336' }}> *</Text>}
                                                         </Text>
+                                                        <View style={styles.radioChoiceRow}>
+                                                            <Switch
+                                                                value={switchValue}
+                                                                onValueChange={(value) => {
+                                                                    handleSwitchChange(switchStateKey, value, switchComp);
+                                                                }}
+                                                            />
+                                                            <Text style={[
+                                                                styles.radioOptionText,
+                                                                switchValue && {
+                                                                    color: '#0088E7',
+                                                                    fontWeight: 'bold',
+                                                                }
+                                                            ]}>
+                                                                {switchValue ? 'On' : 'Off'}
+                                                            </Text>
+                                                        </View>
+                                                        {hasError && (
+                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
+                                                                {validationErrors[switchStateKey]}
+                                                            </Text>
+                                                        )}
                                                     </View>
-                                                    {hasError && (
-                                                        <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
-                                                            {validationErrors[row.webId]}
-                                                        </Text>
-                                                    )}
-                                                </View>
-                                            );
+                                                );
+                                            }
                                         }
 
                                         // TEXT_AREA row
@@ -2407,47 +2655,56 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             col.components?.some(comp => comp.component === 'TEXT_AREA')
                                         );
                                         if (hasTextArea) {
-                                            const textAreaComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'TEXT_AREA');
-                                            const placeholder = textAreaComp?.placeholder || 'Type your comments...';
-                                            const attrs = getComponentAttributes(textAreaComp);
-                                            const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
-                                            const hasError = touchedFields[row.webId] && validationErrors[row.webId];
-                                            const fieldValue = textAreaInputs[row.webId] || '';
+                                            const textAreaComp = row.columns
+                                                ?.find((col: any) => col.columnOrder === 1)
+                                                ?.components?.find((c: any) => c.component === 'TEXT_AREA');
+                                            const shouldRenderTextArea = textAreaComp && (!isMultiColumn || mainControlComp?.component === 'TEXT_AREA');
 
-                                            return (
-                                                <View key={row.webId} style={styles.notesRow}>
-                                                    <View style={{ width: '50%', paddingLeft: getResponsive(10), flexShrink: 1 }}>
-                                                        <Text style={[styles.radioLabel, { width: undefined, flexShrink: 1 }]}>
-                                                            {row.columns[0]?.components[0]?.text}
-                                                            {required && <Text style={{ color: '#F44336' }}> *</Text>}
-                                                        </Text>
-                                                    </View>
-                                                    <View style={{ width: '50%' }}>
-                                                        <View style={[
-                                                            styles.textFieldBox,
-                                                            { minHeight: getResponsive(80) },
-                                                            hasError && { borderColor: '#F44336', borderWidth: 2 }
-                                                        ]}>
-                                                            <TextInput
-                                                                style={[styles.textFieldInput, { minHeight: getResponsive(80) }]}
-                                                                multiline
-                                                                numberOfLines={4}
-                                                                value={fieldValue}
-                                                                onChangeText={(v) => handleTextAreaChange(row.webId, v, textAreaComp)}
-                                                                onBlur={() => handleTextAreaBlur(row.webId, textAreaComp)}
-                                                                placeholder={placeholder}
-                                                                placeholderTextColor="#02163980"
-                                                                textAlignVertical="top"
-                                                            />
-                                                        </View>
-                                                        {hasError && (
-                                                            <Text style={styles.errorText}>
-                                                                {validationErrors[row.webId]}
+                                            if (shouldRenderTextArea && textAreaComp) {
+                                                const placeholder = textAreaComp?.placeholder || 'Type your comments...';
+                                                const attrs = getComponentAttributes(textAreaComp);
+                                                const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+                                                const textAreaStateKey = (isMultiColumn && textAreaComp?.webId)
+                                                    ? textAreaComp.webId.toString()
+                                                    : row.webId;
+                                                const hasError = touchedFields[textAreaStateKey] && validationErrors[textAreaStateKey];
+                                                const fieldValue = textAreaInputs[textAreaStateKey] || '';
+
+                                                return wrapRowWithFeedback(
+                                                    <View style={styles.notesRow}>
+                                                        <View style={{ width: '50%', paddingLeft: getResponsive(10), flexShrink: 1 }}>
+                                                            <Text style={[styles.radioLabel, { width: undefined, flexShrink: 1 }]}>
+                                                                {row.columns[0]?.components[0]?.text}
+                                                                {required && <Text style={{ color: '#F44336' }}> *</Text>}
                                                             </Text>
-                                                        )}
+                                                        </View>
+                                                        <View style={{ width: '50%' }}>
+                                                            <View style={[
+                                                                styles.textFieldBox,
+                                                                { minHeight: getResponsive(80) },
+                                                                hasError && { borderColor: '#F44336', borderWidth: 2 }
+                                                            ]}>
+                                                                <TextInput
+                                                                    style={[styles.textFieldInput, { minHeight: getResponsive(80) }]}
+                                                                    multiline
+                                                                    numberOfLines={4}
+                                                                    value={fieldValue}
+                                                                    onChangeText={(v) => handleTextAreaChange(textAreaStateKey, v, textAreaComp)}
+                                                                    onBlur={() => handleTextAreaBlur(textAreaStateKey, textAreaComp)}
+                                                                    placeholder={placeholder}
+                                                                    placeholderTextColor="#02163980"
+                                                                    textAlignVertical="top"
+                                                                />
+                                                            </View>
+                                                            {hasError && (
+                                                                <Text style={styles.errorText}>
+                                                                    {validationErrors[textAreaStateKey]}
+                                                                </Text>
+                                                            )}
+                                                        </View>
                                                     </View>
-                                                </View>
-                                            );
+                                                );
+                                            }
                                         }
 
                                         // DATE row
@@ -2483,8 +2740,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             //     }
                                             // };
 
-                                            return (
-                                                <View key={row.webId} style={styles.radioRow}>
+                                            return wrapRowWithFeedback(
+                                                <View style={styles.radioRow}>
                                                     <Text style={styles.radioLabel}>
                                                         {row.columns[0]?.components[0]?.text}
                                                         {dateRequired && <Text style={{ color: '#F44336' }}> *</Text>}
@@ -2545,8 +2802,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             const hasError = touchedFields[row.webId] && validationErrors[row.webId];
                                             const currentRating = ratingValues[row.webId] || 0;
 
-                                            return (
-                                                <View key={row.webId} style={styles.radioRow}>
+                                            return wrapRowWithFeedback(
+                                                <View style={styles.radioRow}>
                                                     <Text style={styles.radioLabel}>
                                                         {row.columns[0]?.components[0]?.text}
                                                         {required && <Text style={{ color: '#F44336' }}> *</Text>}
@@ -2596,8 +2853,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             const selectedText = options.find(opt => opt.value === selectedValue)?.text || 'Select an option';
                                             const showModal = showLookupModal[row.webId] || false;
 
-                                            return (
-                                                <View key={row.webId} style={styles.radioRow}>
+                                            return wrapRowWithFeedback(
+                                                <View style={styles.radioRow}>
                                                     <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
                                                         <Text style={styles.radioLabel}>
                                                             {row.columns[0]?.components[0]?.text}
@@ -2693,59 +2950,56 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             const attrs = getComponentAttributes(cameraComp);
                                             const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
                                             const hasError = touchedFields[row.webId] && validationErrors[row.webId];
-                                            return (
-                                                <>
-                                                    <View
-                                                        key={row.webId}
-                                                        style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
-                                                    >
-                                                        <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
-                                                            <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
-                                                                Take Pictures
-                                                                {required && <Text style={{ color: '#F44336' }}> *</Text>}
-                                                            </Text>
-                                                        </View>
+                                            return wrapRowWithFeedback(
+                                                <View
+                                                    style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
+                                                >
+                                                    <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
+                                                        <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
+                                                            Take Pictures
+                                                            {required && <Text style={{ color: '#F44336' }}> *</Text>}
+                                                        </Text>
+                                                    </View>
 
-                                                        <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }, hasError && { borderColor: '#F44336', borderWidth: 2, borderRadius: getResponsive(8) }]}>
-                                                            {/* Camera Icon - Always on the left */}
-                                                            <TouchableOpacity
-                                                                style={[styles.attachmentCameraBtn]}
-                                                                onPress={async () => {
-                                                                    try {
-                                                                        console.log('Camera button pressed for row:', row.webId);
-                                                                        await handleAddImages(row.webId);
-                                                                    } catch (error) {
-                                                                        console.error('Camera button error:', error);
-                                                                        showErrorToast('Camera Error', 'Failed to access camera. Please check permissions in Settings.');
-                                                                    }
-                                                                }}
-                                                                activeOpacity={0.7}
-                                                            >
-                                                                <CameraIcon />
-                                                            </TouchableOpacity>
+                                                    <View style={[styles.attachmentContainer, { width: '50%', marginRight: getResponsive(8) }, hasError && { borderColor: '#F44336', borderWidth: 2, borderRadius: getResponsive(8) }]}>
+                                                        {/* Camera Icon - Always on the left */}
+                                                        <TouchableOpacity
+                                                            style={[styles.attachmentCameraBtn]}
+                                                            onPress={async () => {
+                                                                try {
+                                                                    console.log('Camera button pressed for row:', row.webId);
+                                                                    await handleAddImages(row.webId);
+                                                                } catch (error) {
+                                                                    console.error('Camera button error:', error);
+                                                                    showErrorToast('Camera Error', 'Failed to access camera. Please check permissions in Settings.');
+                                                                }
+                                                            }}
+                                                            activeOpacity={0.7}
+                                                        >
+                                                            <CameraIcon />
+                                                        </TouchableOpacity>
 
-                                                            {/* Horizontal Scroll for Image Boxes */}
-                                                            <ScrollView
-                                                                horizontal
-                                                                showsHorizontalScrollIndicator={false}
-                                                                style={styles.attachmentScrollView}
-                                                                contentContainerStyle={styles.attachmentScrollContent}
-                                                            >
-                                                                {(rowImages[row.webId] || []).map(img => (
-                                                                    <View key={img.id} style={styles.attachmentThumbBox}>
-                                                                        <TouchableOpacity onPress={() => setPreviewUri(img.uri)}>
-                                                                            <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
-                                                                        </TouchableOpacity>
-                                                                        <TouchableOpacity
-                                                                            style={styles.attachmentRemove}
-                                                                            onPress={() => handleRemoveImage(row.webId, img.id)}
-                                                                        >
-                                                                            <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
-                                                                        </TouchableOpacity>
-                                                                    </View>
-                                                                ))}
-                                                            </ScrollView>
-                                                        </View>
+                                                        {/* Horizontal Scroll for Image Boxes */}
+                                                        <ScrollView
+                                                            horizontal
+                                                            showsHorizontalScrollIndicator={false}
+                                                            style={styles.attachmentScrollView}
+                                                            contentContainerStyle={styles.attachmentScrollContent}
+                                                        >
+                                                            {(rowImages[row.webId] || []).map(img => (
+                                                                <View key={img.id} style={styles.attachmentThumbBox}>
+                                                                    <TouchableOpacity onPress={() => setPreviewUri(img.uri)}>
+                                                                        <Image source={{ uri: img.uri }} style={styles.multiImgThumb} />
+                                                                    </TouchableOpacity>
+                                                                    <TouchableOpacity
+                                                                        style={styles.attachmentRemove}
+                                                                        onPress={() => handleRemoveImage(row.webId, img.id)}
+                                                                    >
+                                                                        <Text style={{ color: '#1292E6', fontWeight: 'bold', fontSize: getResponsive(10) }}>✕</Text>
+                                                                    </TouchableOpacity>
+                                                                </View>
+                                                            ))}
+                                                        </ScrollView>
                                                     </View>
                                                     {hasError && (
                                                         <View style={{ left: getResponsive(170), top: -15 }}>
@@ -2754,8 +3008,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </Text>
                                                         </View>
                                                     )}
-
-                                                </>
+                                                </View>
                                             );
                                         }
 
@@ -2772,8 +3025,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             const uploading = isUploadingAttachment[row.webId] || false;
                                             const showModal = showAttachmentModal[row.webId] || false;
 
-                                            return (
-                                                <View key={row.webId} style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
+                                            return wrapRowWithFeedback(
+                                                <View style={[styles.mediaRow, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
                                                 >
                                                     <View style={{ width: '50%', paddingLeft: getResponsive(10) }}>
                                                         <Text style={{ fontSize: getResponsive(13), color: '#19233C' }}>
@@ -2921,8 +3174,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
                                             const hasError = touchedFields[row.webId] && validationErrors[row.webId];
 
-                                            return (
-                                                <View key={row.webId} style={styles.signatureRow}>
+                                            return wrapRowWithFeedback(
+                                                <View style={styles.signatureRow}>
                                                     <View style={{ width: '50%', paddingLeft: getResponsive(10), justifyContent: 'center' }}>
                                                         <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text || 'Signature'}
                                                             {required && <Text style={{ color: '#F44336' }}> *</Text>}
@@ -3014,8 +3267,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
                                             const hasError = touchedFields[row.webId] && validationErrors[row.webId];
 
-                                            return (
-                                                <View key={row.webId} style={styles.radioRow}>
+                                            return wrapRowWithFeedback(
+                                                <View style={styles.radioRow}>
                                                     <Text style={styles.radioLabel}>
                                                         {row.columns[0]?.components[0]?.text}
                                                         {required && <Text style={{ color: '#F44336' }}> *</Text>}
@@ -3138,8 +3391,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 }
                                             };
 
-                                            return (
-                                                <View key={row.webId} style={styles.radioRow}>
+                                            return wrapRowWithFeedback(
+                                                <View style={styles.radioRow}>
                                                     <Text style={styles.radioLabel}>
                                                         {row.columns[0]?.components[0]?.text}
                                                         {required && <Text style={{ color: '#F44336' }}> *</Text>}
@@ -3255,8 +3508,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             const barcodeValue = barcodeValues[row.webId] || '';
                                             const showScanner = showBarcodeScanner[row.webId] || false;
 
-                                            return (
-                                                <View key={row.webId} style={styles.radioRow}>
+                                            return wrapRowWithFeedback(
+                                                <View style={styles.radioRow}>
                                                     <Text style={styles.radioLabel}>
                                                         {row.columns[0]?.components[0]?.text}
                                                         {required && <Text style={{ color: '#F44336' }}> *</Text>}
@@ -3358,8 +3611,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 }
                                             };
 
-                                            return (
-                                                <View key={row.webId} style={styles.radioRow}>
+                                            return wrapRowWithFeedback(
+                                                <View style={styles.radioRow}>
                                                     <Text style={styles.radioLabel}>
                                                         {row.columns[0]?.components[0]?.text}
                                                         {required && <Text style={{ color: '#F44336' }}> *</Text>}
@@ -3474,8 +3727,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             const timerValue = timerValues[row.webId] || '00:00:00.0000000';
                                             const isRunning = timerRunning[row.webId] || false;
 
-                                            return (
-                                                <View key={row.webId} style={styles.radioRow}>
+                                            return wrapRowWithFeedback(
+                                                <View style={styles.radioRow}>
                                                     <Text style={styles.radioLabel}>
                                                         {row.columns[0]?.components[0]?.text}
                                                         {required && <Text style={{ color: '#F44336' }}> *</Text>}
