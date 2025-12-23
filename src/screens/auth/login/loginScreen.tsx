@@ -140,6 +140,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       console.log('❌ Login failed:', error);
       console.log('====================================');
       const apiMessage = parseApiError(error);
+      console.log('----api message', apiMessage);
+
       setErrorMessage(apiMessage);
       setErrorModalVisible(true);
       console.log("Final error message shown:", apiMessage);
@@ -202,7 +204,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       <ErrorModal
         visible={errorModalVisible}
         onClose={() => setErrorModalVisible(false)}
-        message={errorMessage || 'Your email/password is incorrect'}
+        message={errorMessage || 'Your email/password is incorrect abc'}
+        tryAgain={true}
       />
       <KeyboardAvoidingView
         style={styles.container}

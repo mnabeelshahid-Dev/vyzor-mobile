@@ -3,8 +3,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Calendar } from 'react-native-calendars';
 import { useRoute } from '@react-navigation/native';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { fetchDevices, fetchSections, fetchNotes, fetchUserSites, fetchTasks } from '../../../api/tasks';
+import { syncDocument } from '../../../api/statistics';
 import {
   View,
   Text,
@@ -96,6 +97,8 @@ export default function TaskScreen({ navigation }) {
   const [calendarDate, setCalendarDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [searchUser, setSearchUser] = useState('');
   const [sectionData, setSectionData] = useState<any>([]);
+  const [warningModal, setWarningModal] = useState(false);
+  const [taskInProgressBy, setTaskInProgressBy] = useState('');
 
 
   const route: any = useRoute();
@@ -152,6 +155,43 @@ export default function TaskScreen({ navigation }) {
     queryFn: () => fetchUserSites(branchId, searchUser),
     enabled: !!branchId,
     refetchInterval: 120000,
+  });
+
+  const createMinimalSyncBody = (item: any) => {
+    return {
+      formDefinitionId: item.formDefinitionId || 0,
+      status: 'IN_PROGRESS',
+      userAccountId: user?.id || 0,
+      clientId: item.clientId || 0,
+      siteId: item.siteId || branchId || 0,
+      flow: 0,
+      deleted: false,
+      // completedDate: new Date().toISOString(),
+      sectionModels: [] // Empty array since we're just updating status
+    };
+  };
+
+  const syncDocumentMutation = useMutation({
+    mutationFn: ({ documentId, body }: { documentId: string | number; body: any }) =>
+      syncDocument(documentId, body),
+    onSuccess: (data, variables) => {
+      console.log('Document status synced successfully:', data);
+      // Only refetch if we actually have successful data
+      if (data && data !== undefined) {
+        refetch();
+      }
+    },
+    onError: (error: any, variables) => {
+      console.error('Failed to sync document status:', error);
+      console.error('Error details:', {
+        status: error?.status,
+        message: error?.message,
+        data: error?.data,
+        variables
+      });
+      // Show error to user
+      console.log(`Failed to start task: ${error?.message || 'Unknown error'}`);
+    }
   });
 
 
@@ -350,6 +390,7 @@ export default function TaskScreen({ navigation }) {
     setShowDropdown(type === 'dropdown');
     setShowSortModal(type === 'sort');
     setUserModal(type === 'user');
+    setWarningModal(type === 'warning');
   };
 
 
@@ -367,6 +408,7 @@ export default function TaskScreen({ navigation }) {
     setDevicesModal(false);
     setShowDropdown(false);
     setShowSortModal(false);
+    setWarningModal(false);
   };
 
   interface FormDefinitionSectionModel {
@@ -547,19 +589,70 @@ export default function TaskScreen({ navigation }) {
           const start = new Date(item.startDate);
           const end = new Date(item.endDate);
           const isEnabled = now >= start && now <= end;
+          const isUpdating = syncDocumentMutation.isPending && syncDocumentMutation.variables?.documentId === item.documentId;
+
+          const handleGetStarted = async () => {
+            try {
+              // Check if task status is 1 (already started by another user)
+              if (item.status === 1) {
+                // If the task is started by the current user, allow navigation
+                const currentUserId = user?.id;
+                const taskUserId = item.userId || item.userAccountId;
+
+                if (currentUserId && taskUserId && currentUserId === taskUserId) {
+                  // Same user - allow navigation without warning
+                  console.log('Task already started by current user, continuing...');
+                } else {
+                  // Different user - show warning modal and prevent navigation
+                  setWarningModal(true);
+                  setTaskInProgressBy(item.userName || 'Another user');
+                  return;
+                }
+              }
+
+              // Create minimal sync body with status IN_PROGRESS
+              const syncBody = createMinimalSyncBody(item);
+
+              // Sync document status using existing syncDocument API
+              await syncDocumentMutation.mutateAsync({
+                documentId: item.documentId,
+                body: syncBody
+              });
+
+              // Navigate to Section screen after successful status update
+              navigation.navigate('Section', {
+                formSectionIds: getSectionModelsForSectionIds(item?.formDefinitionId),
+                formConfigurationSectionIds: getSectionWebIdsForSectionIds(item?.formDefinitionId),
+                data: { ...item, status: 'IN_PROGRESS' }
+              });
+
+            } catch (error) {
+              console.error('Failed to start task:', error);
+              // Optional: Show error message to user
+              // showErrorToast('Error', 'Failed to start task. Please try again.');
+            }
+          };
+
           return (
             <TouchableOpacity
-              disabled={!isEnabled}
-              onPress={() => navigation.navigate('Section', { formSectionIds: getSectionModelsForSectionIds(item?.formDefinitionId), formConfigurationSectionIds: getSectionWebIdsForSectionIds(item?.formDefinitionId), data: item })}
+              disabled={!isEnabled || isUpdating}
+              onPress={handleGetStarted}
               style={{
-                backgroundColor: isEnabled ? '#1292E6' : '#bac0cdff',
+                backgroundColor: (!isEnabled || isUpdating) ? '#bac0cdff' : '#1292E6',
                 borderRadius: 8,
                 alignItems: 'center',
                 paddingVertical: 8,
-                marginTop: 4
+                marginTop: 4,
+                opacity: isUpdating ? 0.7 : 1,
               }}
             >
-              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Get Started</Text>
+              {isUpdating ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>
+                  Get Started
+                </Text>
+              )}
             </TouchableOpacity>
           );
         })()}
@@ -1243,6 +1336,55 @@ export default function TaskScreen({ navigation }) {
     ) : null
   );
 
+  const WarningModal = (
+    <Modal
+      isVisible={warningModal}
+      hasBackdrop={true}
+      backdropColor="#000"
+      backdropOpacity={0.5}
+      backdropTransitionInTiming={300}
+      backdropTransitionOutTiming={300}
+      animationIn="fadeIn"
+      animationOut="fadeOut"
+      animationInTiming={300}
+      animationOutTiming={300}
+      avoidKeyboard={true}
+      coverScreen={true}
+      style={{ margin: 0 }}
+      useNativeDriver={true}
+      hideModalContentWhileAnimating={false}
+      propagateSwipe={false}
+      onBackdropPress={closeModal}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalBox, { padding: 0, minHeight: 220 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6', borderTopLeftRadius: 18, borderTopRightRadius: 18 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#E4190A', marginRight: 8 }} />
+              <Text style={{ fontWeight: '700', fontSize: 20, color: '#E4190A' }}>Warning</Text>
+            </View>
+            <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, color: '#0088E7' }}>✕</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          {/* Warning message */}
+          <View style={{ padding: 18 }}>
+            <Text style={{
+              fontSize: 14,
+              color: '#666',
+              textAlign: 'center',
+              lineHeight: 20
+            }}>
+              This task is already started by {taskInProgressBy}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <>
       <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
@@ -1343,6 +1485,7 @@ export default function TaskScreen({ navigation }) {
           {DevicesModal}
           {NotesModal}
           {DropDownModal}
+          {WarningModal}
         </View>
         {showSortModal && (
           <SortModal />
