@@ -340,11 +340,14 @@ export const styles = StyleSheet.create({
         borderRadius: getResponsive(10),
         marginTop: getResponsive(10),
         padding: getResponsive(5),
-        minHeight: getResponsive(100),
-        minWidth: getResponsive(180),
+        minHeight: getResponsive(150),
+        minWidth: getResponsive(200),
         justifyContent: 'center',
         alignItems: 'center',
         position: 'relative',
+        backgroundColor: '#31AAFF33', // Add background color
+        borderWidth: 1, // Add border
+        borderColor: '#8CC7FF', // Add border color
     },
     signatureImg: {
         width: getResponsive(180),
@@ -370,19 +373,19 @@ export const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: -2 },
         elevation: 6,
     },
-    submitBtn: {
-        backgroundColor: '#28B446',
-        borderRadius: getResponsive(10),
-        paddingVertical: getResponsive(7),
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    submitBtnText: {
-        color: '#fff',
-        fontSize: getResponsive(16),
-        fontWeight: '600',
-        letterSpacing: 0.8,
-    },
+    // submitBtn: {
+    //     backgroundColor: '#28B446',
+    //     borderRadius: getResponsive(10),
+    //     paddingVertical: getResponsive(7),
+    //     alignItems: 'center',
+    //     justifyContent: 'center',
+    // },
+    // submitBtnText: {
+    //     color: '#fff',
+    //     fontSize: getResponsive(16),
+    //     fontWeight: '600',
+    //     letterSpacing: 0.8,
+    // },
     lookupModalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -817,5 +820,50 @@ export const styles = StyleSheet.create({
         borderRadius: getResponsive(6),
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    feedbackRowWrapper: {
+        marginBottom: getResponsive(14),
+    },
+    feedbackRowInner: {
+        position: 'relative',
+    },
+    feedbackRowInnerWithToggle: {
+        paddingRight: getResponsive(40), // Space for toggle button
+    },
+    feedbackToggle: {
+        position: 'absolute',
+        top: getResponsive(10),
+        right: getResponsive(10),
+        width: getResponsive(28),
+        height: getResponsive(28),
+        borderRadius: getResponsive(14),
+        backgroundColor: '#E5E7EB',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
+    },
+    feedbackToggleActive: {
+        backgroundColor: '#0088E7',
+    },
+    feedbackToggleText: {
+        fontSize: getResponsive(14),
+        color: '#6B7280',
+        fontWeight: '600',
+    },
+    feedbackToggleTextActive: {
+        color: '#fff',
+    },
+    feedbackInputWrapper: {
+        paddingHorizontal: getResponsive(10),
+        paddingTop: getResponsive(8),
+    },
+    readonlyField: {
+        backgroundColor: '#F8F9FA', // Light gray background for readonly
+        borderColor: '#E9ECEF', // Lighter border color
+    },
+
+    readonlyText: {
+        color: '#6C757D', // Gray text color for readonly
+        backgroundColor: 'transparent',
     },
 });

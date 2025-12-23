@@ -40,6 +40,8 @@ import { showErrorToast, showSuccessToast } from '../../components';
 import { apiService } from '../../services/api';
 import { ensureCameraAndMediaPermissions } from '../../utils/takeImagePermission';
 import { generateUUID } from '../../utils/generateUUID';
+import SignatureField from '../../components/SignatureField/SignatureField';
+import { useSignatureStore } from '../../store/signatureStore';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -306,9 +308,11 @@ const Timer = ({
     </View>
 );
 
+
 export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Get formDefinitionId, status, and sourceScreen from route params
     const route = useRoute();
+    const { getSignature, setSignature, clearSignature, hasSignature } = useSignatureStore();
     const queryClient = useQueryClient();
     const {
         formSectionIds = {},
@@ -409,64 +413,72 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [touchedFields, setTouchedFields] = useState<{ [key: string]: boolean }>({});
     const [paragraphAcknowledged, setParagraphAcknowledged] = useState<{ [key: string]: boolean }>({});
     const [showFeedbackInputs, setShowFeedbackInputs] = useState<{ [feedbackControlId: string]: boolean }>({});
+    const [signatureLoaded, setSignatureLoaded] = useState<{ [key: string]: boolean }>({});
+    // Add this new state for tracking loaded signatures per section
+    // const [sectionSignatures, setSectionSignatures] = useState<{ [sectionKey: string]: { [rowId: string]: string } }>({});
 
     const validateField = (value: any, component: string, attrs: any[]): string => {
         const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
         const mask = attrs.find((attr: any) => attr.key === 'mask')?.value;
         const maskMessage = attrs.find((attr: any) => attr.key === 'maskMessage')?.value;
+        const readonly = attrs.find((attr: any) => attr.key === 'readonly')?.value === 'true';
 
         // Check if field is required
+        if (readonly) {
+            return '';
+        }
+
         if (required) {
             if (component === 'CHECK_BOX' && (value === false || value === undefined || value === null)) {
-                return maskMessage || 'This field must be checked';
+                return maskMessage || 'This field is required';
             }
             if (component === 'FILE' && (!value || value === '')) {
-                return maskMessage || 'Please view the required file';
+                return maskMessage || 'This field is required';
             }
             if (component === 'PARAGRAPH' && required && (!value || value === '')) {
-                return maskMessage || 'Please acknowledge this information';
+                return maskMessage || 'This field is required';
             }
             if (component === 'SWITCH_BUTTON' && (value === false || value === undefined || value === null)) {
-                return maskMessage || 'This switch must be turned on';
+                return maskMessage || 'This field is required';
             }
             if (component === 'RADIO_BUTTON' && (!value || value === '')) {
-                return maskMessage || 'Please select an option';
+                return maskMessage || 'This field is required';
             }
             if (component === 'CAMERA' && (!value || value.length === 0)) {
-                return maskMessage || 'Please take at least one photo';
+                return maskMessage || 'This field is required';
             }
             if (component === 'ATTACHEMENTS' && (!value || value.length === 0)) {
-                return maskMessage || 'Please attach at least one file';
+                return maskMessage || 'This field is required';
             }
             if ((component === 'TEXT_FIELD' || component === 'TEXT_AREA') && (!value || value.trim() === '')) {
                 return maskMessage || 'This field is required';
             }
             if (component === 'DATE' && (!value || value === '')) {
-                return maskMessage || 'Please select a date';
+                return maskMessage || 'This field is required';
             }
             if (component === 'RATING' && (!value || value === 0)) {
-                return maskMessage || 'Please provide a rating';
+                return maskMessage || 'This field is required';
             }
             if (component === 'LOOKUP' && (!value || value === '')) {
-                return maskMessage || 'Please select an option';
+                return maskMessage || 'This field is required';
             }
             if (component === 'SIGNATURE' && (!value || value === '')) {
-                return maskMessage || 'Please provide a signature';
+                return maskMessage || 'This field is required';
             }
             if (component === 'QR_CODE' && (!value || value === '')) {
-                return maskMessage || 'Please scan a QR code';
+                return maskMessage || 'This field is required';
             }
             if (component === 'QR_VALIDATOR' && (!value || value === '')) {
-                return maskMessage || 'Please validate QR code';
+                return maskMessage || 'This field is required';
             }
             if (component === 'BAR_CODE' && (!value || value === '')) {
-                return maskMessage || 'Please scan a barcode';
+                return maskMessage || 'This field is required';
             }
             if (component === 'BAR_VALIDATOR' && (!value || value === '')) {
-                return maskMessage || 'Please validate barcode';
+                return maskMessage || 'This field is required';
             }
             if (component === 'TIMER' && (!value || value === '00:00:00.0000000')) {
-                return maskMessage || 'Please start the timer';
+                return maskMessage || 'This field is required';
             }
         }
 
@@ -506,6 +518,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const getComponentAttributes = (comp: any) => {
         return comp?.attrs || [];
     };
+
 
     // Helper function to detect multi-column rows with feedback
     const isMultiColumnWithFeedback = (row: any): { isMultiColumn: boolean; mainControlComp?: any; feedbackComp?: any } => {
@@ -598,7 +611,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         value = lookupValues[row.webId] || '';
                         break;
                     case 'SIGNATURE':
-                        value = signatureValues[row.webId]?.encoded || '';
+                        // Always check store first, then fall back to legacy state
+                        const storeSignature = getSignature(row.webId)?.encoded;
+                        const legacySignature = signatureValues[row.webId]?.encoded;
+                        value = storeSignature || legacySignature || '';
                         break;
                     case 'QR_CODE':
                         value = qrCodeValues[row.webId] || '';
@@ -678,7 +694,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
     const getFieldAttributes = (comp: any) => {
         const attrs = comp.attrs || [];
-        const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+        const required: boolean = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
         const mask = attrs.find((attr: any) => attr.key === 'mask')?.value;
         const maskMessage = attrs.find((attr: any) => attr.key === 'maskMessage')?.value;
 
@@ -737,30 +753,17 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     //     );
     // };
 
-    function safeReadSignature(rowId: string) {
-        return new Promise<void>((resolve) => {
-            const ref = signatureRefs.current[rowId];
-            if (!ref || typeof ref.readSignature !== 'function') return resolve();
-
-            signatureWaiters.current[rowId] = () => resolve();
-
-            let tries = 0;
-            const tryRead = () => {
-                try {
-                    ref.readSignature();
-                } catch (e: any) {
-                    if (tries++ < 2) {
-                        setTimeout(tryRead, 120);
-                    } else {
-                        // Don’t spam console: just resolve and let user re-try if needed
-                        resolve();
-                    }
+    React.useEffect(() => {
+        // Only cleanup on component unmount, NOT on section changes
+        return () => {
+            // Only clear waiters, don't clear signature values
+            Object.keys(signatureWaiters.current).forEach(rowId => {
+                if (signatureWaiters.current[rowId]) {
+                    delete signatureWaiters.current[rowId];
                 }
-            };
-
-            setTimeout(tryRead, 60);
-        });
-    }
+            });
+        };
+    }, []);
 
 
 
@@ -896,14 +899,19 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                             [rowId]: (prev[rowId] || []).map(item => item.id === localId ? ({ uri: uploaded.uri, id: uploaded.id }) : item)
                         }));
 
-                        // Add validation trigger after successful upload
+                        // Fix: Trigger validation after successful upload with updated state
                         setTimeout(() => {
+                            const updatedImages = (rowImages[rowId] || []).map(item =>
+                                item.id === localId ? ({ uri: uploaded.uri, id: uploaded.id }) : item
+                            );
+                            // Add the new uploaded image to the array
+                            const finalImages = [...updatedImages, { uri: uploaded.uri, id: uploaded.id }];
+
                             const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
                             const currentRow = rows.find(row => row.webId === rowId);
                             const cameraComp = currentRow?.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'CAMERA');
                             if (cameraComp) {
-                                const updatedImages = (rowImages[rowId] || []).map(item => item.id === localId ? ({ uri: uploaded.uri, id: uploaded.id }) : item);
-                                handleCameraChange(rowId, updatedImages, cameraComp);
+                                handleCameraChange(rowId, finalImages, cameraComp);
                             }
                         }, 100);
                     } else {
@@ -1041,6 +1049,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 const currentRow = rows.find(row => row.webId === rowId);
                 const cameraComp = currentRow?.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'CAMERA');
                 if (cameraComp) {
+                    // Use the updated images array for validation
                     handleCameraChange(rowId, updated[rowId] || [], cameraComp);
                 }
             }, 0);
@@ -1350,13 +1359,6 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     };
 
     const handlePrev = () => {
-        // Optionally validate current section before going back
-        // You can remove this if you want to allow going back without validation
-        if (!validateAllFields()) {
-            showErrorToast('Validation Error', 'Please fill in all required fields');
-            return;
-        }
-
         if (currentSectionIdx > 0) {
             setCurrentSectionIdx(currentSectionIdx - 1);
         }
@@ -1585,20 +1587,22 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             if (selectedDate) {
                 const formattedDate = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
 
-                // Get the date component for validation
-                const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
-                const currentRow = rows.find(row => row.webId === activeRowId);
-                const dateComp = currentRow?.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'DATE');
-
-                // Update value and validate
+                // Update value first
                 setDateValues(prev => ({ ...prev, [activeRowId]: formattedDate }));
 
-                if (dateComp) {
-                    const attrs = getComponentAttributes(dateComp);
-                    const error = validateField(formattedDate, 'DATE', attrs);
-                    setValidationErrors(prev => ({ ...prev, [activeRowId]: error }));
-                    setTouchedFields(prev => ({ ...prev, [activeRowId]: true }));
-                }
+                // Then validate with the new value
+                setTimeout(() => {
+                    const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
+                    const currentRow = rows.find(row => row.webId === activeRowId);
+                    const dateComp = currentRow?.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'DATE');
+
+                    if (dateComp) {
+                        const attrs = getComponentAttributes(dateComp);
+                        const error = validateField(formattedDate, 'DATE', attrs);
+                        setValidationErrors(prev => ({ ...prev, [activeRowId]: error }));
+                        setTouchedFields(prev => ({ ...prev, [activeRowId]: true }));
+                    }
+                }, 0);
             }
         }
     };
@@ -1611,11 +1615,18 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         setTouchedFields(prev => ({ ...prev, [rowId]: true }));
     };
 
-    const handleSignatureChange = (rowId: string, signature: string, comp: any) => {
-        // Called when signature is completed
+    const handleSignatureChange = (rowId: any, signature: string, comp: any) => {
+        // Called when signature is completed or cleared
         const attrs = getComponentAttributes(comp);
         const error = validateField(signature, 'SIGNATURE', attrs);
-        setValidationErrors(prev => ({ ...prev, [rowId]: error }));
+
+        // If signature exists and no error, clear both error and touched state for visual feedback
+        if (signature && !error) {
+            setValidationErrors(prev => ({ ...prev, [rowId]: '' }));
+        } else {
+            setValidationErrors(prev => ({ ...prev, [rowId]: error }));
+        }
+
         setTouchedFields(prev => ({ ...prev, [rowId]: true }));
     };
 
@@ -1669,7 +1680,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             showErrorToast('Validation Error', 'Please fix the errors in the form before submitting');
             return;
         }
-        await ensureAllSignaturesSaved();
+        // await ensureAllSignaturesSaved();
         // Build all sectionModels (id1, id2, ...)
         const sectionModels = await Promise.all(
             sectionIds.map(async (sectionId, idx) => {
@@ -1886,7 +1897,11 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         // SIGNATURE
                         const signatureComp = comps.find((c: any) => c.component === 'SIGNATURE');
                         const signatureStateKey = getStateKey(signatureComp);
-                        const signatureVal = signatureValues[signatureStateKey]?.encoded || '';
+
+                        // Get signature from store instead of local state
+                        const signatureDataArray = getSignature(String(signatureStateKey));
+                        const signatureVal = signatureDataArray?.encoded || '';
+
                         const signatureData = signatureComp
                             ? [{
                                 value: signatureVal,
@@ -2000,7 +2015,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
         const body = {
             formDefinitionId,
-            status: 'COMPLETED',
+            // status: 'COMPLETED',
             userAccountId: assignUserId,
             clientId,
             siteId,
@@ -2028,6 +2043,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             },
         });
     };
+
+    React.useEffect(() => {
+        if (documentId) {
+            // Optionally clear signatures for this document if starting fresh
+            // clearSignaturesForDocument(formData.documentId);
+        }
+    }, [documentId]);
 
 
     function formatDateTime(dateString: any) {
@@ -2217,6 +2239,77 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         checkInitialPermissions();
     }, []);
 
+    // Add this useEffect after your other useEffects
+    React.useEffect(() => {
+        // Monitor signature values and clear validation errors when signatures are added
+        Object.keys(signatureValues).forEach(rowId => {
+            const signature = signatureValues[rowId];
+            if (signature?.encoded && validationErrors[rowId]) {
+                // Find the signature component for this row
+                const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
+                const row = rows.find(r => r.webId === rowId);
+                const signatureComp = row?.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'SIGNATURE');
+
+                if (signatureComp) {
+                    const attrs = getComponentAttributes(signatureComp);
+                    const error = validateField(signature.encoded, 'SIGNATURE', attrs);
+                    if (!error) {
+                        setValidationErrors(prev => ({ ...prev, [rowId]: '' }));
+                    }
+                }
+            }
+        });
+    }, [signatureValues, validationErrors, filteredList]);
+
+    React.useEffect(() => {
+        console.log('=== SIGNATURE DEBUG ===');
+        console.log('Current section:', currentSectionIdx);
+        console.log('Current signature values:', signatureValues);
+        console.log('Signature refs:', Object.keys(signatureRefs.current));
+        console.log('=======================');
+    }, [currentSectionIdx, signatureValues]);
+
+
+    React.useEffect(() => {
+        console.log('🔄 [SectionsScreen] Section changed to:', currentSectionIdx);
+
+        // Simple signature state sync - let SignatureField components handle their own restoration
+        const currentSection = filteredList[0];
+        if (currentSection?.formSectionRowModels) {
+            currentSection.formSectionRowModels.forEach((row: any) => {
+                const hasSignatureComp = row.columns?.some((col: any) =>
+                    col.components?.some((comp: any) => comp.component === 'SIGNATURE')
+                );
+
+                if (hasSignatureComp) {
+                    const rowId = row.webId;
+                    const storeSignature = getSignature(String(rowId));
+
+                    if (storeSignature?.encoded) {
+                        console.log(`🔄 [SectionsScreen] Found signature for ${rowId}`);
+
+                        // Update local state to match store
+                        setSignatureValues(prev => ({
+                            ...prev,
+                            [rowId]: {
+                                encoded: storeSignature.encoded,
+                                pathName: storeSignature.pathName || ''
+                            }
+                        }));
+
+                        // Clear any validation errors
+                        setValidationErrors(prev => ({ ...prev, [rowId]: '' }));
+                    }
+                }
+            });
+        }
+    }, [currentSectionIdx, getSignature]);
+
+    React.useEffect(() => console.log("PARENT mounted/section:", currentSectionId), [currentSectionId]);
+
+
+
+
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#0088E7' }}>
@@ -2315,6 +2408,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         return row.columns.some((col: any) => col.components != null);
                                     })
                                     .map((row, rIdx) => {
+
                                         const isLastRow = rIdx === currentSection.formSectionRowModels.length - 1;
                                         const hasCamera = row.columns?.some(col =>
                                             col.components?.some(comp => comp.component === 'CAMERA')
@@ -2387,43 +2481,52 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
                                         const renderFeedbackInput = () => {
                                             if (!feedbackControlId || !feedbackComp || !showFeedback) return null;
+
                                             const isTextArea = feedbackComp.component === 'TEXT_AREA';
+                                            const feedbackAttrs = getComponentAttributes(feedbackComp);
+                                            const readonly = feedbackAttrs.find((attr: any) => attr.key === 'readonly')?.value === 'true'; // Add this line
+
                                             const value = isTextArea
                                                 ? (textAreaInputs[feedbackControlId] || '')
                                                 : (textInputs[feedbackControlId] || '');
                                             const placeholder = feedbackPlaceholder;
+
                                             return (
                                                 <View style={styles.feedbackInputWrapper}>
                                                     <View style={[
                                                         styles.textFieldBox,
                                                         isTextArea && { minHeight: getResponsive(80) },
                                                         feedbackHasError && { borderColor: '#F44336', borderWidth: 2 },
+                                                        readonly && styles.readonlyField // Add readonly styling
                                                     ]}>
                                                         <TextInput
                                                             style={[
                                                                 styles.textFieldInput,
                                                                 isTextArea && { minHeight: getResponsive(80) },
+                                                                readonly && styles.readonlyText // Add readonly text styling
                                                             ]}
                                                             multiline={isTextArea}
                                                             numberOfLines={isTextArea ? 4 : 1}
                                                             value={value}
-                                                            onChangeText={(v) => {
+                                                            onChangeText={readonly ? undefined : (v) => { // Disable onChange if readonly
                                                                 if (isTextArea) {
                                                                     handleTextAreaChange(feedbackControlId, v, feedbackComp);
                                                                 } else {
                                                                     handleTextInputChange(feedbackControlId, v, feedbackComp);
                                                                 }
                                                             }}
-                                                            onBlur={() => {
+                                                            onBlur={readonly ? undefined : () => { // Disable onBlur if readonly
                                                                 if (isTextArea) {
                                                                     handleTextAreaBlur(feedbackControlId, feedbackComp);
                                                                 } else {
                                                                     handleTextInputBlur(feedbackControlId, feedbackComp);
                                                                 }
                                                             }}
-                                                            placeholder={placeholder}
+                                                            placeholder={readonly ? '' : placeholder} // Remove placeholder if readonly
                                                             placeholderTextColor="#02163980"
                                                             textAlignVertical={isTextArea ? 'top' : 'center'}
+                                                            editable={!readonly} // Set editable based on readonly
+                                                            selectTextOnFocus={!readonly} // Disable text selection if readonly
                                                         />
                                                     </View>
                                                     {feedbackHasError && (
@@ -2505,6 +2608,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 const placeholder = textComp?.placeholder || 'Type your answer...';
                                                 const attrs = getComponentAttributes(textComp);
                                                 const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+                                                const readonly = attrs.find((attr: any) => attr.key === 'readonly')?.value === 'true'; // Add this line
                                                 const textStateKey = (isMultiColumn && textComp?.webId)
                                                     ? textComp.webId.toString()
                                                     : row.webId;
@@ -2522,16 +2626,22 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         <View style={{ width: '50%' }}>
                                                             <View style={[
                                                                 styles.textFieldBox,
-                                                                hasError && { borderColor: '#F44336', borderWidth: 2 }
+                                                                hasError && { borderColor: '#F44336', borderWidth: 2 },
+                                                                readonly && styles.readonlyField // Add readonly styling
                                                             ]}>
                                                                 <TextInput
-                                                                    style={styles.textFieldInput}
+                                                                    style={[
+                                                                        styles.textFieldInput,
+                                                                        readonly && styles.readonlyText // Add readonly text styling
+                                                                    ]}
                                                                     multiline
                                                                     value={fieldValue}
-                                                                    onChangeText={(v) => handleTextInputChange(textStateKey, v, textComp)}
-                                                                    onBlur={() => handleTextInputBlur(textStateKey, textComp)}
-                                                                    placeholder={placeholder}
+                                                                    onChangeText={readonly ? undefined : (v) => handleTextInputChange(textStateKey, v, textComp)} // Disable onChange if readonly
+                                                                    onBlur={readonly ? undefined : () => handleTextInputBlur(textStateKey, textComp)} // Disable onBlur if readonly
+                                                                    placeholder={readonly ? '' : placeholder} // Remove placeholder if readonly
                                                                     placeholderTextColor="#02163980"
+                                                                    editable={!readonly} // Set editable based on readonly
+                                                                    selectTextOnFocus={!readonly} // Disable text selection if readonly
                                                                 />
                                                             </View>
                                                             {hasError && (
@@ -2589,7 +2699,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </Text>
                                                         </TouchableOpacity>
                                                         {hasError && (
-                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
+                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: 5, right: 10 }]}>
                                                                 {validationErrors[checkboxStateKey]}
                                                             </Text>
                                                         )}
@@ -2639,12 +2749,12 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             ]}>
                                                                 {switchValue ? 'On' : 'Off'}
                                                             </Text>
+                                                            {hasError && (
+                                                                <Text style={[styles.errorText, { bottom: -22, position: 'absolute', right: 10 }]}>
+                                                                    {validationErrors[switchStateKey]}
+                                                                </Text>
+                                                            )}
                                                         </View>
-                                                        {hasError && (
-                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
-                                                                {validationErrors[switchStateKey]}
-                                                            </Text>
-                                                        )}
                                                     </View>
                                                 );
                                             }
@@ -2664,6 +2774,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 const placeholder = textAreaComp?.placeholder || 'Type your comments...';
                                                 const attrs = getComponentAttributes(textAreaComp);
                                                 const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+                                                const readonly = attrs.find((attr: any) => attr.key === 'readonly')?.value === 'true'; // Add this line
                                                 const textAreaStateKey = (isMultiColumn && textAreaComp?.webId)
                                                     ? textAreaComp.webId.toString()
                                                     : row.webId;
@@ -2682,18 +2793,25 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             <View style={[
                                                                 styles.textFieldBox,
                                                                 { minHeight: getResponsive(80) },
-                                                                hasError && { borderColor: '#F44336', borderWidth: 2 }
+                                                                hasError && { borderColor: '#F44336', borderWidth: 2 },
+                                                                readonly && styles.readonlyField // Add readonly styling
                                                             ]}>
                                                                 <TextInput
-                                                                    style={[styles.textFieldInput, { minHeight: getResponsive(80) }]}
+                                                                    style={[
+                                                                        styles.textFieldInput,
+                                                                        { minHeight: getResponsive(80) },
+                                                                        readonly && styles.readonlyText // Add readonly text styling
+                                                                    ]}
                                                                     multiline
                                                                     numberOfLines={4}
                                                                     value={fieldValue}
-                                                                    onChangeText={(v) => handleTextAreaChange(textAreaStateKey, v, textAreaComp)}
-                                                                    onBlur={() => handleTextAreaBlur(textAreaStateKey, textAreaComp)}
-                                                                    placeholder={placeholder}
+                                                                    onChangeText={readonly ? undefined : (v) => handleTextAreaChange(textAreaStateKey, v, textAreaComp)} // Disable onChange if readonly
+                                                                    onBlur={readonly ? undefined : () => handleTextAreaBlur(textAreaStateKey, textAreaComp)} // Disable onBlur if readonly
+                                                                    placeholder={readonly ? '' : placeholder} // Remove placeholder if readonly
                                                                     placeholderTextColor="#02163980"
                                                                     textAlignVertical="top"
+                                                                    editable={!readonly} // Set editable based on readonly
+                                                                    selectTextOnFocus={!readonly} // Disable text selection if readonly
                                                                 />
                                                             </View>
                                                             {hasError && (
@@ -2772,7 +2890,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </View>
                                                         </TouchableOpacity>
                                                         {hasDateError && (
-                                                            <Text style={styles.errorText}>
+                                                            <Text style={[styles.errorText, { right: 10, bottom: -2, position: 'absolute' }]}>
                                                                 {validationErrors[row.webId]}
                                                             </Text>
                                                         )}
@@ -2827,7 +2945,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </TouchableOpacity>
                                                         ))}
                                                         {hasError && (
-                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
+                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, right: 10 }]}>
                                                                 {validationErrors[row.webId]}
                                                             </Text>
                                                         )}
@@ -3157,7 +3275,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         </View>
                                                     </Modal>
                                                     {hasError && (
-                                                        <View style={{ position: 'absolute', bottom: -25, left: getResponsive(170) }}>
+                                                        <View style={{ position: 'absolute', bottom: 2, right: getResponsive(10) }}>
                                                             <Text style={styles.errorText}>
                                                                 {validationErrors[row.webId]}
                                                             </Text>
@@ -3172,12 +3290,17 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             const signatureComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'SIGNATURE');
                                             const attrs = getComponentAttributes(signatureComp);
                                             const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
-                                            const hasError = touchedFields[row.webId] && validationErrors[row.webId];
+                                            const hasError = touchedFields[row.webId] && validationErrors[row.webId] && validationErrors[row.webId] !== '';
+
+                                            // Get signature from store instead of local state
+                                            const existingSignatureData = getSignature(String(row.webId));
+                                            const existingSignature = existingSignatureData?.encoded || '';
 
                                             return wrapRowWithFeedback(
                                                 <View style={styles.signatureRow}>
                                                     <View style={{ width: '50%', paddingLeft: getResponsive(10), justifyContent: 'center' }}>
-                                                        <Text style={styles.radioLabel}>{row.columns[0]?.components[0]?.text || 'Signature'}
+                                                        <Text style={styles.radioLabel}>
+                                                            {row.columns[0]?.components[0]?.text || 'Signature'}
                                                             {required && <Text style={{ color: '#F44336' }}> *</Text>}
                                                         </Text>
                                                     </View>
@@ -3188,65 +3311,92 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             { width: '100%', overflow: 'hidden', height: getResponsive(150) },
                                                             hasError && { borderColor: '#F44336', borderWidth: 2 }
                                                         ]}>
-                                                            {/* Inline signature canvas using react-native-signature-canvas */}
-                                                            <Signature
-                                                                ref={(r) => { if (r) signatureRefs.current[row.webId] = r; }}
-                                                                onOK={(base64: string) => {
-                                                                    const encoded = (base64 || '').replace(/^data:image\/\w+;base64,/, '');
+                                                            <SignatureField
+                                                                key={`signature-${row.webId}-${currentSectionIdx}`} // Simplified key
+                                                                rowId={row.webId}
+                                                                sectionId={currentSectionId}
+                                                                documentId={documentId}
+                                                                onSignature={(rowId, encoded) => {
+                                                                    console.log('📝 [SectionsScreen] Signature captured for:', rowId, 'Length:', encoded.length);
+
+                                                                    // Update signature values for validation
                                                                     setSignatureValues(prev => ({
                                                                         ...prev,
-                                                                        [row.webId]: { encoded, pathName: undefined }
+                                                                        [rowId]: { encoded, pathName: '' }
                                                                     }));
-                                                                    handleSignatureChange(row.webId, encoded, signatureComp);
-                                                                    if (signatureWaiters.current[row.webId]) {
-                                                                        signatureWaiters.current[row.webId]!({ pathName: '', encoded });
-                                                                        delete signatureWaiters.current[row.webId];
-                                                                    }
-                                                                }}
-                                                                onEnd={() => {
-                                                                    safeReadSignature(row.webId);
-                                                                }}
-                                                                webStyle={`
-                .m-signature-pad--footer { display:none; }
-                body,html { background: transparent; }
-                .m-signature-pad { 
-                    box-shadow:none; 
-                    border:0; 
-                    background: transparent; 
-                    width: 100%;
-                    height: 100%;
-                }
-                canvas { 
-                    background-color: transparent;
-                    width: 100% !important;
-                    height: 100% !important;
-                }
-            `}
-                                                                backgroundColor="#31AAFF33"
-                                                                penColor="#000"
-                                                                descriptionText=""
-                                                                clearText=""
-                                                                confirmText=""
-                                                                autoClear={false}
-                                                            />
 
-                                                            {/* Clear (↻) icon top-right, like the screenshot */}
-                                                            <TouchableOpacity
-                                                                onPress={() => {
-                                                                    signatureRefs.current[row.webId]?.clearSignature();
+                                                                    // Clear validation error immediately
+                                                                    if (encoded) {
+                                                                        setValidationErrors(prev => ({ ...prev, [rowId]: '' }));
+                                                                        setTouchedFields(prev => ({ ...prev, [rowId]: true }));
+                                                                    }
+
+                                                                    handleSignatureChange(rowId, encoded, signatureComp);
+                                                                }}
+                                                                onClear={(rowId) => {
+                                                                    console.log('🗑️ [SectionsScreen] Signature cleared for:', rowId);
+
+                                                                    // Clear signature values
                                                                     setSignatureValues(prev => {
-                                                                        const { [row.webId]: _, ...rest } = prev;
+                                                                        const { [rowId]: _, ...rest } = prev;
                                                                         return rest;
                                                                     });
+
+                                                                    handleSignatureChange(rowId, '', signatureComp);
+                                                                }}
+                                                                setRef={(rowId, ref) => {
+                                                                    if (ref) {
+                                                                        signatureRefs.current[rowId] = ref;
+                                                                    } else {
+                                                                        delete signatureRefs.current[rowId];
+                                                                    }
+                                                                }}
+                                                                style={{ flex: 1 }}
+                                                            />
+
+                                                            {/* Clear button */}
+                                                            <TouchableOpacity
+                                                                onPress={() => {
+                                                                    try {
+                                                                        const ref = signatureRefs.current[row.webId];
+                                                                        if (ref && typeof ref.clearSignature === 'function') {
+                                                                            ref.clearSignature();
+                                                                        }
+                                                                        console.log('🗑️ Manually clearing signature for:', row.webId);
+                                                                    } catch (error) {
+                                                                        console.log('❌ Error clearing signature:', error);
+                                                                    }
                                                                 }}
                                                                 style={styles.signatureOverlay}
                                                                 hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                                                             >
                                                                 <RefreshSignatureIcon width={getResponsive(16)} height={getResponsive(16)} />
                                                             </TouchableOpacity>
+
+                                                            {/* Show signature indicator if exists */}
+                                                            {existingSignature && (
+                                                                <View style={{
+                                                                    position: 'absolute',
+                                                                    bottom: 8,
+                                                                    left: 8,
+                                                                    backgroundColor: 'rgba(0, 136, 231, 0.8)',
+                                                                    paddingHorizontal: 6,
+                                                                    paddingVertical: 2,
+                                                                    borderRadius: 4
+                                                                }}>
+                                                                    <Text style={{
+                                                                        color: '#fff',
+                                                                        fontSize: getResponsive(10),
+                                                                        fontWeight: 'bold'
+                                                                    }}>
+                                                                        ✓ Signed
+                                                                    </Text>
+                                                                </View>
+                                                            )}
                                                         </View>
-                                                        {hasError && (
-                                                            <Text style={[styles.errorText, { marginTop: getResponsive(4) }]}>
+
+                                                        {hasError && validationErrors[row.webId] && validationErrors[row.webId] !== '' && (
+                                                            <Text style={[styles.errorText, { marginTop: getResponsive(4), right: 20 }]}>
                                                                 {validationErrors[row.webId]}
                                                             </Text>
                                                         )}
@@ -3254,7 +3404,6 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                 </View>
                                             );
                                         }
-
                                         // QR_CODE row
                                         const hasQrCode = row.columns?.some(col =>
                                             col.components?.some(comp => comp.component === 'QR_CODE')
@@ -3318,7 +3467,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </TouchableOpacity>
                                                         )}
                                                         {hasError && (
-                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
+                                                            <Text style={[styles.errorText, { position: 'absolute', right: 10, bottom: 5 }]}>
                                                                 {validationErrors[row.webId]}
                                                             </Text>
                                                         )}
@@ -3486,7 +3635,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     {(() => {
                                                         const hasError = touchedFields[row.webId] && validationErrors[row.webId];
                                                         return hasError ? (
-                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
+                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: 5, right: 10 }]}>
                                                                 {validationErrors[row.webId]}
                                                             </Text>
                                                         ) : null;
@@ -3509,75 +3658,78 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                             const showScanner = showBarcodeScanner[row.webId] || false;
 
                                             return wrapRowWithFeedback(
-                                                <View style={styles.radioRow}>
-                                                    <Text style={styles.radioLabel}>
-                                                        {row.columns[0]?.components[0]?.text}
-                                                        {required && <Text style={{ color: '#F44336' }}> *</Text>}
-                                                    </Text>
-                                                    <View style={styles.radioChoiceRow}>
-                                                        <View style={[
-                                                            styles.inputFieldContainer,
-                                                            hasError && { borderColor: '#F44336', borderWidth: 1 }
-                                                        ]}>
-                                                            <TextInput
-                                                                style={styles.inputField}
-                                                                value={barcodeValue}
-                                                                editable={false}
-                                                                placeholder="Barcode"
-                                                            />
-                                                        </View>
-                                                        <TouchableOpacity
-                                                            activeOpacity={0.8}
-                                                            onPress={() => {
-                                                                setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: true }));
-                                                            }}
-                                                        >
-                                                            <View style={styles.barcodeIconContainer}>
-                                                                <BarCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                <View>
+                                                    <View style={styles.radioRow}>
+                                                        <Text style={styles.radioLabel}>
+                                                            {row.columns[0]?.components[0]?.text}
+                                                            {required && <Text style={{ color: '#F44336' }}> *</Text>}
+                                                        </Text>
+                                                        <View style={styles.radioChoiceRow}>
+                                                            <View style={[
+                                                                styles.inputFieldContainer,
+                                                                hasError && { borderColor: '#F44336', borderWidth: 1 }
+                                                            ]}>
+                                                                <TextInput
+                                                                    style={styles.inputField}
+                                                                    value={barcodeValue}
+                                                                    editable={false}
+                                                                    placeholder="Barcode"
+                                                                />
                                                             </View>
-                                                        </TouchableOpacity>
-                                                    </View>
+                                                            <TouchableOpacity
+                                                                activeOpacity={0.8}
+                                                                onPress={() => {
+                                                                    setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: true }));
+                                                                }}
+                                                            >
+                                                                <View style={styles.barcodeIconContainer}>
+                                                                    <BarCodeScannerIcon width={getResponsive(32)} height={getResponsive(32)} />
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        </View>
 
+
+
+                                                        {/* Barcode Scanner Modal */}
+                                                        <Modal
+                                                            visible={showScanner}
+                                                            transparent={false}
+                                                            animationType="slide"
+                                                            onRequestClose={() => setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }))}
+                                                        >
+                                                            <View style={styles.qrScannerContainer}>
+                                                                <View style={styles.qrScannerHeader}>
+                                                                    <TouchableOpacity
+                                                                        onPress={() => setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }))}
+                                                                        style={styles.qrScannerClose}
+                                                                    >
+                                                                        <Text style={styles.qrScannerCloseText}>✕</Text>
+                                                                    </TouchableOpacity>
+                                                                    <Text style={styles.qrScannerTitle}>Scan Barcode</Text>
+                                                                </View>
+
+                                                                <Camera
+                                                                    onReadCode={(event: any) => {
+                                                                        const scannedValue = event.nativeEvent.codeStringValue;
+                                                                        setBarcodeValues(prev => ({ ...prev, [row.webId]: scannedValue }));
+                                                                        handleBarcodeChange(row.webId, scannedValue, barcodeComp);
+                                                                        setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }));
+                                                                        showSuccessToast('Barcode Scanned', `Value: ${scannedValue}`);
+                                                                    }}
+                                                                    scanBarcode={true}
+                                                                    showFrame={true}
+                                                                    laserColor="red"
+                                                                    frameColor="white"
+                                                                    style={styles.qrScannerCamera}
+                                                                />
+                                                            </View>
+                                                        </Modal>
+                                                    </View>
                                                     {hasError && (
-                                                        <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
+                                                        <Text style={[styles.errorText, { position: 'absolute', bottom: 15, right: 10 }]}>
                                                             {validationErrors[row.webId]}
                                                         </Text>
                                                     )}
-
-                                                    {/* Barcode Scanner Modal */}
-                                                    <Modal
-                                                        visible={showScanner}
-                                                        transparent={false}
-                                                        animationType="slide"
-                                                        onRequestClose={() => setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }))}
-                                                    >
-                                                        <View style={styles.qrScannerContainer}>
-                                                            <View style={styles.qrScannerHeader}>
-                                                                <TouchableOpacity
-                                                                    onPress={() => setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }))}
-                                                                    style={styles.qrScannerClose}
-                                                                >
-                                                                    <Text style={styles.qrScannerCloseText}>✕</Text>
-                                                                </TouchableOpacity>
-                                                                <Text style={styles.qrScannerTitle}>Scan Barcode</Text>
-                                                            </View>
-
-                                                            <Camera
-                                                                onReadCode={(event: any) => {
-                                                                    const scannedValue = event.nativeEvent.codeStringValue;
-                                                                    setBarcodeValues(prev => ({ ...prev, [row.webId]: scannedValue }));
-                                                                    handleBarcodeChange(row.webId, scannedValue, barcodeComp);
-                                                                    setShowBarcodeScanner(prev => ({ ...prev, [row.webId]: false }));
-                                                                    showSuccessToast('Barcode Scanned', `Value: ${scannedValue}`);
-                                                                }}
-                                                                scanBarcode={true}
-                                                                showFrame={true}
-                                                                laserColor="red"
-                                                                frameColor="white"
-                                                                style={styles.qrScannerCamera}
-                                                            />
-                                                        </View>
-                                                    </Modal>
                                                 </View>
                                             );
                                         }
@@ -3706,7 +3858,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     {(() => {
                                                         const hasError = touchedFields[row.webId] && validationErrors[row.webId];
                                                         return hasError ? (
-                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
+                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: 4, right: 10 }]}>
                                                                 {validationErrors[row.webId]}
                                                             </Text>
                                                         ) : null;
@@ -3965,7 +4117,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     {(() => {
                                                         const hasError = touchedFields[row.webId] && validationErrors[row.webId];
                                                         return hasError ? (
-                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, left: 10 }]}>
+                                                            <Text style={[styles.errorText, { position: 'absolute', bottom: -20, right: 10 }]}>
                                                                 {validationErrors[row.webId]}
                                                             </Text>
                                                         ) : null;
