@@ -1,6 +1,4 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { storage } from '../services/storage';
 
 interface SignatureData {
   encoded: string;
@@ -25,9 +23,7 @@ interface SignatureState {
   clearSignaturesForDocument: (documentId: string | number) => void;
 }
 
-export const useSignatureStore = create<SignatureState>()(
-  persist(
-    (set, get) => ({
+export const useSignatureStore = create<SignatureState>()((set, get) => ({
       signatures: {},
 
       setSignature: (rowId: string, encoded: string, sectionId?: number, documentId?: string | number) => {
@@ -99,20 +95,4 @@ export const useSignatureStore = create<SignatureState>()(
           return { signatures: filteredSignatures };
         });
       },
-    }),
-    {
-      name: 'signature-storage',
-      storage: createJSONStorage(() => ({
-        getItem: async (name: string) => {
-          return await storage.getString(name);
-        },
-        setItem: async (name: string, value: string) => {
-          await storage.setString(name, value);
-        },
-        removeItem: async (name: string) => {
-          await storage.removeItem(name);
-        },
-      })),
-    }
-  )
-);
+    }));

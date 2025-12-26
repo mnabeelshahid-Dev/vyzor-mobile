@@ -24,7 +24,6 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
 }) => {
     const internalRef = useRef(null);
     const mountedRef = useRef(true);
-    const initializationRef = useRef(false);
     
     // MINIMAL state - only what's absolutely necessary
     const [showImageMode, setShowImageMode] = useState(false);
@@ -50,30 +49,32 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
         }
     }, [rowId]);
 
-    // Set ref for parent - ONCE ONLY
+    // Set ref for parent
     useEffect(() => {
-        if (setRef && !initializationRef.current) {
+        if (setRef) {
             setRef(rowId, {
                 clearSignature: handleClear,
                 saveSignature: handleSave
             });
-            initializationRef.current = true;
         }
     }, [setRef, rowId, handleClear, handleSave]);
 
-    // Initialize with existing signature - ONCE ONLY
+    // Load existing signature whenever component mounts or rowId/sectionId changes
     useEffect(() => {
-        if (!initializationRef.current) {
-            const savedSignature = getSignature(String(rowId));
-            if (savedSignature?.encoded) {
-                const dataUrl = `data:image/png;base64,${savedSignature.encoded}`;
-                setSignatureDataUrl(dataUrl);
-                setShowImageMode(true);
-                onSignature?.(rowId, savedSignature.encoded);
-            }
-            initializationRef.current = true;
+        const savedSignature = getSignature(String(rowId));
+        if (savedSignature?.encoded) {
+            const dataUrl = `data:image/png;base64,${savedSignature.encoded}`;
+            setSignatureDataUrl(dataUrl);
+            setShowImageMode(true);
+            onSignature?.(rowId, savedSignature.encoded);
+            console.log(`✅ Loaded existing signature for ${rowId}`);
+        } else {
+            // Reset to drawing mode if no signature exists
+            setShowImageMode(false);
+            setSignatureDataUrl(null);
+            console.log(`ℹ️ No existing signature for ${rowId}`);
         }
-    }, []); // Empty dependency array - run once only
+    }, [rowId, sectionId, getSignature]); // Re-run when rowId or sectionId changes
 
     // Handle signature save from WebView
     const handleSignatureSave = useCallback((base64) => {
@@ -96,7 +97,7 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
         setShowImageMode(false);
     }, []);
 
-    // ULTRA MINIMAL WebView callbacks - no state changes
+    // ULTRA MINIMAL WebView callbacks - auto-save on draw end
     const handleWebViewReady = useCallback(() => {
         console.log(`WebView ready for ${rowId}`);
     }, [rowId]);
@@ -106,7 +107,13 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
     }, [rowId]);
 
     const handleDrawEnd = useCallback(() => {
-        console.log(`Drawing ended on ${rowId}`);
+        console.log(`Drawing ended on ${rowId} - auto-saving...`);
+        // Auto-save after a short delay to ensure drawing is complete
+        setTimeout(() => {
+            if (internalRef.current?.readSignature) {
+                internalRef.current.readSignature();
+            }
+        }, 300);
     }, [rowId]);
 
     const handleEmpty = useCallback(() => false, []);
@@ -191,24 +198,6 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
                             }
                         `}
                     />
-
-                    <TouchableOpacity
-                        onPress={handleSave}
-                        style={{
-                            position: 'absolute',
-                            bottom: 8,
-                            right: 8,
-                            backgroundColor: '#4CAF50',
-                            paddingHorizontal: 12,
-                            paddingVertical: 6,
-                            borderRadius: 6,
-                            zIndex: 10
-                        }}
-                    >
-                        <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>
-                            Save
-                        </Text>
-                    </TouchableOpacity>
                 </View>
             )}
         </View>
