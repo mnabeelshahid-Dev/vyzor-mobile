@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { StyleSheet } from 'react-native';
 
 export const createStyles = (theme: {
@@ -40,7 +41,7 @@ export const createStyles = (theme: {
     logoSection: {
       justifyContent: 'center',
       alignItems: 'center',
-      paddingVertical: 50,
+      paddingVertical: Platform.OS === 'android' ? 50 : 70,
     },
     logoContainer: {
       alignItems: 'center',
