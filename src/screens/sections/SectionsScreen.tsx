@@ -1620,13 +1620,14 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         const attrs = getComponentAttributes(comp);
         const error = validateField(signature, 'SIGNATURE', attrs);
 
-        // If signature exists and no error, clear both error and touched state for visual feedback
-        if (signature && !error) {
-            setValidationErrors(prev => ({ ...prev, [rowId]: '' }));
-        } else {
-            setValidationErrors(prev => ({ ...prev, [rowId]: error }));
-        }
+        console.log(`🔍 [handleSignatureChange] Validating signature for ${rowId}:`, {
+            hasSignature: !!signature,
+            signatureLength: signature?.length || 0,
+            error
+        });
 
+        // Always update validation errors based on current signature state
+        setValidationErrors(prev => ({ ...prev, [rowId]: error }));
         setTouchedFields(prev => ({ ...prev, [rowId]: true }));
     };
 
@@ -2242,24 +2243,29 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Add this useEffect after your other useEffects
     React.useEffect(() => {
         // Monitor signature values and clear validation errors when signatures are added
-        Object.keys(signatureValues).forEach(rowId => {
-            const signature = signatureValues[rowId];
-            if (signature?.encoded && validationErrors[rowId]) {
+        const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
+        
+        rows.forEach(row => {
+            // Check both store and legacy state for signatures
+            const storeSignature = getSignature(row.webId)?.encoded;
+            const legacySignature = signatureValues[row.webId]?.encoded;
+            const hasSignatureValue = storeSignature || legacySignature;
+            
+            if (hasSignatureValue && validationErrors[row.webId]) {
                 // Find the signature component for this row
-                const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
-                const row = rows.find(r => r.webId === rowId);
                 const signatureComp = row?.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'SIGNATURE');
 
                 if (signatureComp) {
                     const attrs = getComponentAttributes(signatureComp);
-                    const error = validateField(signature.encoded, 'SIGNATURE', attrs);
+                    const error = validateField(hasSignatureValue, 'SIGNATURE', attrs);
                     if (!error) {
-                        setValidationErrors(prev => ({ ...prev, [rowId]: '' }));
+                        console.log(`✅ Clearing validation error for signature ${row.webId}`);
+                        setValidationErrors(prev => ({ ...prev, [row.webId]: '' }));
                     }
                 }
             }
         });
-    }, [signatureValues, validationErrors, filteredList]);
+    }, [signatureValues, validationErrors, filteredList, getSignature]);
 
     React.useEffect(() => {
         console.log('=== SIGNATURE DEBUG ===');

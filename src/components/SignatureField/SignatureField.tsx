@@ -24,20 +24,31 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
 }) => {
     const internalRef = useRef(null);
     const mountedRef = useRef(true);
+    const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const lastSavedDataRef = useRef<string | null>(null);
     
     // MINIMAL state - only what's absolutely necessary
     const [showImageMode, setShowImageMode] = useState(false);
-    const [signatureDataUrl, setSignatureDataUrl] = useState(null);
-    const [componentKey] = useState(`sig-${rowId}-${Date.now()}`);
+    const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [componentKey] = useState(`sig-${rowId}`); // Stable key without timestamp
     
     const { getSignature, setSignature, clearSignature } = useSignatureStore();
 
     // Clear signature - simple and direct
     const handleClear = useCallback(() => {
         console.log(`🗑️ Clearing signature for ${rowId}`);
+        
+        // Clear any pending auto-save
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+            autoSaveTimerRef.current = null;
+        }
+        
         clearSignature(String(rowId));
         setShowImageMode(false);
         setSignatureDataUrl(null);
+        lastSavedDataRef.current = null;
         onClear?.(rowId);
     }, [rowId, clearSignature, onClear]);
 
@@ -59,61 +70,113 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
         }
     }, [setRef, rowId, handleClear, handleSave]);
 
-    // Load existing signature whenever component mounts or rowId/sectionId changes
+    // Load existing signature whenever component mounts or rowId changes
     useEffect(() => {
-        const savedSignature = getSignature(String(rowId));
-        if (savedSignature?.encoded) {
-            const dataUrl = `data:image/png;base64,${savedSignature.encoded}`;
-            setSignatureDataUrl(dataUrl);
-            setShowImageMode(true);
-            onSignature?.(rowId, savedSignature.encoded);
-            console.log(`✅ Loaded existing signature for ${rowId}`);
-        } else {
-            // Reset to drawing mode if no signature exists
+        try {
+            setIsLoading(true);
+            const savedSignature = getSignature(String(rowId));
+            
+            if (savedSignature?.encoded && mountedRef.current) {
+                const dataUrl = `data:image/png;base64,${savedSignature.encoded}`;
+                setSignatureDataUrl(dataUrl);
+                setShowImageMode(true);
+                lastSavedDataRef.current = savedSignature.encoded;
+                
+                // Only call onSignature if this is a new signature we haven't reported yet
+                if (onSignature && savedSignature.encoded !== lastSavedDataRef.current) {
+                    onSignature(rowId, savedSignature.encoded);
+                }
+                
+                console.log(`✅ Loaded existing signature for ${rowId}, length: ${savedSignature.encoded.length}`);
+            } else {
+                // Reset to drawing mode if no signature exists
+                setShowImageMode(false);
+                setSignatureDataUrl(null);
+                lastSavedDataRef.current = null;
+                console.log(`ℹ️ No existing signature for ${rowId}`);
+            }
+        } catch (error) {
+            console.error(`❌ Error loading signature for ${rowId}:`, error);
             setShowImageMode(false);
             setSignatureDataUrl(null);
-            console.log(`ℹ️ No existing signature for ${rowId}`);
+        } finally {
+            setIsLoading(false);
         }
-    }, [rowId, sectionId, getSignature]); // Re-run when rowId or sectionId changes
+    }, [rowId]); // Only depend on rowId, not sectionId to avoid unnecessary reloads
 
     // Handle signature save from WebView
-    const handleSignatureSave = useCallback((base64) => {
+    const handleSignatureSave = useCallback((base64: string) => {
+        if (!mountedRef.current) return;
+        
         try {
             const encoded = base64.replace(/^data:image\/\w+;base64,/, "");
-            console.log(`📝 Signature saved for ${rowId}`);
             
+            // Don't save if it's the same as the last saved data
+            if (encoded === lastSavedDataRef.current) {
+                console.log(`⏭️ Skipping duplicate save for ${rowId}`);
+                return;
+            }
+            
+            console.log(`📝 Signature saved for ${rowId}, length: ${encoded.length}`);
+            
+            // Save to store first
             setSignature(String(rowId), encoded, sectionId, documentId);
+            
+            // Update UI
             setSignatureDataUrl(base64);
             setShowImageMode(true);
+            lastSavedDataRef.current = encoded;
             
-            onSignature?.(rowId, encoded);
+            // Immediately notify parent to clear validation - use setTimeout to ensure store update completes
+            setTimeout(() => {
+                if (mountedRef.current && onSignature) {
+                    console.log(`✅ Notifying parent of signature save for ${rowId}`);
+                    onSignature(rowId, encoded);
+                }
+            }, 100);
+            
         } catch (error) {
-            console.error(`Error saving signature:`, error);
+            console.error(`❌ Error saving signature for ${rowId}:`, error);
         }
     }, [rowId, sectionId, documentId, setSignature, onSignature]);
 
     // Edit signature
     const handleEdit = useCallback(() => {
+        console.log(`✏️ Editing signature for ${rowId}`);
         setShowImageMode(false);
-    }, []);
+    }, [rowId]);
 
     // ULTRA MINIMAL WebView callbacks - auto-save on draw end
     const handleWebViewReady = useCallback(() => {
-        console.log(`WebView ready for ${rowId}`);
+        console.log(`✅ WebView ready for ${rowId}`);
     }, [rowId]);
 
     const handleDrawStart = useCallback(() => {
-        console.log(`Drawing started on ${rowId}`);
+        console.log(`🖊️ Drawing started on ${rowId}`);
     }, [rowId]);
 
     const handleDrawEnd = useCallback(() => {
-        console.log(`Drawing ended on ${rowId} - auto-saving...`);
-        // Auto-save after a short delay to ensure drawing is complete
-        setTimeout(() => {
-            if (internalRef.current?.readSignature) {
-                internalRef.current.readSignature();
+        if (!mountedRef.current) return;
+        
+        console.log(`⏸️ Drawing ended on ${rowId} - scheduling auto-save...`);
+        
+        // Clear any existing timer
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+        }
+        
+        // Auto-save after a delay to ensure drawing is complete
+        autoSaveTimerRef.current = setTimeout(() => {
+            if (mountedRef.current && internalRef.current?.readSignature) {
+                try {
+                    console.log(`💾 Auto-saving signature for ${rowId}`);
+                    internalRef.current.readSignature();
+                } catch (error) {
+                    console.error(`❌ Error auto-saving signature for ${rowId}:`, error);
+                }
             }
-        }, 300);
+            autoSaveTimerRef.current = null;
+        }, 500); // Increased delay to 500ms for better reliability
     }, [rowId]);
 
     const handleEmpty = useCallback(() => false, []);
@@ -121,10 +184,26 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
     // Cleanup
     useEffect(() => {
         mountedRef.current = true;
+        
         return () => {
             mountedRef.current = false;
+            
+            // Clear any pending auto-save timer
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+                autoSaveTimerRef.current = null;
+            }
         };
     }, []);
+
+    // Don't render anything while loading
+    if (isLoading) {
+        return (
+            <View style={[{ width: "100%", height: 200, minHeight: 200, justifyContent: 'center', alignItems: 'center' }, style]}>
+                <Text style={{ color: '#666' }}>Loading signature...</Text>
+            </View>
+        );
+    }
 
     return (
         <View style={[{ width: "100%", height: 200, minHeight: 200 }, style]}>
