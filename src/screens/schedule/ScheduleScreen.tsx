@@ -15,6 +15,7 @@ import {
   Platform,
   TextInput,
   ActivityIndicator,
+  FlatList,
 } from 'react-native';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
 import LeftArrowIcon from '../../assets/svgs/backArrowIcon.svg';
@@ -164,57 +165,57 @@ function formatTasksForUI(tasks: TaskSchedulingModel[], userFirstName?: string |
 
 
 
-const now = new Date();
-const isActive = task.scheduleType === 'SCHEDULED' && 
-                 now >= startTime && 
-                 now < endTime;
+    const now = new Date();
+    const isActive = task.scheduleType === 'SCHEDULED' &&
+      now >= startTime &&
+      now < endTime;
 
-const ACTIVE_BLUE = '#0088E7';
-const SCHEDULED_ORANGE = '#E09200';
-const COMPLETED_GREEN = '#12862bff';
-const EXPIRED_RED = '#E4190A';
+    const ACTIVE_BLUE = '#0088E7';
+    const SCHEDULED_ORANGE = '#E09200';
+    const COMPLETED_GREEN = '#12862bff';
+    const EXPIRED_RED = '#E4190A';
 
-let borderColor = BLUE; // Default
-let bg = '#E3F2FD'; // Light blue background
-let effectiveScheduleType = task.scheduleType;
+    let borderColor = BLUE; // Default
+    let bg = '#E3F2FD'; // Light blue background
+    let effectiveScheduleType = task.scheduleType;
 
-// Determine border color and background based on scheduleType and current time
-if (isActive) {
-  borderColor = ACTIVE_BLUE;
-  bg = '#a9d3fbff';
-  effectiveScheduleType = 'ACTIVE';
-} else if (task.scheduleType === 'EXPIRED') {
-  borderColor = EXPIRED_RED;
-  bg = '#E4190A1A';
-} else if (task.scheduleType === 'COMPLETED' || task.scheduleType === 'ON_TIME' || task.scheduleType === 'OUTSIDE_PERIOD') {
-  borderColor = COMPLETED_GREEN;
-  bg = '#11A3301A';
-  effectiveScheduleType = 'COMPLETED';
-} else if (task.scheduleType === 'SCHEDULED') {
-  borderColor = SCHEDULED_ORANGE;
-  bg = '#f6e0c1ff';  // Light orange background for scheduled
-}
-return {
-  id: task.webId.toString(),
-  hour: formatTime(startTime),
-  number: `#${task.documentId}`,
-  title: task.formName || task.documentName || 'No Title',
-  user: userFirstName || '',
-  borderColor,
-  bg,
-  type: taskType,
-  startDate: task.startDate,
-  endDate: task.endDate,
-  scheduleType: effectiveScheduleType, // Use the modified schedule type
-  notesCount: task.notesCount ?? 0,
-  rawStartTime: startTime,
-  duration: durationMinutes,
-  slots,
-  slotCount: slots.length,
-  formDefinitionId: task.formDefinitionId,
-  // Include raw task data for navigation
-  rawTask: task,
-};
+    // Determine border color and background based on scheduleType and current time
+    if (isActive) {
+      borderColor = ACTIVE_BLUE;
+      bg = '#a9d3fbff';
+      effectiveScheduleType = 'ACTIVE';
+    } else if (task.scheduleType === 'EXPIRED') {
+      borderColor = EXPIRED_RED;
+      bg = '#E4190A1A';
+    } else if (task.scheduleType === 'COMPLETED' || task.scheduleType === 'ON_TIME' || task.scheduleType === 'OUTSIDE_PERIOD') {
+      borderColor = COMPLETED_GREEN;
+      bg = '#11A3301A';
+      effectiveScheduleType = 'COMPLETED';
+    } else if (task.scheduleType === 'SCHEDULED') {
+      borderColor = SCHEDULED_ORANGE;
+      bg = '#f6e0c1ff';  // Light orange background for scheduled
+    }
+    return {
+      id: task.webId.toString(),
+      hour: formatTime(startTime),
+      number: `#${task.documentId}`,
+      title: task.formName || task.documentName || 'No Title',
+      user: userFirstName || '',
+      borderColor,
+      bg,
+      type: taskType,
+      startDate: task.startDate,
+      endDate: task.endDate,
+      scheduleType: effectiveScheduleType, // Use the modified schedule type
+      notesCount: task.notesCount ?? 0,
+      rawStartTime: startTime,
+      duration: durationMinutes,
+      slots,
+      slotCount: slots.length,
+      formDefinitionId: task.formDefinitionId,
+      // Include raw task data for navigation
+      rawTask: task,
+    };
   });
 }
 
@@ -299,33 +300,33 @@ export default function CalendarAgendaScreen({ navigation }) {
   const horizontalScrollRef = React.useRef<ScrollView>(null);
 
   const [userModal, setUserModal] = useState(false);
-const [sectionsModal, setSectionsModal] = useState(false);
-const [notesModal, setNotesModal] = useState(false);
-const [devicesModal, setDevicesModal] = useState(false);
-const [searchUser, setSearchUser] = useState('');
-const [selectedTaskForModal, setSelectedTaskForModal] = useState<any | null>(null);
+  const [sectionsModal, setSectionsModal] = useState(false);
+  const [notesModal, setNotesModal] = useState(false);
+  const [devicesModal, setDevicesModal] = useState(false);
+  const [searchUser, setSearchUser] = useState('');
+  const [selectedTaskForModal, setSelectedTaskForModal] = useState<any | null>(null);
 
-const user = useAuthStore((state) => state.user);
-const branchId = useAuthStore((state) => state.branchId);
-const route: any = useRoute();
+  const user = useAuthStore((state) => state.user);
+  const branchId = useAuthStore((state) => state.branchId);
+  const route: any = useRoute();
 
-// Get branchId from route params (similar to TaskScreen)
-// const branchId =
-//   route.params?.branchId ||
-//   route.params?.params?.branchId ||
-//   route.params?.params?.params?.branchId;
+  // Get branchId from route params (similar to TaskScreen)
+  // const branchId =
+  //   route.params?.branchId ||
+  //   route.params?.params?.branchId ||
+  //   route.params?.params?.params?.branchId;
 
-const userId = user?.id || '';
+  const userId = user?.id || '';
 
 
-    useEffect(() => {
-      console.log("complete user data from store", user)
-      console.log("User First name", user?.firstName)
-      console.log("Web ID from Store", user?.id)
-      console.log("Site ID from Store", user?.currentUserSite[0]?.siteId)
-      console.log("User Data from Store", user)
-    }, [])
-  
+  useEffect(() => {
+    console.log("complete user data from store", user)
+    console.log("User First name", user?.firstName)
+    console.log("Web ID from Store", user?.id)
+    console.log("Site ID from Store", user?.currentUserSite[0]?.siteId)
+    console.log("User Data from Store", user)
+  }, [])
+
 
   const logoutMutation = useLogout({
     onSuccess: () => {
@@ -370,92 +371,92 @@ const userId = user?.id || '';
   // });
 
 
-  
 
 
-const {
-  data: tasksData,
-  isLoading: isLoadingTasks,
-  error: tasksError,
-  refetch: refetchTasks,
-} = useQuery({
-  queryKey: ['scheduleTasks', selectedDate.toISOString().split('T')[0], userId, branchId],
-  queryFn: async () => {
-    const { startDate: apiStartDate, endDate: apiEndDate } =
-      formatDateForAPI(selectedDate);
-    
-    // Build dynamic URL with user ID and selected branch ID
-    const url = `/api/document/schedule?startDate=${apiStartDate}&endDate=${apiEndDate}&siteIds=${branchId || ''}&userIds=${userId}&search=`;
-    
-    console.log('Fetching tasks with URL:', url);
-    console.log('Selected date:', selectedDate);
-    console.log('User ID:', userId);
-    console.log('Branch/Site ID:', branchId);
 
-    const response = await apiService.get(url);
-    console.log('Schedule tasks response:', response.data);
+  const {
+    data: tasksData,
+    isLoading: isLoadingTasks,
+    error: tasksError,
+    refetch: refetchTasks,
+  } = useQuery({
+    queryKey: ['scheduleTasks', selectedDate.toISOString().split('T')[0], userId, branchId],
+    queryFn: async () => {
+      const { startDate: apiStartDate, endDate: apiEndDate } =
+        formatDateForAPI(selectedDate);
 
-    return response.data as TaskSchedulingModel[];
-  },
-  // enabled: !!userId && !!branchId, // Only fetch when we have both user ID and branch ID
-});
+      // Build dynamic URL with user ID and selected branch ID
+      const url = `/api/document/schedule?startDate=${apiStartDate}&endDate=${apiEndDate}&siteIds=${branchId || ''}&userIds=${userId}&search=`;
 
-// Refetch tasks when screen comes into focus (e.g., after submitting a task)
-useFocusEffect(
-  React.useCallback(() => {
-    // Refetch tasks to update status (e.g., from Active to Completed)
-    refetchTasks();
-  }, [refetchTasks])
-);
+      console.log('Fetching tasks with URL:', url);
+      console.log('Selected date:', selectedDate);
+      console.log('User ID:', userId);
+      console.log('Branch/Site ID:', branchId);
+
+      const response = await apiService.get(url);
+      console.log('Schedule tasks response:', response.data);
+
+      return response.data as TaskSchedulingModel[];
+    },
+    // enabled: !!userId && !!branchId, // Only fetch when we have both user ID and branch ID
+  });
+
+  // Refetch tasks when screen comes into focus (e.g., after submitting a task)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Refetch tasks to update status (e.g., from Active to Completed)
+      refetchTasks();
+    }, [refetchTasks])
+  );
 
 
-// Devices Query
-const {
-  data: devicesData,
-  isLoading: isDevicesLoading,
-  isError: isDevicesError,
-  refetch: refetchDevices,
-} = useQuery({
-  queryKey: ['devices'],
-  queryFn: fetchDevices,
-  enabled: devicesModal,
-});
+  // Devices Query
+  const {
+    data: devicesData,
+    isLoading: isDevicesLoading,
+    isError: isDevicesError,
+    refetch: refetchDevices,
+  } = useQuery({
+    queryKey: ['devices'],
+    queryFn: fetchDevices,
+    enabled: devicesModal,
+  });
 
-// Sections Query - Enable always to get section data for navigation
-const {
-  data: sectionsData,
-  isLoading: isSectionsLoading,
-  isError: isSectionsError,
-  refetch: refetchSections,
-} = useQuery({
-  queryKey: ['sections'],
-  queryFn: fetchSections,
-  enabled: true, // Always enabled to support navigation
-});
+  // Sections Query - Enable always to get section data for navigation
+  const {
+    data: sectionsData,
+    isLoading: isSectionsLoading,
+    isError: isSectionsError,
+    refetch: refetchSections,
+  } = useQuery({
+    queryKey: ['sections'],
+    queryFn: fetchSections,
+    enabled: true, // Always enabled to support navigation
+  });
 
-// Notes Query
-const {
-  data: notesData,
-  isLoading: isNotesLoading,
-  isError: isNotesError,
-  refetch: refetchNotes,
-} = useQuery({
-  queryKey: ['notes'],
-  queryFn: fetchNotes,
-  enabled: notesModal,
-});
+  // Notes Query
+  const {
+    data: notesData,
+    isLoading: isNotesLoading,
+    isError: isNotesError,
+    refetch: refetchNotes,
+  } = useQuery({
+    queryKey: ['notes'],
+    queryFn: fetchNotes,
+    enabled: notesModal,
+  });
 
-// UserSites Query
-const {
-  data: userSitesData,
-  isLoading: isUserSitesLoading,
-  isError: isUserSitesError,
-  refetch: refetchUserSites,
-} = useQuery({
-  queryKey: ['userSites', branchId, searchUser],
-  queryFn: () => fetchUserSites(branchId, searchUser),
-  enabled: !!branchId && userModal,
-});
+  // UserSites Query
+  const {
+    data: userSitesData,
+    isLoading: isUserSitesLoading,
+    isError: isUserSitesError,
+    refetch: refetchUserSites,
+  } = useQuery({
+    queryKey: ['userSites', branchId, searchUser],
+    queryFn: () => fetchUserSites(branchId, searchUser),
+    enabled: !!branchId && userModal,
+  });
 
   // Format tasks for UI
   const formattedTasks = tasksData ? formatTasksForUI(tasksData, user?.firstName) : [];
@@ -498,14 +499,14 @@ const {
       day: '2-digit',
     });
   };
-const normalizeStatus = (status: string = '') => {
-  const s = (status || '').trim().toLowerCase();
-  if (s === 'schedule' || s === 'scheduled') return 'Scheduled';
-  if (s === 'active') return 'Active';
-  if (s === 'expired') return 'Expired';
-  if (s === 'completed' || s === 'on_time' || s === 'outside_period') return 'Completed';
-  return status || '';
-};
+  const normalizeStatus = (status: string = '') => {
+    const s = (status || '').trim().toLowerCase();
+    if (s === 'schedule' || s === 'scheduled') return 'Scheduled';
+    if (s === 'active') return 'Active';
+    if (s === 'expired') return 'Expired';
+    if (s === 'completed' || s === 'on_time' || s === 'outside_period') return 'Completed';
+    return status || '';
+  };
   const STATUS_COLORS: Record<string, string> = {
     Active: '#0088E7',
     Scheduled: '#E09200',
@@ -538,82 +539,135 @@ const normalizeStatus = (status: string = '') => {
 
 
   const openModal = (type: string, task?: any) => {
-  if (task) setSelectedTaskForModal(task);
-  setUserModal(type === 'user');
-  setSectionsModal(type === 'sections');
-  setNotesModal(type === 'notes');
-  setDevicesModal(type === 'devices');
-};
+    if (task) setSelectedTaskForModal(task);
+    setUserModal(type === 'user');
+    setSectionsModal(type === 'sections');
+    setNotesModal(type === 'notes');
+    setDevicesModal(type === 'devices');
+  };
 
-const closeModal = () => {
-  setUserModal(false);
-  setSectionsModal(false);
-  setNotesModal(false);
-  setDevicesModal(false);
-  setSelectedTaskForModal(null);
-  // Don't close the task modal when closing sub-modals
-};
+  const closeModal = () => {
+    setUserModal(false);
+    setSectionsModal(false);
+    setNotesModal(false);
+    setDevicesModal(false);
+    setSelectedTaskForModal(null);
+    // Don't close the task modal when closing sub-modals
+  };
 
-const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
+  const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
 
-// Helper functions for section navigation (same as TaskScreen)
-interface FormDefinitionSectionModel {
-  formDefinitionId: string | number;
-  deleted?: boolean;
-  formSectionId?: string | number;
-  webId?: any;
-}
+  // Helper functions for section navigation (same as TaskScreen)
+  interface FormDefinitionSectionModel {
+    formDefinitionId: string | number;
+    deleted?: boolean;
+    formSectionId?: string | number;
+    webId?: any;
+    sequence?: number;
+  }
 
-interface Section {
-  documentId?: string | number;
-  name?: string;
-  location?: string;
-  formDefinitionSectionModels?: FormDefinitionSectionModel[];
-}
+  interface Section {
+    documentId?: string | number;
+    name?: string;
+    location?: string;
+    formDefinitionSectionModels?: FormDefinitionSectionModel[];
+  }
 
-function getSectionModelsForSectionIds(formDefinationsId: string | number): any {
-  if (!sectionsData?.data?.content) return {};
-  let tempArray: any = [];
-  sectionsData.data.content.forEach((section: Section) => {
-    if (Array.isArray(section.formDefinitionSectionModels)) {
-      section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel) => {
-        if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
-          tempArray.push(model);
-        }
-      });
-    }
-  });
-  const formSectionIDs: Record<string, any> = {};
-  let id = 1;
-  tempArray.forEach((model: FormDefinitionSectionModel) => {
-    if (model.formSectionId) {
-      formSectionIDs[`id${id++}`] = model.formSectionId;
-    }
-  });
-  return formSectionIDs;
-}
+  // Get array of section models for a given formDefinitionId
+  function getSectionModels(formDefinationsId: string | number): FormDefinitionSectionModel[] {
+    if (!sectionsData?.data?.content) return [];
+    
+    let tempArray: FormDefinitionSectionModel[] = [];
+    sectionsData.data.content.forEach((section: Section) => {
+    
+      if (Array.isArray(section.formDefinitionSectionModels)) {
+        section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel) => {
+          if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
+            tempArray.push(model);
+          }
+        });
+      }
+    });
+    
+    // Sort by sequence: treat null as 0, sort in ascending order
+    const sortedArray = tempArray.sort((a, b) => {
+      const aSeq = (a as any).sequence ?? 0; // null becomes 0
+      const bSeq = (b as any).sequence ?? 0; // null becomes 0
+      
+      const result = aSeq - bSeq;
+      return result;
+    });
+    
+    return sortedArray;
+  }
 
-function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Record<string, any> {
-  if (!sectionsData?.data?.content) return {};
-  let tempArray: any = [];
-  sectionsData.data.content.forEach((section: Section) => {
-    if (Array.isArray(section.formDefinitionSectionModels)) {
-      section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel & { webId?: any }) => {
-        if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
-          tempArray.push(model);
-        }
-      });
-    }
-  });
-  const webIds: Record<string, any> = {};
-  let id = 1;
-  tempArray.forEach((model: { webId?: any }) => {
-    if (model.webId !== undefined && model.webId !== null) {
-      webIds[`id${id++}`] = model.webId;
-    }
-  });
-  return webIds;
-}
+  function getSectionModelsForSectionIds(formDefinationsId: string | number): any {
+    if (!sectionsData?.data?.content) return [];
+    
+    let tempArray: any = [];
+    sectionsData.data.content.forEach((section: Section) => {
+      if (Array.isArray(section.formDefinitionSectionModels)) {
+        section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel) => {
+          if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
+            tempArray.push(model);
+          }
+        });
+      }
+    });
+    
+    // Sort by sequence: treat null as 0, sort in ascending order
+    const sortedArray = tempArray.sort((a, b) => {
+      const aSeq = (a as any).sequence ?? 0; // null becomes 0
+      const bSeq = (b as any).sequence ?? 0; // null becomes 0
+      
+      const result = aSeq - bSeq;
+      return result;
+    });
+    
+    const formSectionIDs: Record<string, any> = {};
+    let id = 1;
+    sortedArray.forEach((model: FormDefinitionSectionModel) => {
+      if (model.formSectionId) {
+        formSectionIDs[`id${id++}`] = model.formSectionId;
+      }
+    });
+    
+    return formSectionIDs;
+  }
+
+  function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Record<string, any> {
+    if (!sectionsData?.data?.content) return {};
+    
+    let tempArray: any = [];
+    sectionsData.data.content.forEach((section: Section) => {
+      if (Array.isArray(section.formDefinitionSectionModels)) {
+        section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel & { webId?: any }) => {
+          if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
+            tempArray.push(model);
+          }
+        });
+      }
+    });
+    
+    // Sort by sequence: treat null as 0, sort in ascending order
+    const sortedArray = tempArray.sort((a, b) => {
+      const aSeq = (a as any).sequence ?? 0; // null becomes 0
+      const bSeq = (b as any).sequence ?? 0; // null becomes 0
+      
+      const result = aSeq - bSeq;
+      return result;
+    });
+    
+    const webIds: Record<string, any> = {};
+    let id = 1;
+    sortedArray.forEach((model: { webId?: any }) => {
+      if (model.webId !== undefined && model.webId !== null) {
+        webIds[`id${id++}`] = model.webId;
+      }
+    });
+    
+    return webIds;
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BLUE }}>
@@ -789,42 +843,42 @@ function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Reco
           ) : (
             (() => {
               // Calculate tasks and columns first
-                  const assignTaskColumns = (tasks: any[]) => {
-                    const sortedTasks = tasks
-                      .filter(t => Array.isArray(t.slots) && t.slots.length > 0)
-                      .map(task => ({
-                        ...task,
-                        startIndex: HOUR_LIST.indexOf(task.slots[0]),
-                        endIndex: HOUR_LIST.indexOf(task.slots[0]) + (task.slotCount || 1) - 1,
-                      }))
-                      .filter(task => task.startIndex >= 0)
-                      .sort((a, b) => a.startIndex - b.startIndex || (a.endIndex - b.endIndex));
+              const assignTaskColumns = (tasks: any[]) => {
+                const sortedTasks = tasks
+                  .filter(t => Array.isArray(t.slots) && t.slots.length > 0)
+                  .map(task => ({
+                    ...task,
+                    startIndex: HOUR_LIST.indexOf(task.slots[0]),
+                    endIndex: HOUR_LIST.indexOf(task.slots[0]) + (task.slotCount || 1) - 1,
+                  }))
+                  .filter(task => task.startIndex >= 0)
+                  .sort((a, b) => a.startIndex - b.startIndex || (a.endIndex - b.endIndex));
 
-                    const columns: any[][] = [];
-                    
-                    sortedTasks.forEach(task => {
-                      let placed = false;
-                      
-                      for (let i = 0; i < columns.length; i++) {
-                        const column = columns[i];
-                        const lastTaskInColumn = column[column.length - 1];
-                        
-                        if (!lastTaskInColumn || lastTaskInColumn.endIndex < task.startIndex) {
-                          column.push({ ...task, column: i });
-                          placed = true;
-                          break;
-                        }
-                      }
-                      
-                      if (!placed) {
-                        columns.push([{ ...task, column: columns.length }]);
-                      }
-                    });
+                const columns: any[][] = [];
 
-                    return columns.flat();
-                  };
+                sortedTasks.forEach(task => {
+                  let placed = false;
 
-                  const tasksWithColumns = assignTaskColumns(formattedTasks);
+                  for (let i = 0; i < columns.length; i++) {
+                    const column = columns[i];
+                    const lastTaskInColumn = column[column.length - 1];
+
+                    if (!lastTaskInColumn || lastTaskInColumn.endIndex < task.startIndex) {
+                      column.push({ ...task, column: i });
+                      placed = true;
+                      break;
+                    }
+                  }
+
+                  if (!placed) {
+                    columns.push([{ ...task, column: columns.length }]);
+                  }
+                });
+
+                return columns.flat();
+              };
+
+              const tasksWithColumns = assignTaskColumns(formattedTasks);
               const maxColumnsOverall = Math.max(1, ...tasksWithColumns.map(t => t.column + 1));
               const taskWidth = 180;
               const totalContentWidth = maxColumnsOverall * (taskWidth + 8) + 88 + 50; // 88 for time labels + 50 padding
@@ -853,7 +907,7 @@ function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Reco
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ 
+                    contentContainerStyle={{
                       width: Math.max(tasksContentWidth, 300)
                     }}
                   >
@@ -873,67 +927,67 @@ function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Reco
                       {/* Task overlay */}
                       <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}>
                         {(() => {
-                  const groups: Record<number, any[]> = {};
-                  tasksWithColumns.forEach(task => {
-                    const startIndex = task.startIndex;
-                    if (!groups[startIndex]) groups[startIndex] = [];
-                    groups[startIndex].push(task);
-                  });
+                          const groups: Record<number, any[]> = {};
+                          tasksWithColumns.forEach(task => {
+                            const startIndex = task.startIndex;
+                            if (!groups[startIndex]) groups[startIndex] = [];
+                            groups[startIndex].push(task);
+                          });
 
-                  return Object.entries(groups).map(([indexStr, items]) => {
-                    const index = Number(indexStr);
-                    const top = index * SLOT_HEIGHT + 4;
+                          return Object.entries(groups).map(([indexStr, items]) => {
+                            const index = Number(indexStr);
+                            const top = index * SLOT_HEIGHT + 4;
                             const maxHeight = Math.max(54, ...items.map(it => (it.slotCount || 1) * SLOT_HEIGHT - 8));
-                    
-                    return (
+
+                            return (
                               <View key={`band-${index}`} style={{ position: 'absolute', left: 8, right: 0, top, height: maxHeight }}>
-                            {items.map(item => (
-                              <RNPressable
-                                key={item.id}
-                                style={[
-                                  styles.taskCard,
-                                  {
-                                    position: 'absolute',
-                                    left: item.column * (taskWidth + 8),
-                                    top: 0,
-                                    height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
-                                    borderColor: item.borderColor,
-                                    backgroundColor: item.bg,
-                                    width: taskWidth,
-                                  },
-                                ]}
-                                onPress={() => {
-                                  setSelectedTask(item);
-                                  setShowTaskModal(true);
-                                }}
-                              >
-                                <View style={styles.taskMetaRow}>
-                                  <Text style={styles.taskNumber}>{item.number}</Text>
-                                  <View style={styles.taskUserPill}>
-                                    <Text style={styles.taskUserText}>
+                                {items.map(item => (
+                                  <RNPressable
+                                    key={item.id}
+                                    style={[
+                                      styles.taskCard,
+                                      {
+                                        position: 'absolute',
+                                        left: item.column * (taskWidth + 8),
+                                        top: 0,
+                                        height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
+                                        borderColor: item.borderColor,
+                                        backgroundColor: item.bg,
+                                        width: taskWidth,
+                                      },
+                                    ]}
+                                    onPress={() => {
+                                      setSelectedTask(item);
+                                      setShowTaskModal(true);
+                                    }}
+                                  >
+                                    <View style={styles.taskMetaRow}>
+                                      <Text style={styles.taskNumber}>{item.number}</Text>
+                                      <View style={styles.taskUserPill}>
+                                        <Text style={styles.taskUserText}>
                                           {maxColumnsOverall > 2 || item.type === 'mini'
-                                        ? (item.user || '').split(' ')[0]
-                                        : item.user || ''}
-                                    </Text>
-                                  </View>
-                                </View>
-                                <Text
-                                  style={[
-                                    styles.taskTitle,
+                                            ? (item.user || '').split(' ')[0]
+                                            : item.user || ''}
+                                        </Text>
+                                      </View>
+                                    </View>
+                                    <Text
+                                      style={[
+                                        styles.taskTitle,
                                         { fontSize: maxColumnsOverall > 2 || item.type === 'mini' ? 11 : 12 },
-                                  ]}
+                                      ]}
                                       numberOfLines={maxColumnsOverall > 2 || item.type === 'mini' ? 2 : 3}
-                                >
-                                  {item.title}
-                                </Text>
-                              </RNPressable>
-                            ))}
+                                    >
+                                      {item.title}
+                                    </Text>
+                                  </RNPressable>
+                                ))}
+                              </View>
+                            );
+                          });
+                        })()}
                       </View>
-                    );
-                  });
-                })()}
-              </View>
-            </View>
+                    </View>
                   </ScrollView>
                 </View>
               );
@@ -994,190 +1048,190 @@ function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Reco
                         <Text style={{ color: '#222E44', fontWeight: '400', fontSize: 12 }}>{`${progressPct}%`}</Text>
                       </View>
 
-{/* Summary section */}
-<View style={{ backgroundColor: '#F7F9FC', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', marginTop: 14 }}>
-  <View style={{ flexDirection: 'row', padding: 12 }}>
-    {(() => {
-      const userCount = Array.isArray(filteredUsers) ? filteredUsers.length : 0;
-      const isReassignDisabled = userCount === 0;
-      
-      return (
-        <TouchableOpacity 
-          style={{ 
-            flex: 1, 
-            flexDirection: 'row', 
-            alignItems: 'center',
-            opacity: isReassignDisabled ? 0.5 : 1 
-          }}
-          onPress={() => {
-            if (!isReassignDisabled) {
-              openModal('user', selectedTask);
-            }
-          }}
-          disabled={isReassignDisabled}
-        >
-          <UserIcon width={14} height={14} style={{ opacity: isReassignDisabled ? 0.5 : 1 }} />
-          <Text style={{ 
-            color: isReassignDisabled ? '#AAB3BB' : '#1292E6', 
-            fontWeight: '500', 
-            fontSize: 12, 
-            marginLeft: 8 
-          }}>
-            Reassign
-          </Text>
-        </TouchableOpacity>
-      );
-    })()}
-    
-    {(() => {
-      const deviceCount = Array.isArray((devicesData?.data as any)?.content) ? (devicesData.data as any).content.length : 0;
-      const isDevicesDisabled = deviceCount === 0;
-      
-      return (
-        <TouchableOpacity 
-          style={{ 
-            flex: 1, 
-            flexDirection: 'row', 
-            alignItems: 'center',
-            opacity: isDevicesDisabled ? 0.5 : 1 
-          }}
-          onPress={() => {
-            if (!isDevicesDisabled) {
-              openModal('devices', selectedTask);
-            }
-          }}
-          disabled={isDevicesDisabled}
-        >
-          <DeviceIcon width={14} height={14} style={{ opacity: isDevicesDisabled ? 0.5 : 1 }} />
-          <Text style={{ 
-            color: isDevicesDisabled ? '#AAB3BB' : '#1292E6', 
-            fontWeight: '500', 
-            fontSize: 12, 
-            marginLeft: 8 
-          }}>
-            Devices
-          </Text>
-          <View style={{ 
-            backgroundColor: isDevicesDisabled ? '#F0F0F0' : '#D0ECFF', 
-            borderRadius: 12, 
-            minWidth: 28, 
-            height: 28, 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            marginLeft: 8 
-          }}>
-            <Text style={{ 
-              color: isDevicesDisabled ? '#AAB3BB' : '#1292E6', 
-              fontWeight: '600', 
-              fontSize: 12 
-            }}>
-              {deviceCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      );
-    })()}
-  </View>
-  <View style={{ flexDirection: 'row', padding: 12, paddingTop: 0 }}>
-    {(() => {
-      const sectionCount = Array.isArray((sectionsData?.data as any)?.content) ? (sectionsData.data as any).content.length : 0;
-      const isSectionsDisabled = sectionCount === 0;
-      
-      return (
-        <TouchableOpacity 
-          style={{ 
-            flex: 1, 
-            flexDirection: 'row', 
-            alignItems: 'center',
-            opacity: isSectionsDisabled ? 0.5 : 1 
-          }}
-          onPress={() => {
-            if (!isSectionsDisabled) {
-              openModal('sections', selectedTask);
-            }
-          }}
-          disabled={isSectionsDisabled}
-        >
-          <MenuIcon width={14} height={14} style={{ opacity: isSectionsDisabled ? 0.5 : 1 }} />
-          <Text style={{ 
-            color: isSectionsDisabled ? '#AAB3BB' : '#1292E6', 
-            fontWeight: '500', 
-            fontSize: 12, 
-            marginLeft: 8 
-          }}>
-            Sections
-          </Text>
-          <View style={{ 
-            backgroundColor: isSectionsDisabled ? '#F0F0F0' : '#D0ECFF', 
-            borderRadius: 12, 
-            minWidth: 28, 
-            height: 28, 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            marginLeft: 8 
-          }}>
-            <Text style={{ 
-              color: isSectionsDisabled ? '#AAB3BB' : '#1292E6', 
-              fontWeight: '600', 
-              fontSize: 12 
-            }}>
-              {sectionCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      );
-    })()}
-    
-    {(() => {
-      const notesCount = selectedTask.notesCount ?? 0;
-      const isNotesDisabled = notesCount === 0;
-      
-      return (
-        <TouchableOpacity 
-          style={{ 
-            flex: 1, 
-            flexDirection: 'row', 
-            alignItems: 'center',
-            opacity: isNotesDisabled ? 0.5 : 1 
-          }}
-          onPress={() => {
-            if (!isNotesDisabled) {
-              openModal('notes', selectedTask);
-            }
-          }}
-          disabled={isNotesDisabled}
-        >
-          <NotesIcon width={14} height={14} style={{ opacity: isNotesDisabled ? 0.5 : 1 }} />
-          <Text style={{ 
-            color: isNotesDisabled ? '#AAB3BB' : '#1292E6', 
-            fontWeight: '500', 
-            fontSize: 12, 
-            marginLeft: 8 
-          }}>
-            Notes
-          </Text>
-          <View style={{ 
-            backgroundColor: isNotesDisabled ? '#F0F0F0' : '#D0ECFF', 
-            borderRadius: 12, 
-            minWidth: 28, 
-            height: 28, 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            marginLeft: 8 
-          }}>
-            <Text style={{ 
-              color: isNotesDisabled ? '#AAB3BB' : '#1292E6', 
-              fontWeight: '600', 
-              fontSize: 12 
-            }}>
-              {notesCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      );
-    })()}
-  </View>
-</View>
+                      {/* Summary section */}
+                      <View style={{ backgroundColor: '#F7F9FC', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', marginTop: 14 }}>
+                        <View style={{ flexDirection: 'row', padding: 12, paddingTop: 14 }}>
+                          {(() => {
+                            const sectionCount = getSectionModels(selectedTask.formDefinitionId)?.length ?? 0;
+                            const isSectionsDisabled = sectionCount === 0;
+
+                            return (
+                              <TouchableOpacity
+                                style={{
+                                  flex: 1,
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  opacity: isSectionsDisabled ? 0.5 : 1,
+                                }}
+                                onPress={() => {
+                                  if (!isSectionsDisabled) {
+                                    openModal('sections', selectedTask);
+                                  }
+                                }}
+                                disabled={isSectionsDisabled}
+                              >
+                                <MenuIcon width={14} height={14} style={{ opacity: isSectionsDisabled ? 0.5 : 1 }} />
+                                <Text style={{
+                                  color: isSectionsDisabled ? '#AAB3BB' : '#1292E6',
+                                  fontWeight: '500',
+                                  fontSize: 12,
+                                  marginLeft: 8
+                                }}>
+                                  Sections
+                                </Text>
+                                <View style={{
+                                  backgroundColor: isSectionsDisabled ? '#F0F0F0' : '#D0ECFF',
+                                  borderRadius: 12,
+                                  minWidth: 28,
+                                  height: 28,
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  marginLeft: 8
+                                }}>
+                                  <Text style={{
+                                    color: isSectionsDisabled ? '#AAB3BB' : '#1292E6',
+                                    fontWeight: '600',
+                                    fontSize: 12
+                                  }}>
+                                    {sectionCount}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })()}
+
+                          {(() => {
+                            const deviceCount = Array.isArray((devicesData?.data as any)?.content) ? (devicesData.data as any).content.length : 0;
+                            const isDevicesDisabled = deviceCount === 0;
+
+                            return (
+                              <TouchableOpacity
+                                style={{
+                                  flex: 1,
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  opacity: isDevicesDisabled ? 0.5 : 1
+                                }}
+                                onPress={() => {
+                                  if (!isDevicesDisabled) {
+                                    openModal('devices', selectedTask);
+                                  }
+                                }}
+                                disabled={isDevicesDisabled}
+                              >
+                                <DeviceIcon width={14} height={14} style={{ opacity: isDevicesDisabled ? 0.5 : 1 }} />
+                                <Text style={{
+                                  color: isDevicesDisabled ? '#AAB3BB' : '#1292E6',
+                                  fontWeight: '500',
+                                  fontSize: 12,
+                                  marginLeft: 8
+                                }}>
+                                  Devices
+                                </Text>
+                                <View style={{
+                                  backgroundColor: isDevicesDisabled ? '#F0F0F0' : '#D0ECFF',
+                                  borderRadius: 12,
+                                  minWidth: 28,
+                                  height: 28,
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  marginLeft: 8
+                                }}>
+                                  <Text style={{
+                                    color: isDevicesDisabled ? '#AAB3BB' : '#1292E6',
+                                    fontWeight: '600',
+                                    fontSize: 12
+                                  }}>
+                                    {deviceCount}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })()}
+                        </View>
+                        <View style={{ flexDirection: 'row', padding: 12 }}>
+                          {/* {(() => {
+                            const userCount = Array.isArray(filteredUsers) ? filteredUsers.length : 0;
+                            const isReassignDisabled = userCount === 0;
+
+                            return (
+                              <TouchableOpacity
+                                style={{
+                                  flex: 1,
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  opacity: isReassignDisabled ? 0.5 : 1
+                                }}
+                                onPress={() => {
+                                  if (!isReassignDisabled) {
+                                    openModal('user', selectedTask);
+                                  }
+                                }}
+                                disabled={isReassignDisabled}
+                              >
+                                <UserIcon width={14} height={14} style={{ opacity: isReassignDisabled ? 0.5 : 1 }} />
+                                <Text style={{
+                                  color: isReassignDisabled ? '#AAB3BB' : '#1292E6',
+                                  fontWeight: '500',
+                                  fontSize: 12,
+                                  marginLeft: 8
+                                }}>
+                                  Reassign
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })()} */}
+                          {(() => {
+                            const notesCount = selectedTask.notesCount ?? 0;
+                            const isNotesDisabled = notesCount === 0;
+
+                            return (
+                              <TouchableOpacity
+                                style={{
+                                  flex: 1,
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  opacity: isNotesDisabled ? 0.5 : 1
+                                }}
+                                onPress={() => {
+                                  if (!isNotesDisabled) {
+                                    openModal('notes', selectedTask);
+                                  }
+                                }}
+                                disabled={isNotesDisabled}
+                              >
+                                <NotesIcon width={14} height={14} style={{ opacity: isNotesDisabled ? 0.5 : 1 }} />
+                                <Text style={{
+                                  color: isNotesDisabled ? '#AAB3BB' : '#1292E6',
+                                  fontWeight: '500',
+                                  fontSize: 12,
+                                  marginLeft: 8
+                                }}>
+                                  Notes
+                                </Text>
+                                <View style={{
+                                  backgroundColor: isNotesDisabled ? '#F0F0F0' : '#D0ECFF',
+                                  borderRadius: 12,
+                                  minWidth: 28,
+                                  height: 28,
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  marginLeft: 8
+                                }}>
+                                  <Text style={{
+                                    color: isNotesDisabled ? '#AAB3BB' : '#1292E6',
+                                    fontWeight: '600',
+                                    fontSize: 12
+                                  }}>
+                                    {notesCount}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })()}
+                        </View>
+
+                      </View>
 
                       {/* Get Started button */}
                       <TouchableOpacity
@@ -1208,12 +1262,12 @@ function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Reco
                             });
                           }
                         }}
-                        style={{ 
-                          backgroundColor: canStart ? '#1292E6' : '#bac0cdff', 
-                          paddingVertical: 12, 
-                          borderRadius: 10, 
-                          alignItems: 'center', 
-                          marginTop: 14 
+                        style={{
+                          backgroundColor: canStart ? '#1292E6' : '#bac0cdff',
+                          paddingVertical: 12,
+                          borderRadius: 10,
+                          alignItems: 'center',
+                          marginTop: 14
                         }}
                       >
                         <Text style={{ color: '#fff', fontWeight: '700' }}>Get Started</Text>
@@ -1272,199 +1326,199 @@ function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Reco
       </RNModal>
 
 
-{/* User Modal */}
-<RNModal
-  visible={userModal}
-  transparent
-  animationType="fade"
-  onRequestClose={closeModal}
->
-  <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
-    <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, justifyContent: 'flex-start', width: '90%', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 8, minHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
-        <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Users</Text>
-        <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 16, color: '#0088E7' }}>✕</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 18, paddingBottom: 0 }}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderTopLeftRadius: 12, borderBottomLeftRadius: 12, paddingHorizontal: 12, height: 44 }}>
-          <SearchIcon width={22} height={22} style={{ marginRight: 8, opacity: 0.6 }} />
-          <TextInput
-            placeholder="Search ..."
-            style={{ flex: 1, fontSize: 16, color: '#363942', fontWeight: '500', padding: 0 }}
-            value={searchUser}
-            onChangeText={setSearchUser}
-            onSubmitEditing={() => refetchUserSites()}
-            returnKeyType="search"
-          />
-        </View>
-        <TouchableOpacity onPress={() => refetchUserSites()} style={{ backgroundColor: '#0088E7', borderBottomRightRadius: 12, borderTopRightRadius: 12, paddingHorizontal: 18, height: 44, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: '#fff', fontWeight: '500', fontSize: 16 }}>Search</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={{ marginTop: 14, paddingHorizontal: 18, flex: 1, paddingVertical: 8 }}>
-        {isUserSitesLoading ? (
-          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
-        ) : isUserSitesError ? (
-          <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading users</Text>
-        ) : filteredUsers.length > 0 ? (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {filteredUsers.map((item, idx) => (
-              <View key={item.id || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 10, marginBottom: 12 }}>
-                <Text style={{ fontWeight: '500', fontSize: 16, color: '#222E44' }}>{item.name || item.username || item.storeEmail}</Text>
-                <Text style={{ color: '#0088E7', fontSize: 14 }}>
-                  {item.email || 'email@example.com'}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
-        ) : (
-          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No users found</Text>
-        )}
-      </View>
-    </RNPressable>
-  </RNPressable>
-</RNModal>
-
-{/* Sections Modal */}
-<RNModal
-  visible={sectionsModal}
-  transparent
-  animationType="fade"
-  onRequestClose={closeModal}
->
-  <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
-    <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 20, width: '90%', maxHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-        <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44', flex: 1 }}>Sections</Text>
-        <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 16, color: '#0088E7' }}>✕</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {isSectionsLoading ? (
-          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
-        ) : isSectionsError ? (
-          <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading sections</Text>
-        ) : Array.isArray((sectionsData?.data as any)?.content) && (sectionsData.data as any).content.length > 0 ? (
-          (sectionsData.data as any).content.map((section, idx) => (
-            <View key={section.documentId || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: '500', fontSize: 15, color: '#222E44' }}>{section.name || 'Cleaning'}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                  <LocationIcon width={16} height={16} style={{ opacity: 0.7 }} />
-                  <Text style={{ color: '#676869', fontSize: 12, marginLeft: 8 }}>
-                    {section.location || 'No Location Available'}
-                  </Text>
+      {/* User Modal */}
+      <RNModal
+        visible={userModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
+          <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, justifyContent: 'flex-start', width: '90%', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 8, minHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
+              <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Users</Text>
+              <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 16, color: '#0088E7' }}>✕</Text>
                 </View>
-              </View>
-              <View>
-                {section.location ? (
-                  <View style={{ backgroundColor: '#E6FAEF', borderRadius: 50, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: '#11A330', fontSize: 14 }}>✓</Text>
-                  </View>
-                ) : (
-                  <View style={{ backgroundColor: '#FDEBEB', borderRadius: 50, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: '#E4190A', fontSize: 14 }}>✕</Text>
-                  </View>
-                )}
-              </View>
+              </TouchableOpacity>
             </View>
-          ))
-        ) : (
-          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No sections found</Text>
-        )}
-      </ScrollView>
-    </RNPressable>
-  </RNPressable>
-</RNModal>
-
-{/* Devices Modal */}
-<RNModal
-  visible={devicesModal}
-  transparent
-  animationType="fade"
-  onRequestClose={closeModal}
->
-  <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
-    <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, width: '90%', minHeight: 320, maxHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
-        <Text style={{ fontWeight: '700', fontSize: 20, color: '#222E44' }}>Devices</Text>
-        <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 18, color: '#0088E7' }}>✕</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-      <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 12 }}>
-        {isDevicesLoading ? (
-          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
-        ) : isDevicesError ? (
-          <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading devices</Text>
-        ) : Array.isArray((devicesData?.data as any)?.content) && (devicesData.data as any).content.length > 0 ? (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {(devicesData.data as any).content.map((item, idx) => (
-              <View key={item.uuid || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: '700', fontSize: 17, color: '#222E44' }}>{item.name || ''}</Text>
-                  <Text style={{ color: '#0088E7', fontSize: 12, marginTop: 2 }}>{item.macAddress || ''}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: '#AAB3BB', fontSize: 12 }}>uuid # {item.uuId ?? ''}</Text>
-                </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 18, paddingBottom: 0 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', borderTopLeftRadius: 12, borderBottomLeftRadius: 12, paddingHorizontal: 12, height: 44 }}>
+                <SearchIcon width={22} height={22} style={{ marginRight: 8, opacity: 0.6 }} />
+                <TextInput
+                  placeholder="Search ..."
+                  style={{ flex: 1, fontSize: 16, color: '#363942', fontWeight: '500', padding: 0 }}
+                  value={searchUser}
+                  onChangeText={setSearchUser}
+                  onSubmitEditing={() => refetchUserSites()}
+                  returnKeyType="search"
+                />
               </View>
-            ))}
-          </ScrollView>
-        ) : (
-          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No devices found</Text>
-        )}
-      </View>
-    </RNPressable>
-  </RNPressable>
-</RNModal>
+              <TouchableOpacity onPress={() => refetchUserSites()} style={{ backgroundColor: '#0088E7', borderBottomRightRadius: 12, borderTopRightRadius: 12, paddingHorizontal: 18, height: 44, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontWeight: '500', fontSize: 16 }}>Search</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ marginTop: 14, paddingHorizontal: 18, flex: 1, paddingVertical: 8 }}>
+              {isUserSitesLoading ? (
+                <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+              ) : isUserSitesError ? (
+                <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading users</Text>
+              ) : filteredUsers.length > 0 ? (
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {filteredUsers.map((item, idx) => (
+                    <View key={item.id || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 10, marginBottom: 12 }}>
+                      <Text style={{ fontWeight: '500', fontSize: 16, color: '#222E44' }}>{item.name || item.username || item.storeEmail}</Text>
+                      <Text style={{ color: '#0088E7', fontSize: 14 }}>
+                        {item.email || 'email@example.com'}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No users found</Text>
+              )}
+            </View>
+          </RNPressable>
+        </RNPressable>
+      </RNModal>
 
-{/* Notes Modal */}
-<RNModal
-  visible={notesModal}
-  transparent
-  animationType="fade"
-  onRequestClose={closeModal}
->
-  <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
-    <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, width: '90%', minHeight: 320, maxHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
-        <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Notes</Text>
-        <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 18, color: '#0088E7' }}>✕</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-      <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 12 }}>
-        {isNotesLoading ? (
-          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
-        ) : isNotesError ? (
-          <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading notes</Text>
-        ) : Array.isArray((notesData?.data as any)?.list) && (notesData.data as any).list.length > 0 ? (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {(notesData.data as any).list.map((item, idx) => (
-              <View key={item.id || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16 }}>
-                <Text style={{ color: '#222E44', fontSize: 16, fontWeight: '600' }}>{item.text || item.note || ''}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        ) : (
-          <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No notes found</Text>
-        )}
-      </View>
-    </RNPressable>
-  </RNPressable>
-</RNModal>
+      {/* Sections Modal */}
+      <RNModal
+        visible={sectionsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
+          <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 20, width: '90%', maxHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44', flex: 1 }}>Sections</Text>
+              <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 16, color: '#0088E7' }}>✕</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {isSectionsLoading ? (
+                <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+              ) : isSectionsError ? (
+                <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading sections</Text>
+              ) : selectedTaskForModal ? (
+                getSectionModels(selectedTaskForModal.formDefinitionId)?.map((section, idx) => (
+                  <View key={section.formSectionId || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: '500', fontSize: 15, color: '#222E44' }}>{(section as any).name || 'Section'}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                        <LocationIcon width={16} height={16} style={{ opacity: 0.7 }} />
+                        <Text style={{ color: '#676869', fontSize: 12, marginLeft: 8 }}>
+                          {(section as any).location || 'No Location Available'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View>
+                      {(section as any).location ? (
+                        <View style={{ backgroundColor: '#E6FAEF', borderRadius: 50, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ color: '#11A330', fontSize: 14 }}>✓</Text>
+                        </View>
+                      ) : (
+                        <View style={{ backgroundColor: '#FDEBEB', borderRadius: 50, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ color: '#E4190A', fontSize: 14 }}>✕</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No sections found</Text>
+              )}
+            </ScrollView>
+          </RNPressable>
+        </RNPressable>
+      </RNModal>
+
+      {/* Devices Modal */}
+      <RNModal
+        visible={devicesModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
+          <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, width: '90%', minHeight: 320, maxHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
+              <Text style={{ fontWeight: '700', fontSize: 20, color: '#222E44' }}>Devices</Text>
+              <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 18, color: '#0088E7' }}>✕</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 12 }}>
+              {isDevicesLoading ? (
+                <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+              ) : isDevicesError ? (
+                <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading devices</Text>
+              ) : Array.isArray((devicesData?.data as any)?.content) && (devicesData.data as any).content.length > 0 ? (
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {(devicesData.data as any).content.map((item, idx) => (
+                    <View key={item.uuid || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: '700', fontSize: 17, color: '#222E44' }}>{item.name || ''}</Text>
+                        <Text style={{ color: '#0088E7', fontSize: 12, marginTop: 2 }}>{item.macAddress || ''}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#AAB3BB', fontSize: 12 }}>uuid # {item.uuId ?? ''}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No devices found</Text>
+              )}
+            </View>
+          </RNPressable>
+        </RNPressable>
+      </RNModal>
+
+      {/* Notes Modal */}
+      <RNModal
+        visible={notesModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <RNPressable style={styles.modalBackdrop} onPress={(e) => { e.stopPropagation(); closeModal(); }}>
+          <RNPressable style={{ borderRadius: 18, backgroundColor: '#fff', padding: 0, width: '90%', minHeight: 320, maxHeight: '60%' }} onPress={(e) => e.stopPropagation()}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F1F6' }}>
+              <Text style={{ fontWeight: '600', fontSize: 18, color: '#222E44' }}>Notes</Text>
+              <TouchableOpacity onPress={closeModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#0088E71A', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 18, color: '#0088E7' }}>✕</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 12 }}>
+              {isNotesLoading ? (
+                <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
+              ) : isNotesError ? (
+                <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading notes</Text>
+              ) : Array.isArray((notesData?.data as any)?.list) && (notesData.data as any).list.length > 0 ? (
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {(notesData.data as any).list.map((item, idx) => (
+                    <View key={item.id || idx} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16 }}>
+                      <Text style={{ color: '#222E44', fontSize: 16, fontWeight: '600' }}>{item.text || item.note || ''}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No notes found</Text>
+              )}
+            </View>
+          </RNPressable>
+        </RNPressable>
+      </RNModal>
 
 
     </SafeAreaView>
@@ -1579,14 +1633,14 @@ const styles = StyleSheet.create({
   //   borderRightColor: '#bec2c7ff',
   // },
   hourLabelWrap: {
-  width: 80,
-  alignItems: 'flex-end',
-  paddingTop: 0,
-  marginTop: -1,  // Add negative margin to move text up to touch the line
-  borderRightWidth: 0.5,
-  borderRightColor: '#bec2c7ff',
-  // borderRightColor: '#bec2c7ff',
-},
+    width: 80,
+    alignItems: 'flex-end',
+    paddingTop: 0,
+    marginTop: -1,  // Add negative margin to move text up to touch the line
+    borderRightWidth: 0.5,
+    borderRightColor: '#bec2c7ff',
+    // borderRightColor: '#bec2c7ff',
+  },
   hourLabel: {
     color: GRAY,
     fontSize: 12,
@@ -1603,12 +1657,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     justifyContent: 'flex-start',
   },
-taskOverlayCard: {
-  position: 'absolute',
-  left: 88,
-  right: 90,
-  marginRight: 0,
-},
+  taskOverlayCard: {
+    position: 'absolute',
+    left: 88,
+    right: 90,
+    marginRight: 0,
+  },
   taskMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1706,17 +1760,17 @@ taskOverlayCard: {
     top: 0,
     bottom: 0,
   },
-overlayBand: {
-  position: 'absolute',
-  left: 88,  // Start after the time labels
-  right: 0,  // Changed from 90 to 0 to extend full width
-  paddingRight: 16,  // Add padding instead of margin
-},
-overlayBandScrollContent: {
-  paddingRight: 16,
-  alignItems: 'flex-start',
-  flexDirection: 'row',  // Add this to ensure horizontal layout
-},
+  overlayBand: {
+    position: 'absolute',
+    left: 88,  // Start after the time labels
+    right: 0,  // Changed from 90 to 0 to extend full width
+    paddingRight: 16,  // Add padding instead of margin
+  },
+  overlayBandScrollContent: {
+    paddingRight: 16,
+    alignItems: 'flex-start',
+    flexDirection: 'row',  // Add this to ensure horizontal layout
+  },
   dropdownOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.18)',

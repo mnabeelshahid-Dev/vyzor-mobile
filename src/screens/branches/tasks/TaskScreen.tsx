@@ -99,6 +99,8 @@ export default function TaskScreen({ navigation }) {
   const [sectionData, setSectionData] = useState<any>([]);
   const [warningModal, setWarningModal] = useState(false);
   const [taskInProgressBy, setTaskInProgressBy] = useState('');
+  const [sectionDataArray, setSectionDataArray] = useState<any>([]);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
 
 
   const route: any = useRoute();
@@ -118,6 +120,20 @@ export default function TaskScreen({ navigation }) {
     queryFn: fetchDevices,
     refetchInterval: 120000,
   });
+
+  // Filter out deleted devices
+  const filteredDevicesData = devicesData && Array.isArray((devicesData?.data as any)?.content)
+    ? {
+        ...(devicesData as any),
+        data: {
+          ...(devicesData.data as any),
+          content: (devicesData.data as any).content.filter((item: any) => item.deleted !== true),
+        },
+      }
+    : devicesData;
+
+  // console.log("}{}{}{{{}}{{}}", filteredDevicesData, devicesData);
+  
   // Sections Query
   const {
     data: sectionsData,
@@ -194,6 +210,28 @@ export default function TaskScreen({ navigation }) {
     }
   });
 
+console.log("nabeel heree", sectionDataArray);
+
+  // Update sectionDataArray when sectionsData changes
+  useEffect(() => {
+    if (sectionsData?.data?.content) {
+      // Get all sections for the current tasks
+      const allSections: FormDefinitionSectionModel[] = [];
+      
+      sectionsData.data.content.forEach((section: Section) => {
+        if (Array.isArray(section.formDefinitionSectionModels)) {
+          section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel) => {
+            if (model.deleted !== true) {
+              allSections.push(model);
+            }
+          });
+        }
+      });
+      
+      setSectionDataArray(allSections);
+      console.log("Updated sectionDataArray with", allSections.length, "sections");
+    }
+  }, [sectionsData]);
 
 
 
@@ -381,7 +419,10 @@ export default function TaskScreen({ navigation }) {
     setShowDropdown(false);
   };
   // Keep original openModal for single modal logic
-  const openModal = async (type: string) => {
+  const openModal = async (type: string, task?: any) => {
+    if (task) {
+      setSelectedTask(task);
+    }
     setFilterModal(type === 'filter');
     setUserModal(type === 'user');
     setSectionsModal(type === 'sections');
@@ -429,9 +470,10 @@ export default function TaskScreen({ navigation }) {
   // Get array of section models for a given formDefinitionId
   function getSectionModels(formDefinationsId: string | number): FormDefinitionSectionModel[] {
     if (!sectionsData?.data?.content) return [];
+    
     let tempArray: FormDefinitionSectionModel[] = [];
     sectionsData.data.content.forEach((section: Section) => {
-
+    
       if (Array.isArray(section.formDefinitionSectionModels)) {
         section.formDefinitionSectionModels.forEach((model: FormDefinitionSectionModel) => {
           if (model.formDefinitionId === formDefinationsId && model.deleted !== true) {
@@ -440,11 +482,22 @@ export default function TaskScreen({ navigation }) {
         });
       }
     });
-    return tempArray;
+    
+    // Sort by sequence: treat null as 0, sort in ascending order
+    const sortedArray = tempArray.sort((a, b) => {
+      const aSeq = (a as any).sequence ?? 0; // null becomes 0
+      const bSeq = (b as any).sequence ?? 0; // null becomes 0
+      
+      const result = aSeq - bSeq;
+      return result;
+    });
+    
+    return sortedArray;
   }
 
   function getSectionModelsForSectionIds(formDefinationsId: string | number): any {
     if (!sectionsData?.data?.content) return [];
+    
     let tempArray: any = [];
     sectionsData.data.content.forEach((section: Section) => {
       if (Array.isArray(section.formDefinitionSectionModels)) {
@@ -455,19 +508,31 @@ export default function TaskScreen({ navigation }) {
         });
       }
     });
+    
+    // Sort by sequence: treat null as 0, sort in ascending order
+    const sortedArray = tempArray.sort((a, b) => {
+      const aSeq = (a as any).sequence ?? 0; // null becomes 0
+      const bSeq = (b as any).sequence ?? 0; // null becomes 0
+      
+      const result = aSeq - bSeq;
+      return result;
+    });
+    
     const formSectionIDs: Record<string, any> = {};
     let id = 1;
-    tempArray.forEach((model: FormDefinitionSectionModel) => {
+    sortedArray.forEach((model: FormDefinitionSectionModel) => {
       if (model.formSectionId) {
         formSectionIDs[`id${id++}`] = model.formSectionId;
       }
     });
+    
     return formSectionIDs;
   }
 
   // Similar helper that returns webId values mapped as { id1: webId1, id2: webId2, ... }
   function getSectionWebIdsForSectionIds(formDefinationsId: string | number): Record<string, any> {
     if (!sectionsData?.data?.content) return {};
+    
     let tempArray: any = [];
     sectionsData.data.content.forEach((section: Section) => {
       if (Array.isArray(section.formDefinitionSectionModels)) {
@@ -478,13 +543,24 @@ export default function TaskScreen({ navigation }) {
         });
       }
     });
+    
+    // Sort by sequence: treat null as 0, sort in ascending order
+    const sortedArray = tempArray.sort((a, b) => {
+      const aSeq = (a as any).sequence ?? 0; // null becomes 0
+      const bSeq = (b as any).sequence ?? 0; // null becomes 0
+      
+      const result = aSeq - bSeq;
+      return result;
+    });
+    
     const webIds: Record<string, any> = {};
     let id = 1;
-    tempArray.forEach((model: { webId?: any }) => {
+    sortedArray.forEach((model: { webId?: any }) => {
       if (model.webId !== undefined && model.webId !== null) {
         webIds[`id${id++}`] = model.webId;
       }
     });
+    
     return webIds;
   }
 
@@ -550,34 +626,46 @@ export default function TaskScreen({ navigation }) {
         <View style={{ backgroundColor: '#F7F9FC', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0' }}>
           <View style={{ flexDirection: 'row', padding: 12, marginBottom: 16, }}>
             {/* Reassign */}
-            <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => openModal('user')}>
+            {/* <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => openModal('user')}>
               <UserIcon width={14} height={14} color={'#1292E6'} />
               <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Reassign</Text>
+            </TouchableOpacity> */}
+            {/* Sections */}
+            <TouchableOpacity 
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} 
+              onPress={() => openModal('sections', item)}
+              disabled={getSectionModels(item.formDefinitionId)?.length === 0}
+            >
+              <MenuIcon width={14} height={14} color={getSectionModels(item.formDefinitionId)?.length > 0 ? '#1292E6' : '#888'} />
+              <Text style={{ color: getSectionModels(item.formDefinitionId)?.length > 0 ? '#1292E6' : '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Sections</Text>
+              <View style={{ backgroundColor: getSectionModels(item.formDefinitionId)?.length > 0 ? '#D0ECFF' : '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+              <Text style={{ color: getSectionModels(item.formDefinitionId)?.length > 0 ? '#1292E6' : '#868696', fontWeight: '600', fontSize: 12 }}>{getSectionModels(item.formDefinitionId)?.length ?? 0}</Text>
+              </View>
             </TouchableOpacity>
             {/* Devices */}
-            <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', opacity: 0.5 }} onPress={() => openModal('devices')}>
-              <SettingsIcon width={14} height={14} />
-              <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Devices</Text>
-              <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{Array.isArray((devicesData?.data as any)?.content) ? (devicesData.data as any).content.length : 0}</Text>
+            <TouchableOpacity 
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} 
+              onPress={() => openModal('devices')}
+              disabled={!Array.isArray((filteredDevicesData?.data as any)?.content) || (filteredDevicesData.data as any).content.length === 0}
+            >
+              <SettingsIcon width={14} height={14} color={Array.isArray((filteredDevicesData?.data as any)?.content) && (filteredDevicesData.data as any).content.length > 0 ? '#1292E6' : '#888'} />
+              <Text style={{ color: Array.isArray((filteredDevicesData?.data as any)?.content) && (filteredDevicesData.data as any).content.length > 0 ? '#1292E6' : '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Devices</Text>
+              <View style={{ backgroundColor: Array.isArray((filteredDevicesData?.data as any)?.content) && (filteredDevicesData.data as any).content.length > 0 ? '#D0ECFF' : '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                <Text style={{ color: Array.isArray((filteredDevicesData?.data as any)?.content) && (filteredDevicesData.data as any).content.length > 0 ? '#1292E6' : '#868696', fontWeight: '500', fontSize: 14 }}>{Array.isArray((filteredDevicesData?.data as any)?.content) ? (filteredDevicesData.data as any).content.length : 0}</Text>
               </View>
             </TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', padding: 12, marginBottom: 16, marginTop: -28 }}>
-            {/* Sections */}
-            <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} onPress={() => openModal('sections')}>
-              <MenuIcon width={14} height={14} />
-              <Text style={{ color: '#1292E6', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Sections</Text>
-              <View style={{ backgroundColor: '#D0ECFF', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#1292E6', fontWeight: '600', fontSize: 12 }}>{getSectionModels(item.formDefinitionId)?.length ?? 0}</Text>
-              </View>
-            </TouchableOpacity>
             {/* Notes */}
-            <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', opacity: 0.5 }} onPress={() => openModal('notes')}>
-              <NotesIcon width={14} height={14} />
-              <Text style={{ color: '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Notes</Text>
-              <View style={{ backgroundColor: '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                <Text style={{ color: '#868696', fontWeight: '500', fontSize: 14 }}>{Array.isArray((notesData?.data as any)?.list) ? (notesData.data as any).list.length : 0}</Text>
+            <TouchableOpacity 
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }} 
+              onPress={() => openModal('notes')}
+              disabled={!Array.isArray((notesData?.data as any)?.list) || (notesData.data as any).list.length === 0}
+            >
+              <NotesIcon width={14} height={14} color={Array.isArray((notesData?.data as any)?.list) && (notesData.data as any).list.length > 0 ? '#1292E6' : '#888'} />
+              <Text style={{ color: Array.isArray((notesData?.data as any)?.list) && (notesData.data as any).list.length > 0 ? '#1292E6' : '#888', fontWeight: '500', fontSize: 12, marginLeft: 8 }}>Notes</Text>
+              <View style={{ backgroundColor: Array.isArray((notesData?.data as any)?.list) && (notesData.data as any).list.length > 0 ? '#D0ECFF' : '#D9D9D9', borderRadius: 12, minWidth: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                <Text style={{ color: Array.isArray((notesData?.data as any)?.list) && (notesData.data as any).list.length > 0 ? '#1292E6' : '#868696', fontWeight: '500', fontSize: 14 }}>{Array.isArray((notesData?.data as any)?.list) ? (notesData.data as any).list.length : 0}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -635,10 +723,10 @@ export default function TaskScreen({ navigation }) {
 
           return (
             <TouchableOpacity
-              disabled={!isEnabled || isUpdating}
+              disabled={!isEnabled || isUpdating || statusText === 'COMPLETED'}
               onPress={handleGetStarted}
               style={{
-                backgroundColor: (!isEnabled || isUpdating) ? '#bac0cdff' : '#1292E6',
+                backgroundColor: (!isEnabled || isUpdating || statusText === 'COMPLETED') ? '#bac0cdff' : '#1292E6',
                 borderRadius: 8,
                 alignItems: 'center',
                 paddingVertical: 8,
@@ -1040,10 +1128,11 @@ export default function TaskScreen({ navigation }) {
             ) : isSectionsError ? (
               <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading sections</Text>
             ) : Array.isArray(sectionsData?.data?.content) && sectionsData.data.content.length > 0 ? (
-              sectionsData.data.content.map((section, idx) => (
-                <View key={section.documentId || idx} style={{ backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#F1F1F6', padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2, marginHorizontal: 4 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: '500', fontSize: 15, color: '#222E44', marginBottom: 2 }}>{section.name || 'Cleaning'}</Text>
+              selectedTask ? (
+                getSectionModels(selectedTask.formDefinitionId)?.map((section, idx) => (
+                  <View key={section.documentId || idx} style={{ backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#F1F1F6', padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2, marginHorizontal: 4 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: '500', fontSize: 15, color: '#222E44', marginBottom: 2 }}>{section.name || 'Cleaning'}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
                       <LocationIcon width={16} height={16} style={{ opacity: 0.7 }} />
                       <Text style={{ color: '#676869', fontSize: 12, marginLeft: 8, fontWeight: '400' }}>
@@ -1064,6 +1153,9 @@ export default function TaskScreen({ navigation }) {
                   </View>
                 </View>
               ))
+              ) : (
+                <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Please select a task to view sections</Text>
+              )
             ) : (
               <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>No sections found</Text>
             )}
@@ -1127,9 +1219,9 @@ export default function TaskScreen({ navigation }) {
               <Text style={{ textAlign: 'center', color: '#888', marginTop: 18 }}>Loading...</Text>
             ) : isDevicesError ? (
               <Text style={{ textAlign: 'center', color: '#E4190A', marginTop: 18 }}>Error loading devices</Text>
-            ) : Array.isArray((devicesData?.data as any)?.content) && (devicesData.data as any).content.length > 0 ? (
+            ) : Array.isArray((filteredDevicesData?.data as any)?.content) && (filteredDevicesData.data as any).content.length > 0 ? (
               <FlatList
-                data={(devicesData.data as any).content}
+                data={(filteredDevicesData.data as any).content}
                 keyExtractor={(item, idx) => (item.uuid ? String(item.uuid) : idx.toString())}
                 renderItem={({ item }) => (
                   <View key={item.uuid} style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E6EAF0', padding: 16, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>

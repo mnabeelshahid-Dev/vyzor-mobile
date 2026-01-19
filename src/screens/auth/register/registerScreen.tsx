@@ -575,10 +575,10 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
     if (!isFormValid) {
       console.log('❌ Form validation failed, stopping registration');
-      showErrorToast(
-        'Validation Error',
-        'Please fix the errors in the form before submitting'
-      );
+      // showErrorToast(
+      //   'Validation Error',
+      //   'Please fix the errors in the form before submitting'
+      // );
       return;
     }
 

@@ -41,7 +41,6 @@ import { apiService } from '../../services/api';
 import { ensureCameraAndMediaPermissions } from '../../utils/takeImagePermission';
 import { generateUUID } from '../../utils/generateUUID';
 import SignatureField from '../../components/SignatureField/SignatureField';
-import { useSignatureStore } from '../../store/signatureStore';
 
 const { width } = Dimensions.get('window');
 const CARD_RADIUS = 16;
@@ -312,7 +311,7 @@ const Timer = ({
 export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Get formDefinitionId, status, and sourceScreen from route params
     const route = useRoute();
-    const { getSignature, setSignature, clearSignature, hasSignature } = useSignatureStore();
+    // Signature store removed - using simple state management like other fields
     const queryClient = useQueryClient();
     const {
         formSectionIds = {},
@@ -339,19 +338,6 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     // Mutation for document sync
     const syncMutation = useMutation({
         mutationFn: async (body: any) => syncDocument(documentId, body),
-        onSuccess: () => {
-            showSuccessToast('Document synced successfully!', 'Your document has been saved.');
-        },
-        onError: (error: any) => {
-            const status = error?.response?.status ?? error?.status ?? 'n/a';
-            const message =
-                error?.response?.data?.message ||
-                (typeof error?.response?.data === 'string' ? error.response.data : null) ||
-                error?.message ||
-                'Request failed';
-            console.log('[SectionsScreen] Document sync failed:', { status, message, data: error?.response?.data });
-            showErrorToast(`Sync failed (HTTP ${status})`, message);
-        },
     });
     function getImageIdFromRow(row: any) {
         const imageComponent = row.columns?.flatMap((c: any) => c.components || [])?.find((c: any) => c.component === 'IMAGE');
@@ -377,7 +363,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [ratingValues, setRatingValues] = useState<{ [key: string]: number }>({});
     const [lookupValues, setLookupValues] = useState<{ [key: string]: string }>({});
     const [lookupOptions, setLookupOptions] = useState<{ [key: string]: Array<{ value: string; text: string }> }>({});
-    const [signatureValues, setSignatureValues] = useState<{ [rowId: string]: { encoded?: string; pathName?: string } }>({});
+    const [signatureValues, setSignatureValues] = useState<{ [key: string]: string }>({});
     const [qrCodeValues, setQrCodeValues] = useState<{ [key: string]: string }>({});
     const [showQrScanner, setShowQrScanner] = useState<{ [key: string]: boolean }>({});
     const [qrValidatorValues, setQrValidatorValues] = useState<{ [key: string]: string }>({});
@@ -401,11 +387,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
     const [imageUrlsByRow, setImageUrlsByRow] = useState<{ [rowId: string]: string }>({});
     const [imageUrl, setImageUrl] = useState<string | null>(null); // keeps your preview state
-    // replace single ref with a map of refs and helpers
+    // Simplified signature refs - only for clear functionality
     const signatureRefs = useRef<{ [rowId: string]: any }>({});
-    const signatureWaiters = useRef<{ [rowId: string]: (res: { pathName: string; encoded: string }) => void }>({});
-    const signatureSaveTimers = useRef<{ [rowId: string]: any }>({});
-    const signatureRowIdsRef = useRef<Set<string>>(new Set());
     const [loaded, setLoaded] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
     const [fieldTouched, setFieldTouched] = useState<{ [key: string]: boolean }>({});
@@ -611,10 +594,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         value = lookupValues[row.webId] || '';
                         break;
                     case 'SIGNATURE':
-                        // Always check store first, then fall back to legacy state
-                        const storeSignature = getSignature(row.webId)?.encoded;
-                        const legacySignature = signatureValues[row.webId]?.encoded;
-                        value = storeSignature || legacySignature || '';
+                        value = signatureValues[row.webId] || '';
+                        console.log(`📋 Validating signature for ${row.webId}: ${value ? 'Present' : 'Empty'}`);
                         break;
                     case 'QR_CODE':
                         value = qrCodeValues[row.webId] || '';
@@ -647,6 +628,11 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 if (error) {
                     errors[row.webId] = error;
                     hasErrors = true;
+                    if (comp.component === 'SIGNATURE') {
+                        console.log(`❌ Signature validation failed for ${row.webId}: ${error}`);
+                    }
+                } else if (comp.component === 'SIGNATURE') {
+                    console.log(`✅ Signature validation passed for ${row.webId}`);
                 }
             });
         });
@@ -659,6 +645,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             });
             return newTouched;
         });
+
+        console.log(`🔍 Form validation complete. Total errors: ${Object.keys(errors).length}. Has errors: ${hasErrors}`);
 
         return !hasErrors;
     };
@@ -754,14 +742,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     // };
 
     React.useEffect(() => {
-        // Only cleanup on component unmount, NOT on section changes
+        // Clean up on unmount
         return () => {
-            // Only clear waiters, don't clear signature values
-            Object.keys(signatureWaiters.current).forEach(rowId => {
-                if (signatureWaiters.current[rowId]) {
-                    delete signatureWaiters.current[rowId];
-                }
-            });
+            // Cleanup signature refs
+            signatureRefs.current = {};
         };
     }, []);
 
@@ -776,7 +760,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 const hasSignature = row.columns?.some((col: any) =>
                     col.components?.some((c: any) => c.component === 'SIGNATURE')
                 );
-                if (hasSignature && !signatureValues[row.webId]?.encoded) {
+                if (hasSignature && !signatureValues[row.webId]) {
                     missing.push(row.columns?.[0]?.components?.[0]?.text || 'Signature');
                 }
             });
@@ -1348,7 +1332,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     const handleNext = () => {
         // Validate current section before proceeding
         if (!validateAllFields()) {
-            showErrorToast('Validation Error', 'Please fill in all required fields before proceeding to the next section');
+            // showErrorToast('Validation Error', 'Please fill in all required fields before proceeding to the next section');
             return; // Don't proceed to next section
         }
 
@@ -1615,19 +1599,37 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         setTouchedFields(prev => ({ ...prev, [rowId]: true }));
     };
 
-    const handleSignatureChange = (rowId: any, signature: string, comp: any) => {
-        // Called when signature is completed or cleared
-        const attrs = getComponentAttributes(comp);
-        const error = validateField(signature, 'SIGNATURE', attrs);
-
-        console.log(`🔍 [handleSignatureChange] Validating signature for ${rowId}:`, {
+    const handleSignatureChange = (rowId: string, signature: string, comp: any) => {
+        console.log(`🔍 [handleSignatureChange] Signature changed for ${rowId}:`, {
             hasSignature: !!signature,
             signatureLength: signature?.length || 0,
-            error
+            isClearing: signature === '',
+            currentError: validationErrors[rowId],
+            isTouched: touchedFields[rowId]
         });
 
-        // Always update validation errors based on current signature state
-        setValidationErrors(prev => ({ ...prev, [rowId]: error }));
+        // Update signature value first
+        setSignatureValues(prev => ({ ...prev, [rowId]: signature }));
+
+        // Validate on change - same pattern as other fields
+        const attrs = getComponentAttributes(comp);
+        const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+        const error = validateField(signature, 'SIGNATURE', attrs);
+
+        console.log(`🔍 [handleSignatureChange] Validation result for ${rowId}:`, {
+            error,
+            required,
+            isEmpty: signature === '',
+            shouldClearError: signature === '' && !required
+        });
+
+        // Always update validation errors - this will clear the error if validateField returns empty string
+        setValidationErrors(prev => ({
+            ...prev,
+            [rowId]: error  // This will be empty string if field is not required and signature is empty
+        }));
+
+        // Mark field as touched
         setTouchedFields(prev => ({ ...prev, [rowId]: true }));
     };
 
@@ -1899,9 +1901,8 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                         const signatureComp = comps.find((c: any) => c.component === 'SIGNATURE');
                         const signatureStateKey = getStateKey(signatureComp);
 
-                        // Get signature from store instead of local state
-                        const signatureDataArray = getSignature(String(signatureStateKey));
-                        const signatureVal = signatureDataArray?.encoded || '';
+                        // Get signature from state like other fields
+                        const signatureVal = signatureValues[signatureStateKey] || '';
 
                         const signatureData = signatureComp
                             ? [{
@@ -2006,6 +2007,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                     startDate: formatDateTimeUTC(startDate || new Date()),
                     endDate: formatDateTimeUTC(endDate || new Date()),
                     key: uuid,
+                    formSectionId: sectionId,
                     formConfigurationSectionId: formConfigId || 0,
                     documentId: documentId,
                     userId: assignUserId,
@@ -2016,7 +2018,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
 
         const body = {
             formDefinitionId,
-            // status: 'COMPLETED',
+            status: 'COMPLETED',
             userAccountId: assignUserId,
             clientId,
             siteId,
@@ -2026,23 +2028,53 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
             sectionModels: sectionModels.filter(Boolean), // drop nulls if any section had no rows
         };
 
-        console.log('[SectionsScreen] Submitting body:', JSON.stringify(body, null, 2));
-
-        syncMutation.mutate(body, {
-            onSuccess: (data: any) => {
-                showSuccessToast('Document synced successfully!', 'Your document has been saved.');
-                navigation.goBack();
-                console.log('[SectionsScreen] Backend full response:', data);
-            },
-            onError: (error: any) => {
-                console.log('[SectionsScreen] Backend error (full):', error);
-                if (error?.response) {
-                    console.log('[SectionsScreen] Backend error response data:', error.response.data);
-                    console.log('[SectionsScreen] Backend error response status:', error.response.status);
-                    console.log('[SectionsScreen] Backend error response headers:', error.response.headers);
-                }
-            },
+        console.log('🚀 [SectionsScreen] About to submit document sync');
+        console.log('📋 [SectionsScreen] Document ID:', documentId);
+        console.log('📦 [SectionsScreen] Complete request body:', JSON.stringify(body, null, 2));
+        console.log('🔍 [SectionsScreen] Body details:');
+        console.log('  - formDefinitionId:', body.formDefinitionId);
+        console.log('  - status:', body.status);
+        console.log('  - userAccountId:', body.userAccountId);
+        console.log('  - clientId:', body.clientId);
+        console.log('  - siteId:', body.siteId);
+        console.log('  - sectionModels count:', body.sectionModels.length);
+        body.sectionModels.forEach((section, idx) => {
+            console.log(`  - Section ${idx + 1}:`, {
+                formSectionId: section.formSectionId,
+                formConfigurationSectionId: section.formConfigurationSectionId,
+                rowModelsCount: section.data?.length || 0
+            });
         });
+
+        try {
+            console.log('🔄 [SectionsScreen] Starting mutation...');
+            await syncMutation.mutateAsync(body);
+            console.log('✅ [SectionsScreen] Document sync successful!');
+            showSuccessToast('Document synced successfully!', 'Your document has been saved.');
+            navigation.goBack();
+        } catch (error: any) {
+            console.error('❌ [SectionsScreen] Document sync failed!');
+            console.error('🔍 [SectionsScreen] Full error object:', error);
+            console.error('📦 [SectionsScreen] Request body that failed:', JSON.stringify(body, null, 2));
+
+            if (error?.response) {
+                console.error('📡 [SectionsScreen] Error response data:', JSON.stringify(error.response.data, null, 2));
+                console.error('📊 [SectionsScreen] Error response status:', error.response.status);
+                console.error('📋 [SectionsScreen] Error response headers:', error.response.headers);
+            }
+
+            const status = error?.response?.status ?? error?.status ?? 'n/a';
+            const message =
+                error?.response?.data?.message ||
+                error?.response?.data?.debugMessage ||
+                (typeof error?.response?.data === 'string' ? error.response.data : null) ||
+                error?.message ||
+                'Request failed';
+
+            console.error('🚨 [SectionsScreen] Extracted error details:', { status, message });
+            showErrorToast(`Sync failed (HTTP ${status})`, message);
+            // Do not navigate on error - stay on current screen
+        }
     };
 
     React.useEffect(() => {
@@ -2240,17 +2272,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         checkInitialPermissions();
     }, []);
 
-    // Add this useEffect after your other useEffects
+    // Monitor signature values and clear validation errors when signatures are added
     React.useEffect(() => {
-        // Monitor signature values and clear validation errors when signatures are added
         const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
-        
+
         rows.forEach(row => {
-            // Check both store and legacy state for signatures
-            const storeSignature = getSignature(row.webId)?.encoded;
-            const legacySignature = signatureValues[row.webId]?.encoded;
-            const hasSignatureValue = storeSignature || legacySignature;
-            
+            const hasSignatureValue = signatureValues[row.webId];
+
             if (hasSignatureValue && validationErrors[row.webId]) {
                 // Find the signature component for this row
                 const signatureComp = row?.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'SIGNATURE');
@@ -2265,7 +2293,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 }
             }
         });
-    }, [signatureValues, validationErrors, filteredList, getSignature]);
+    }, [signatureValues, validationErrors, filteredList]);
 
     React.useEffect(() => {
         console.log('=== SIGNATURE DEBUG ===');
@@ -2275,41 +2303,10 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
         console.log('=======================');
     }, [currentSectionIdx, signatureValues]);
 
-
     React.useEffect(() => {
         console.log('🔄 [SectionsScreen] Section changed to:', currentSectionIdx);
-
-        // Simple signature state sync - let SignatureField components handle their own restoration
-        const currentSection = filteredList[0];
-        if (currentSection?.formSectionRowModels) {
-            currentSection.formSectionRowModels.forEach((row: any) => {
-                const hasSignatureComp = row.columns?.some((col: any) =>
-                    col.components?.some((comp: any) => comp.component === 'SIGNATURE')
-                );
-
-                if (hasSignatureComp) {
-                    const rowId = row.webId;
-                    const storeSignature = getSignature(String(rowId));
-
-                    if (storeSignature?.encoded) {
-                        console.log(`🔄 [SectionsScreen] Found signature for ${rowId}`);
-
-                        // Update local state to match store
-                        setSignatureValues(prev => ({
-                            ...prev,
-                            [rowId]: {
-                                encoded: storeSignature.encoded,
-                                pathName: storeSignature.pathName || ''
-                            }
-                        }));
-
-                        // Clear any validation errors
-                        setValidationErrors(prev => ({ ...prev, [rowId]: '' }));
-                    }
-                }
-            });
-        }
-    }, [currentSectionIdx, getSignature]);
+        // Simplified - no need to sync from signature store anymore
+    }, [currentSectionIdx]);
 
     React.useEffect(() => console.log("PARENT mounted/section:", currentSectionId), [currentSectionId]);
 
@@ -3292,15 +3289,11 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                         }
 
                                         if (hasSignature) {
-                                            signatureRowIdsRef.current.add(row.webId);
                                             const signatureComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'SIGNATURE');
                                             const attrs = getComponentAttributes(signatureComp);
                                             const required = attrs.find((attr: any) => attr.key === 'required')?.value === 'true';
+                                            const readonly = attrs.find((attr: any) => attr.key === 'readonly')?.value === 'true';
                                             const hasError = touchedFields[row.webId] && validationErrors[row.webId] && validationErrors[row.webId] !== '';
-
-                                            // Get signature from store instead of local state
-                                            const existingSignatureData = getSignature(String(row.webId));
-                                            const existingSignature = existingSignatureData?.encoded || '';
 
                                             return wrapRowWithFeedback(
                                                 <View style={styles.signatureRow}>
@@ -3311,44 +3304,31 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                         </Text>
                                                     </View>
 
-                                                    <View style={{ width: '50%', alignItems: 'flex-end', paddingRight: getResponsive(8) }}>
+                                                    <View style={{ width: '50%', alignItems: 'flex-end' }}>
                                                         <View style={[
                                                             styles.signatureBox,
-                                                            { width: '100%', overflow: 'hidden', height: getResponsive(150) },
+                                                            { width: '100%', overflow: 'hidden', height: getResponsive(150), marginBottom:10 },
                                                             hasError && { borderColor: '#F44336', borderWidth: 2 }
                                                         ]}>
                                                             <SignatureField
-                                                                key={`signature-${row.webId}-${currentSectionIdx}`} // Simplified key
+                                                                key={`signature-${row.webId}`} // Simple stable key
                                                                 rowId={row.webId}
-                                                                sectionId={currentSectionId}
-                                                                documentId={documentId}
+                                                                value={signatureValues[row.webId] || ''}
+                                                                required={required}
                                                                 onSignature={(rowId, encoded) => {
                                                                     console.log('📝 [SectionsScreen] Signature captured for:', rowId, 'Length:', encoded.length);
-
-                                                                    // Update signature values for validation
-                                                                    setSignatureValues(prev => ({
-                                                                        ...prev,
-                                                                        [rowId]: { encoded, pathName: '' }
-                                                                    }));
-
-                                                                    // Clear validation error immediately
-                                                                    if (encoded) {
-                                                                        setValidationErrors(prev => ({ ...prev, [rowId]: '' }));
-                                                                        setTouchedFields(prev => ({ ...prev, [rowId]: true }));
-                                                                    }
-
                                                                     handleSignatureChange(rowId, encoded, signatureComp);
                                                                 }}
                                                                 onClear={(rowId) => {
                                                                     console.log('🗑️ [SectionsScreen] Signature cleared for:', rowId);
-
-                                                                    // Clear signature values
-                                                                    setSignatureValues(prev => {
-                                                                        const { [rowId]: _, ...rest } = prev;
-                                                                        return rest;
-                                                                    });
-
                                                                     handleSignatureChange(rowId, '', signatureComp);
+                                                                }}
+                                                                onValidationChange={(rowId, hasSignature) => {
+                                                                    console.log('🔍 [SectionsScreen] Validation triggered for:', rowId, 'hasSignature:', hasSignature);
+                                                                    // Manually trigger validation when edit button is clicked
+                                                                    const error = required && !hasSignature ? 'This field is required' : '';
+                                                                    setValidationErrors(prev => ({ ...prev, [rowId]: error }));
+                                                                    setTouchedFields(prev => ({ ...prev, [rowId]: true }));
                                                                 }}
                                                                 setRef={(rowId, ref) => {
                                                                     if (ref) {
@@ -3357,48 +3337,37 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                                         delete signatureRefs.current[rowId];
                                                                     }
                                                                 }}
+                                                                readonly={readonly}
                                                                 style={{ flex: 1 }}
                                                             />
 
                                                             {/* Clear button */}
-                                                            <TouchableOpacity
-                                                                onPress={() => {
-                                                                    try {
-                                                                        const ref = signatureRefs.current[row.webId];
-                                                                        if (ref && typeof ref.clearSignature === 'function') {
-                                                                            ref.clearSignature();
+                                                            {/* {!readonly && (
+                                                                <TouchableOpacity
+                                                                    onPress={() => {
+                                                                        try {
+                                                                            const ref = signatureRefs.current[row.webId];
+                                                                            if (ref && typeof ref.clearSignature === 'function') {
+                                                                                // Only call the ref clear method - let onClear callback handle the state
+                                                                                ref.clearSignature();
+                                                                            } else {
+                                                                                // Fallback: clear parent state directly if no ref
+                                                                                console.log('🔄 [SectionsScreen] No ref available, clearing state directly');
+                                                                                handleSignatureChange(row.webId, '', signatureComp);
+                                                                            }
+                                                                            console.log('🗑️ [SectionsScreen] Clear button pressed for:', row.webId);
+                                                                        } catch (error) {
+                                                                            console.log('❌ [SectionsScreen] Error clearing signature:', error);
+                                                                            // Fallback on error
+                                                                            handleSignatureChange(row.webId, '', signatureComp);
                                                                         }
-                                                                        console.log('🗑️ Manually clearing signature for:', row.webId);
-                                                                    } catch (error) {
-                                                                        console.log('❌ Error clearing signature:', error);
-                                                                    }
-                                                                }}
-                                                                style={styles.signatureOverlay}
-                                                                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                                                            >
-                                                                <RefreshSignatureIcon width={getResponsive(16)} height={getResponsive(16)} />
-                                                            </TouchableOpacity>
-
-                                                            {/* Show signature indicator if exists */}
-                                                            {existingSignature && (
-                                                                <View style={{
-                                                                    position: 'absolute',
-                                                                    bottom: 8,
-                                                                    left: 8,
-                                                                    backgroundColor: 'rgba(0, 136, 231, 0.8)',
-                                                                    paddingHorizontal: 6,
-                                                                    paddingVertical: 2,
-                                                                    borderRadius: 4
-                                                                }}>
-                                                                    <Text style={{
-                                                                        color: '#fff',
-                                                                        fontSize: getResponsive(10),
-                                                                        fontWeight: 'bold'
-                                                                    }}>
-                                                                        ✓ Signed
-                                                                    </Text>
-                                                                </View>
-                                                            )}
+                                                                    }}
+                                                                    style={styles.signatureOverlay}
+                                                                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                                                                >
+                                                                    <RefreshSignatureIcon width={getResponsive(16)} height={getResponsive(16)} />
+                                                                </TouchableOpacity>
+                                                            )} */}
                                                         </View>
 
                                                         {hasError && validationErrors[row.webId] && validationErrors[row.webId] !== '' && (
@@ -4543,9 +4512,12 @@ const styles = StyleSheet.create({
     signatureRow: {
         backgroundColor: '#F2F2F2',
         borderRadius: getResponsive(12),
-        marginBottom: getResponsive(10),
+        // marginBottom: getResponsive(10),
         // padding: getResponsive(16),
         flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        // position: 'relative',
     },
     signatureBox: {
         borderRadius: getResponsive(10),
@@ -4580,19 +4552,6 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
         shadowOffset: { width: 0, height: -2 },
         elevation: 6,
-    },
-    submitBtn: {
-        backgroundColor: '#28B446',
-        borderRadius: getResponsive(10),
-        paddingVertical: getResponsive(7),
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    submitBtnText: {
-        color: '#fff',
-        fontSize: getResponsive(16),
-        fontWeight: '600',
-        letterSpacing: 0.8,
     },
     lookupModalOverlay: {
         flex: 1,
