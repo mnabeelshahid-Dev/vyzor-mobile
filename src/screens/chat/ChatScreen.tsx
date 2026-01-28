@@ -870,11 +870,11 @@ export default function ChatScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigation.goBack()}>
             <BackArrowIcon width={17} height={17} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Chat</Text>
-          <TouchableOpacity>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <ThreeDotIcon
               width={20}
               height={20}

@@ -114,7 +114,8 @@ const BranchesScreen = ({ navigation }) => {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
+    <View style={{ flex: 1, backgroundColor: '#007AFF' }}>
+      <SafeAreaView style={{ flex: 0, backgroundColor: '#007AFF' }} />
       <StatusBar barStyle="dark-content" backgroundColor="#007AFF" />
       {/* Header */}
       <View style={styles.header}>
@@ -123,9 +124,9 @@ const BranchesScreen = ({ navigation }) => {
             <BackArrowIcon width={17} height={17} />
           </TouchableOpacity> */}
           <Text style={styles.headerTitle}>Branches</Text>
-          <TouchableOpacity onPress={() => setShowDropdown(true)}>
+            <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => setShowDropdown(true)}>
             <ThreeDotIcon width={20} height={20} />
-          </TouchableOpacity>
+            </TouchableOpacity>
         </View>
       </View>
 
@@ -190,19 +191,20 @@ const BranchesScreen = ({ navigation }) => {
           backgroundColor: '#F2F2F2',
           borderTopLeftRadius: 30,
           borderTopRightRadius: 30,
-          // paddingTop: 50,
-          justifyContent: 'center',
-          alignItems: 'center',
         }}
       >
         {isLoading ? (
-          <Text style={{ color: '#007AFF', fontSize: 18 }}>
-            Loading branches...
-          </Text>
+          <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+            <Text style={{ color: '#007AFF', fontSize: 18 }}>
+              Loading branches...
+            </Text>
+          </View>
         ) : isError ? (
-          <Text style={{ color: 'red', fontSize: 18 }}>
-            Error loading branches
-          </Text>
+          <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+            <Text style={{ color: 'red', fontSize: 18 }}>
+              Error loading branches
+            </Text>
+          </View>
         ) : branches.length === 0 ? (
           <View
             style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}
@@ -275,7 +277,8 @@ const BranchesScreen = ({ navigation }) => {
           </View>
         </View>
       )}
-    </SafeAreaView>
+      <SafeAreaView style={{ flex: 0, backgroundColor: '#F2F2F2' }} />
+    </View>
   );
 };
 

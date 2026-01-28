@@ -673,7 +673,7 @@ export default function CalendarAgendaScreen({ navigation }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: BLUE }}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('Branches')}>
+        <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigation.navigate('Branches')}>
           <LeftArrowIcon
             width={16}
             height={16}
@@ -693,7 +693,7 @@ export default function CalendarAgendaScreen({ navigation }) {
             {formattedDate()}
           </Text>
         </RNPressable>
-        <TouchableOpacity>
+        <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <ThreeDotIcon
             width={20}
             height={20}

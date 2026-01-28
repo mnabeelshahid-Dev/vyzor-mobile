@@ -7,6 +7,7 @@ export interface ApiResponse<T = any> {
   data?: T;
   message?: string;
   error?: string;
+  error_description?: string;
 }
 
 // HTTP Methods
@@ -40,7 +41,32 @@ export class ApiClient {
   ): Promise<ApiResponse<T>> {
     try {
       const url = `${this.baseURL}${endpoint}`;
-      const headers = { ...this.defaultHeaders, ...config.headers };
+      
+      // Build headers object - CRITICAL: Don't use spread on iOS, build explicitly
+      const headers: Record<string, string> = {};
+      
+      // Add default headers one by one
+      Object.keys(this.defaultHeaders).forEach(key => {
+        headers[key] = this.defaultHeaders[key];
+      });
+      
+      // Add config headers one by one
+      if (config.headers) {
+        Object.keys(config.headers).forEach(key => {
+          headers[key] = config.headers![key];
+        });
+      }
+
+      console.log('🌐 [API CLIENT] Request Details:', {
+        url,
+        method,
+        headers: Object.keys(headers).reduce((acc, key) => {
+          acc[key] = key.toLowerCase().includes('auth') 
+            ? headers[key].substring(0, 25) + '...' 
+            : headers[key];
+          return acc;
+        }, {} as Record<string, string>),
+      });
 
       const requestInit: RequestInit = {
         method,

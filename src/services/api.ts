@@ -108,8 +108,10 @@ class ApiService {
         data: data as T,
       };
     } catch (error) {
+      console.error('❌ [API EXCEPTION]', error);
+      
       if (FEATURE_FLAGS.DEBUG_API_LOGS) {
-        Debugconsole.log('ApiService', 'API Request Failed', error);
+        DebugConsole.error('API Exception', String(error));
       }
 
       return {

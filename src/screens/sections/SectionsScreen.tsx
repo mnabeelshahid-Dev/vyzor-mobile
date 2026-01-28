@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CalendarModal from '../../components/modals/CalendarModal';
 import { Camera } from 'react-native-camera-kit';
 import { pick, types } from '@react-native-documents/picker';
 import CamaraIcon from '../../assets/svgs/camaraIcon.svg';
@@ -1561,34 +1561,20 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
     };
 
     // Add this function after your existing handlers
-    const handleDateChange = (event: any, selectedDate?: Date) => {
-        // Find the row that has the active date picker
-        const activeRowId = Object.keys(showDatePicker).find(rowId => showDatePicker[rowId]);
+    const handleDateChange = (rowId: string, dateString: string, dateComp: any) => {
+        // Update value first
+        setDateValues(prev => ({ ...prev, [rowId]: dateString }));
+        setShowDatePicker(prev => ({ ...prev, [rowId]: false }));
 
-        if (activeRowId) {
-            setShowDatePicker(prev => ({ ...prev, [activeRowId]: false }));
-
-            if (selectedDate) {
-                const formattedDate = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-
-                // Update value first
-                setDateValues(prev => ({ ...prev, [activeRowId]: formattedDate }));
-
-                // Then validate with the new value
-                setTimeout(() => {
-                    const rows = (filteredList[0]?.formSectionRowModels || []) as any[];
-                    const currentRow = rows.find(row => row.webId === activeRowId);
-                    const dateComp = currentRow?.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'DATE');
-
-                    if (dateComp) {
-                        const attrs = getComponentAttributes(dateComp);
-                        const error = validateField(formattedDate, 'DATE', attrs);
-                        setValidationErrors(prev => ({ ...prev, [activeRowId]: error }));
-                        setTouchedFields(prev => ({ ...prev, [activeRowId]: true }));
-                    }
-                }, 0);
+        // Then validate with the new value
+        setTimeout(() => {
+            if (dateComp) {
+                const attrs = getComponentAttributes(dateComp);
+                const error = validateField(dateString, 'DATE', attrs);
+                setValidationErrors(prev => ({ ...prev, [rowId]: error }));
+                setTouchedFields(prev => ({ ...prev, [rowId]: true }));
             }
-        }
+        }, 0);
     };
 
     const handleAttachmentChange = (rowId: string, attachments: any[], comp: any) => {
@@ -2898,14 +2884,16 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                             </Text>
                                                         )}
                                                     </View>
-                                                    {showPicker && (
-                                                        <DateTimePicker
-                                                            value={dateValue ? new Date(dateValue) : new Date()}
-                                                            mode="date"
-                                                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                                            onChange={handleDateChange}
-                                                        />
-                                                    )}
+                                                    <CalendarModal
+                                                        visible={showPicker}
+                                                        onClose={() => setShowDatePicker(prev => ({ ...prev, [row.webId]: false }))}
+                                                        onDateSelect={(selectedDate) => {
+                                                            const dateComp = row.columns?.flatMap(c => c.components || [])?.find(c => c.component === 'DATE');
+                                                            handleDateChange(row.webId, selectedDate, dateComp);
+                                                        }}
+                                                        selectedDate={dateValue}
+                                                        title="Select Date"
+                                                    />
                                                 </View>
                                             );
                                         }

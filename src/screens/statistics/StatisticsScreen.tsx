@@ -21,7 +21,7 @@ import ArrowUpIcon from '../../assets/svgs/arrowUpWard.svg';
 import ArrowDownWard from '../../assets/svgs/arrowDownward.svg';
 import CloudIcon from '../../assets/svgs/cloud.svg';
 import Modal from 'react-native-modal';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CalendarModal from '../../components/modals/CalendarModal';
 import ArrowDown from '../../assets/svgs/arrowDown.svg';
 import { useAuthStore } from '../../store/authStore';
 import { styles } from './styles';
@@ -615,11 +615,11 @@ export default function StatisticsScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigation.goBack()}>
             <BackArrowIcon width={getResponsive(17)} height={getResponsive(17)} onPress={() => navigation.goBack()} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Statistics</Text>
-          <TouchableOpacity>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <ThreeDotIcon width={getResponsive(20)} height={getResponsive(20)} onPress={() => setShowDropdown(true)} />
           </TouchableOpacity>
         </View>
@@ -747,24 +747,17 @@ export default function StatisticsScreen({ navigation }) {
                   <CalendarIcon width={20} height={20} />
                 </View>
               </TouchableOpacity>
-              {/* Inline Date Picker for Filter Date */}
-              {showFilterDatePicker && (
-                <DateTimePicker
-                  value={tempFilterDate ? new Date(tempFilterDate) : new Date()}
-                  mode="date"
-                  display="default"
-                  maximumDate={new Date()}
-                  onChange={(event, date) => {
-                    if (event?.type === 'set' && date) {
-                      applyFilterDateToRange(date.toISOString().split('T')[0]);
-                      setShowFilterDatePicker(false);
-                    } else if (event?.type === 'dismissed') {
-                      setShowFilterDatePicker(false);
-                    }
-                  }}
-                  style={{ alignSelf: 'center', marginVertical: 16 }}
-                />
-              )}
+              {/* Calendar Modal for Filter Date */}
+              <CalendarModal
+                visible={showFilterDatePicker}
+                onClose={() => setShowFilterDatePicker(false)}
+                onDateSelect={(date) => {
+                  applyFilterDateToRange(date);
+                }}
+                selectedDate={tempFilterDate}
+                maxDate={new Date().toISOString().split('T')[0]}
+                title="Select Filter Date"
+              />
             </View>
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
@@ -837,19 +830,14 @@ export default function StatisticsScreen({ navigation }) {
               {statisticsParams.startDate ? formatDate(statisticsParams.startDate, false) : ''}
             </Text>
           </TouchableOpacity>
-          {showStartDatePicker && (
-            <DateTimePicker
-              value={statisticsParams.startDate ? new Date(statisticsParams.startDate) : new Date()}
-              mode="date"
-              display="default"
-              maximumDate={getStartDateMax()}
-              onChange={(event, date) => {
-                setShowStartDatePicker(false);
-                if (date) handleStartDateChange(date);
-              }}
-              style={{ alignSelf: 'center', marginVertical: 16 }}
-            />
-          )}
+          <CalendarModal
+            visible={showStartDatePicker}
+            onClose={() => setShowStartDatePicker(false)}
+            onDateSelect={(date) => handleStartDateChange(new Date(date))}
+            selectedDate={statisticsParams.startDate}
+            maxDate={getStartDateMax()?.toISOString().split('T')[0]}
+            title="Select Start Date"
+          />
           <Text style={styles.dateRangeText}> -- </Text>
           {/* End Date Picker */}
           <TouchableOpacity
@@ -861,20 +849,15 @@ export default function StatisticsScreen({ navigation }) {
               {statisticsParams.endDate ? formatDate(statisticsParams.endDate, false) : ''}
             </Text>
           </TouchableOpacity>
-          {showEndDatePicker && (
-            <DateTimePicker
-              value={statisticsParams.endDate ? new Date(statisticsParams.endDate) : new Date()}
-              mode="date"
-              display="default"
-              maximumDate={new Date()}
-              minimumDate={getEndDateMin()}
-              onChange={(event, date) => {
-                setShowEndDatePicker(false);
-                if (date) handleEndDateChange(date);
-              }}
-              style={{ alignSelf: 'center', marginVertical: 16 }}
-            />
-          )}
+          <CalendarModal
+            visible={showEndDatePicker}
+            onClose={() => setShowEndDatePicker(false)}
+            onDateSelect={(date) => handleEndDateChange(new Date(date))}
+            selectedDate={statisticsParams.endDate}
+            maxDate={new Date().toISOString().split('T')[0]}
+            minDate={getEndDateMin()?.toISOString().split('T')[0]}
+            title="Select End Date"
+          />
         </View>
         {/* Stats Cards */}
         <View style={styles.statsRow}>
