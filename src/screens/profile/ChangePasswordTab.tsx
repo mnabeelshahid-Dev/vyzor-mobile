@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Platform } from 'react-native';
 import EyeSlash from '../../assets/svgs/eyeSlash.svg';
 
 type Props = {
@@ -53,9 +53,9 @@ const ChangePasswordTab: React.FC<Props> = ({
             onChangeText={onChangeCurrentPassword}
           />
           <TouchableOpacity style={styles.eyeIcon} onPress={onToggleShowCurrent}>
-            <Text style={styles.eyeIconText}>
+            <Text style={[styles.eyeIconText,{top: Platform.OS === 'ios' ? -8 : 0}]}>
               {showCurrentPassword ? '👁️‍🗨️' : (
-                <EyeSlash style={styles.editIcon} height={20} width={20} />
+                <EyeSlash style={[styles.editIcon]} height={20} width={20} />
               )}
             </Text>
           </TouchableOpacity>
@@ -77,7 +77,7 @@ const ChangePasswordTab: React.FC<Props> = ({
             onChangeText={onChangeNewPassword}
           />
           <TouchableOpacity style={styles.eyeIcon} onPress={onToggleShowNew}>
-            <Text style={styles.eyeIconText}>
+            <Text style={[styles.eyeIconText,{top: Platform.OS === 'ios' ? -8 : 0}]}>
               {showNewPassword ? '👁️‍🗨️' : (
                 <EyeSlash style={styles.editIcon} height={20} width={20} />
               )}
@@ -101,7 +101,7 @@ const ChangePasswordTab: React.FC<Props> = ({
             onChangeText={onChangeConfirmPassword}
           />
           <TouchableOpacity style={styles.eyeIcon} onPress={onToggleShowConfirm}>
-            <Text style={styles.eyeIconText}>
+            <Text style={[styles.eyeIconText,{top: Platform.OS === 'ios' ? -8 : 0}]}>
               {showConfirmPassword ? '👁️‍🗨️' : (
                 <EyeSlash style={styles.editIcon} height={20} width={20} />
               )}
