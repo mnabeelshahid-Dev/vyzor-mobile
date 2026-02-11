@@ -204,7 +204,13 @@ export default function StatisticsScreen({ navigation }) {
         {(scheduleStatus === 'COMPLETED' || scheduleStatus === 'ON_TIME' || scheduleStatus === 'OUTSIDE_PERIOD') && Array.isArray(item?.file) && item.file.length > 0 ? (
           <TouchableOpacity
             onPress={() => handleDownloadReport(item)}
-            style={{ position: 'absolute', right: getResponsive(12), top: '80%', marginTop: -getResponsive(14), padding: getResponsive(6) }}
+            style={{ 
+              position: 'absolute', 
+              right: getResponsive(5), 
+              top: '50%', 
+              transform: [{ translateY: -14 }],
+              padding: getResponsive(3) 
+            }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <CloudIcon width={22} height={22}  />

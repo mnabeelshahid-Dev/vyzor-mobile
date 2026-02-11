@@ -16,6 +16,7 @@ import {
   TextInput,
   ActivityIndicator,
   FlatList,
+  InteractionManager,
 } from 'react-native';
 import CalendarIcon from '../../assets/svgs/calendar.svg';
 import LeftArrowIcon from '../../assets/svgs/backArrowIcon.svg';
@@ -540,10 +541,25 @@ export default function CalendarAgendaScreen({ navigation }) {
 
   const openModal = (type: string, task?: any) => {
     if (task) setSelectedTaskForModal(task);
-    setUserModal(type === 'user');
-    setSectionsModal(type === 'sections');
-    setNotesModal(type === 'notes');
-    setDevicesModal(type === 'devices');
+    
+    // Batch state updates for better performance
+    const updateModals = () => {
+      setUserModal(type === 'user');
+      setSectionsModal(type === 'sections');
+      setNotesModal(type === 'notes');
+      setDevicesModal(type === 'devices');
+    };
+    
+    if (Platform.OS === 'ios') {
+      // Hide task modal immediately for instant feedback
+      setShowTaskModal(false);
+      // Use InteractionManager for the smoothest possible transition
+      InteractionManager.runAfterInteractions(() => {
+        updateModals();
+      });
+    } else {
+      updateModals();
+    }
   };
 
   const closeModal = () => {
@@ -552,7 +568,13 @@ export default function CalendarAgendaScreen({ navigation }) {
     setNotesModal(false);
     setDevicesModal(false);
     setSelectedTaskForModal(null);
-    // Don't close the task modal when closing sub-modals
+    
+    // Use InteractionManager for the smoothest transitions on iOS
+    if (Platform.OS === 'ios' && selectedTask) {
+      InteractionManager.runAfterInteractions(() => {
+        setShowTaskModal(true);
+      });
+    }
   };
 
   const filteredUsers = Array.isArray(userSitesData) ? userSitesData : [];
@@ -941,26 +963,30 @@ export default function CalendarAgendaScreen({ navigation }) {
 
                             return (
                               <View key={`band-${index}`} style={{ position: 'absolute', left: 8, right: 0, top, height: maxHeight }}>
-                                {items.map(item => (
-                                  <RNPressable
-                                    key={item.id}
-                                    style={[
-                                      styles.taskCard,
-                                      {
-                                        position: 'absolute',
-                                        left: item.column * (taskWidth + 8),
-                                        top: 0,
-                                        height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
-                                        borderColor: item.borderColor,
-                                        backgroundColor: item.bg,
-                                        width: taskWidth,
-                                      },
-                                    ]}
-                                    onPress={() => {
-                                      setSelectedTask(item);
-                                      setShowTaskModal(true);
-                                    }}
-                                  >
+                                {items.map(item => {
+                                  const handlePress = () => {
+                                    setSelectedTask(item);
+                                    setTimeout(() => setShowTaskModal(true), 0);
+                                  };
+                                  
+                                  return (
+                                    <TouchableOpacity
+                                      key={item.id}
+                                      style={[
+                                        styles.taskCard,
+                                        {
+                                          position: 'absolute',
+                                          left: item.column * (taskWidth + 8),
+                                          top: 0,
+                                          height: Math.max(54, (item.slotCount || 1) * SLOT_HEIGHT - 8),
+                                          borderColor: item.borderColor,
+                                          backgroundColor: item.bg,
+                                          width: taskWidth,
+                                        },
+                                      ]}
+                                      activeOpacity={0.7}
+                                      onPress={handlePress}
+                                    >
                                     <View style={styles.taskMetaRow}>
                                       <Text style={styles.taskNumber}>{item.number}</Text>
                                       <View style={styles.taskUserPill}>
@@ -980,8 +1006,9 @@ export default function CalendarAgendaScreen({ navigation }) {
                                     >
                                       {item.title}
                                     </Text>
-                                  </RNPressable>
-                                ))}
+                                  </TouchableOpacity>
+                                  );
+                                })}
                               </View>
                             );
                           });
@@ -1003,8 +1030,16 @@ export default function CalendarAgendaScreen({ navigation }) {
         animationType="fade"
         onRequestClose={() => setShowTaskModal(false)}
       >
-        <RNPressable style={styles.modalBackdrop} onPress={() => setShowTaskModal(false)}>
-          <RNPressable style={styles.taskModalBox} onPress={(e) => e.stopPropagation()}>
+        <TouchableOpacity 
+          style={styles.modalBackdrop} 
+          activeOpacity={1}
+          onPress={() => setShowTaskModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.taskModalBox} 
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
             {selectedTask ? (
               <>
                 {(() => {
@@ -1063,8 +1098,10 @@ export default function CalendarAgendaScreen({ navigation }) {
                                   alignItems: 'center',
                                   opacity: isSectionsDisabled ? 0.5 : 1,
                                 }}
+                                activeOpacity={0.7}
                                 onPress={() => {
                                   if (!isSectionsDisabled) {
+                                    console.log('Opening sections modal');
                                     openModal('sections', selectedTask);
                                   }
                                 }}
@@ -1112,8 +1149,10 @@ export default function CalendarAgendaScreen({ navigation }) {
                                   alignItems: 'center',
                                   opacity: isDevicesDisabled ? 0.5 : 1
                                 }}
+                                activeOpacity={0.7}
                                 onPress={() => {
                                   if (!isDevicesDisabled) {
+                                    console.log('Opening devices modal');
                                     openModal('devices', selectedTask);
                                   }
                                 }}
@@ -1277,8 +1316,8 @@ export default function CalendarAgendaScreen({ navigation }) {
                 })()}
               </>
             ) : null}
-          </RNPressable>
-        </RNPressable>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </RNModal>
 
       {/* Dropdown Modal */}
