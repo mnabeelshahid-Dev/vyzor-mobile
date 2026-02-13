@@ -26,11 +26,7 @@ import { useAuthStore } from '../../store/authStore';
 
 const BranchesScreen = ({ navigation }) => {
   const { setBranchId } = useAuthStore.getState();
-  const logoutMutation = useLogout({
-    onSuccess: () => {
-  navigation.navigate('Login');
-    },
-  });
+  const logoutMutation = useLogout();
 
   const [search, setSearch] = useState('');
   const [showSortModal, setShowSortModal] = useState(false);
@@ -56,9 +52,11 @@ const BranchesScreen = ({ navigation }) => {
       data?.message?.includes('Access token expired') ||
       (data?.success === false && data?.message?.includes('HTTP 401'))
     ) {
-  navigation.navigate('Login');
+      if (!logoutMutation.isPending) {
+        logoutMutation.mutate();
+      }
     }
-  }, [data, navigation]);
+  }, [data, logoutMutation]);
 
   React.useEffect(() => {
     if (isError && error) {
@@ -68,10 +66,12 @@ const BranchesScreen = ({ navigation }) => {
         errorObj?.message?.includes('Access token expired') ||
         errorObj?.response?.status === 401
       ) {
-        navigation.navigate('Login');
+        if (!logoutMutation.isPending) {
+          logoutMutation.mutate();
+        }
       }
     }
-  }, [isError, error, navigation]);
+  }, [isError, error, logoutMutation]);
 
   const handleSort = (field: 'name' | 'code', order: 'asc' | 'desc') => {
     setSortField(field);

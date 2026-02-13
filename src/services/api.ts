@@ -16,6 +16,7 @@ const FEATURE_FLAGS = {
 import { ApiResponse } from '../types';
 import { storage } from './storage';
 import { DebugConsole } from '../utils/debug';
+import { queryClient } from './queryClient';
 
 interface RequestConfig {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -25,6 +26,41 @@ interface RequestConfig {
 
 class ApiService {
   private baseURL = API_CONFIG.BASE_URL;
+  private isHandlingUnauthorized = false;
+
+  private isUnauthorizedPayload(data: unknown): boolean {
+    if (!data) return false;
+    const text = typeof data === 'string' ? data : '';
+    const payload = typeof data === 'object' && data !== null ? (data as any) : null;
+    const message = payload?.message || payload?.error_description || payload?.error || text;
+
+    if (!message || typeof message !== 'string') return false;
+
+    const normalized = message.toLowerCase();
+    return (
+      normalized.includes('invalid_token') ||
+      normalized.includes('access token expired') ||
+      normalized.includes('token expired') ||
+      normalized.includes('unauthorized')
+    );
+  }
+
+  private async handleUnauthorized(reason?: string): Promise<void> {
+    if (this.isHandlingUnauthorized) return;
+    this.isHandlingUnauthorized = true;
+
+    try {
+      if (FEATURE_FLAGS.DEBUG_API_LOGS) {
+        DebugConsole.warn('Unauthorized response detected', reason);
+      }
+
+      const { useAuthStore } = await import('../store/authStore');
+      await useAuthStore.getState().logout();
+      queryClient.clear();
+    } finally {
+      this.isHandlingUnauthorized = false;
+    }
+  }
 
   private async makeRequest<T = unknown>(
     endpoint: string,
@@ -85,6 +121,15 @@ class ApiService {
         } catch {
           // Ignore parsing errors, use default message
         }
+
+        if (response.status === 401) {
+          await this.handleUnauthorized(errorMessage);
+          return {
+            success: false,
+            message: 'Session expired. Please login again.',
+          };
+        }
+
         throw new Error(errorMessage);
       }
 
@@ -94,6 +139,16 @@ class ApiService {
         data = await response.json();
       } else {
         data = await response.text();
+      }
+
+      if (this.isUnauthorizedPayload(data)) {
+        await this.handleUnauthorized(
+          typeof data === 'string' ? data : JSON.stringify(data)
+        );
+        return {
+          success: false,
+          message: 'Session expired. Please login again.',
+        };
       }
 
       if (FEATURE_FLAGS.DEBUG_API_LOGS) {
@@ -109,7 +164,7 @@ class ApiService {
       };
     } catch (error) {
       if (FEATURE_FLAGS.DEBUG_API_LOGS) {
-        Debugconsole.log('ApiService', 'API Request Failed', error);
+        DebugConsole.log('ApiService', 'API Request Failed', error);
       }
 
       return {
@@ -204,6 +259,15 @@ class ApiService {
         } catch {
           // Ignore parsing errors, use default message
         }
+
+        if (response.status === 401) {
+          await this.handleUnauthorized(errorMessage);
+          return {
+            success: false,
+            message: 'Session expired. Please login again.',
+          };
+        }
+
         throw new Error(errorMessage);
       }
 
@@ -213,6 +277,16 @@ class ApiService {
         data = await response.json();
       } else {
         data = await response.text();
+      }
+
+      if (this.isUnauthorizedPayload(data)) {
+        await this.handleUnauthorized(
+          typeof data === 'string' ? data : JSON.stringify(data)
+        );
+        return {
+          success: false,
+          message: 'Session expired. Please login again.',
+        };
       }
 
       if (FEATURE_FLAGS.DEBUG_API_LOGS) {
@@ -290,6 +364,15 @@ async postFileData<T = unknown>(
         const errorBody = await response.text();
         if (errorBody) errorMessage += ` - ${errorBody}`;
       } catch {}
+
+      if (response.status === 401) {
+        await this.handleUnauthorized(errorMessage);
+        return {
+          success: false,
+          message: 'Session expired. Please login again.',
+        };
+      }
+
       throw new Error(errorMessage);
     }
 
@@ -297,6 +380,16 @@ async postFileData<T = unknown>(
     const data: any = contentType.includes('application/json')
       ? await response.json()
       : await response.text();
+
+    if (this.isUnauthorizedPayload(data)) {
+      await this.handleUnauthorized(
+        typeof data === 'string' ? data : JSON.stringify(data)
+      );
+      return {
+        success: false,
+        message: 'Session expired. Please login again.',
+      };
+    }
 
     if (FEATURE_FLAGS.DEBUG_API_LOGS) {
       DebugConsole.success(`API Response ${response.status}`, { url: `${this.baseURL}${endpoint}`, data });
