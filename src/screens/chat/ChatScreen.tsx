@@ -870,11 +870,11 @@ export default function ChatScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigation.goBack()}>
             <BackArrowIcon width={17} height={17} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Chat</Text>
-          <TouchableOpacity>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <ThreeDotIcon
               width={20}
               height={20}
@@ -1026,7 +1026,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 8,
-    height: 52,
+    height: 47,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -1263,7 +1263,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#007AFF',
-    paddingVertical: 50,
+    paddingVertical: Platform.OS === 'ios' ? 22 : 50,
     paddingHorizontal: 18,
     borderBottomLeftRadius: 22,
     borderBottomRightRadius: 22,

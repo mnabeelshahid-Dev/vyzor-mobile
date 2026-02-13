@@ -1,3 +1,8 @@
+// Initialize Reactotron before any other imports in development
+if (__DEV__) {
+  require('./src/config/ReactotronConfig');
+}
+
 import React, { use, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query';

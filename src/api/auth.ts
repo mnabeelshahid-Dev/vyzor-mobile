@@ -15,8 +15,17 @@ interface RegisterResponse {
 }
 
 // OAuth API client with Basic Auth
+const basicAuthCreds = 'SSApp:password';
+const basicAuthEncoded = base64Encode(basicAuthCreds);
+
+console.log('🔐 [AUTH INIT] OAuth Client Setup:', {
+  credentials: basicAuthCreds,
+  encoded: basicAuthEncoded,
+  fullHeader: `Basic ${basicAuthEncoded}`,
+});
+
 const oauthClient = new ApiClient('https://vyzor.app/api', {
-  Authorization: `Basic ${base64Encode('SSApp:password')}`,
+  Authorization: `Basic ${basicAuthEncoded}`,
   'Content-Type': 'application/x-www-form-urlencoded',
 });
 

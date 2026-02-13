@@ -14,7 +14,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CalendarModal from '../../components/modals/CalendarModal';
 import SearchIcon from '../../assets/svgs/searchIcon.svg';
 import BackArrowIcon from '../../assets/svgs/backArrowIcon.svg';
 import ThreeDotIcon from '../../assets/svgs/threeDotIcon.svg';
@@ -535,28 +535,22 @@ export default function EmailNotificationsScreen({ navigation }) {
     );
   };
 
-  // Date picker (native)
-  const renderDatePicker = field =>
-    datePicker.show && datePicker.field === field ? (
-      <DateTimePicker
-        value={
-          filters[field]
-            ? new Date(filters[field].split('-').reverse().join('-'))
-            : new Date()
-        }
-        mode="date"
-        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-        onChange={(event, selectedDate) => {
-          setDatePicker({ field: null, show: false });
-          if (selectedDate) {
-            setFilters(f => ({
-              ...f,
-              [field]: formatDate(selectedDate),
-            }));
-          }
-        }}
-      />
-    ) : null;
+  // Date picker modal
+  const renderDatePicker = field => (
+    <CalendarModal
+      visible={datePicker.show && datePicker.field === field}
+      onClose={() => setDatePicker({ field: null, show: false })}
+      onDateSelect={(date) => {
+        const formattedDate = date.split('-').reverse().join('-'); // Convert YYYY-MM-DD to DD-MM-YYYY
+        setFilters(f => ({
+          ...f,
+          [field]: formattedDate,
+        }));
+      }}
+      selectedDate={filters[field] ? filters[field].split('-').reverse().join('-') : undefined}
+      title={field === 'startDate' ? 'Select Start Date' : 'Select End Date'}
+    />
+  );
 
   // Helper to show value or placeholder for dropdowns & dates
   const getInputText = (field, isDate = false) => {
@@ -908,11 +902,11 @@ export default function EmailNotificationsScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigation.goBack()}>
             <BackArrowIcon width={17} height={17} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Email Notifications</Text>
-          <TouchableOpacity>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <ThreeDotIcon
               width={20}
               height={20}
@@ -1236,12 +1230,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
+    height: Platform.OS === 'ios' ? 45 : undefined,
   },
   searchInput: {
     flex: 1,
     paddingHorizontal: 8,
     color: '#222',
     fontSize: 18,
+    height: Platform.OS === 'ios' ? 45 : undefined,
+
   },
   filterBtnFloat: {
     backgroundColor: '#fff',

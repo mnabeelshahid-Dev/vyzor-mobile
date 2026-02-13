@@ -49,6 +49,7 @@ export const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
+    height: Platform.OS === 'ios' ? 45 : undefined,
   },
   headerRow: {
     flexDirection: 'row',
@@ -102,6 +103,7 @@ export const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 16,
     color: '#333',
+    height: Platform.OS === 'ios' ? 45 : undefined,
   },
   dropdownMenu: {
     marginTop: Platform.OS === 'ios' ? 90 : 82,

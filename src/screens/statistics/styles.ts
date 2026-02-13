@@ -125,12 +125,15 @@ export const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
     paddingHorizontal: getResponsive(10),
+    height: Platform.OS === 'ios' ? 45 : undefined,
+
   },
   searchInput: {
     flex: 1,
     paddingHorizontal: 8,
     color: '#222',
     fontSize: getResponsive(17),
+    height: Platform.OS === 'ios' ? 45 : undefined,
   },
   filterBtnFloat: {
     backgroundColor: '#fff',

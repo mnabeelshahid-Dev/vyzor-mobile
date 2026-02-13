@@ -1484,11 +1484,11 @@ console.log("nabeel heree", sectionDataArray);
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
+            <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigation.goBack()}>
               <BackArrowIcon width={17} height={17} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Tasks</Text>
-            <TouchableOpacity onPress={() => openModal('dropdown')}>
+            <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => openModal('dropdown')}>
               <ThreeDotIcon width={20} height={20} />
             </TouchableOpacity>
           </View>

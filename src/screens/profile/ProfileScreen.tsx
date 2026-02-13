@@ -88,6 +88,7 @@ import {
 
 const ProfileScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
+  const isInitialMount = React.useRef(true);
 
   const logoutMutation = useLogout({
     onSuccess: () => {
@@ -338,17 +339,19 @@ const ProfileScreen = ({ navigation }) => {
   }, [profileData, states, selectedCountryValue]);
 
   React.useEffect(() => {
-    if (profileData && cities.length > 0 && selectedStateValue && !city) {
-      // Only set city if it's currently empty and we have profile data
+    if (profileData && cities.length > 0 && selectedStateValue && !city && !selectedCountryValue) {
+      // Only set city on initial load (when selectedCountryValue is not yet set)
       const profileCity = profileData.addressModel?.city;
       if (profileCity) {
         setCity(profileCity);
       }
     }
-  }, [profileData, cities, selectedStateValue, city]);
+  }, [profileData, cities, selectedStateValue, city, selectedCountryValue]);
 
 React.useEffect(() => {
-  if (profileData) {
+  if (profileData && isInitialMount.current) {
+    isInitialMount.current = false;
+    
     const data = {
       firstName: profileData.firstName || '',
       lastName: profileData.lastName || '',
@@ -409,10 +412,6 @@ React.useEffect(() => {
     setPostalCode(data.postalCode);
     setPhoneNumbers(data.phoneNumbers);
     setInitialData(data);
-
-    if (data.city && !city) {
-      setCity(data.city);
-    }
   }
 }, [profileData]);
 
@@ -442,7 +441,16 @@ React.useEffect(() => {
   };
 
   const removeProfileImage = async () => {
+    // Close modal first
+    setShowImageOptions(false);
+    
     try {
+      if (!profileData?.fileId) {
+        setErrorMessage('No profile picture to remove.');
+        setShowErrorModal(true);
+        return;
+      }
+
       // Update user profile to remove file ID
       const response = await apiService.delete(
         `/api/dms/file/${profileData.fileId}`,
@@ -450,15 +458,18 @@ React.useEffect(() => {
 
       // Set to null instead of the default avatar URL
       setProfileImage(null);
-      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
-      setSuccessMessage('Profile picture removed successfully!');
-      setShowSuccessModal(true);
+      
+      // Use setTimeout to ensure modal is closed before invalidating queries
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+        setSuccessMessage('Profile picture removed successfully!');
+        setShowSuccessModal(true);
+      }, 100);
     } catch (error) {
       console.log('Error removing profile picture:', error);
       setErrorMessage('Failed to remove profile picture. Please try again.');
       setShowErrorModal(true);
     }
-    setShowImageOptions(false);
   };
 
   // Enhanced phone validation function similar to RegisterScreen
@@ -1076,7 +1087,8 @@ const updatePhoneNumber = (id, newPhoneNumber) => {
 
   // Always show edit mode (removed profile items view)
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#007AFF' }}>
+    <View style={{ flex: 1, backgroundColor: '#007AFF' }}>
+      <SafeAreaView style={{ flex: 0, backgroundColor: '#007AFF' }} />
       <StatusBar barStyle="light-content" backgroundColor="#007AFF" />
       {/* Header */}
       <View style={styles.header}>
@@ -1526,7 +1538,8 @@ const updatePhoneNumber = (id, newPhoneNumber) => {
           </TouchableOpacity>
         </View>
       </Modal>
-    </SafeAreaView>
+      <SafeAreaView style={{ flex: 0, backgroundColor: '#F5F5F5' }} />
+    </View>
   );
 };
 

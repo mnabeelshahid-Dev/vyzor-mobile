@@ -64,12 +64,14 @@ export const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
+    height: Platform.OS === 'ios' ? 45 : undefined,
   },
   searchInput: {
     flex: 1,
     paddingHorizontal: 8,
     color: '#222',
     fontSize: 18,
+    height: Platform.OS === 'ios' ? 45 : undefined,
   },
   filterBtnFloat: {
     backgroundColor: '#fff',

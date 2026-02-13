@@ -269,7 +269,7 @@ export const createStyles = (theme: {
     },
     underline: {
       height: 1,
-      backgroundColor: '#E5E7EB',
+      backgroundColor: '#475467',
       width: '100%',
     },
     underlineFocused: {

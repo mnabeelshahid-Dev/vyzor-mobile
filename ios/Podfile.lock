@@ -2534,7 +2534,7 @@ PODS:
     - RNFBApp
   - RNFS (2.20.0):
     - React-Core
-  - RNGestureHandler (2.29.0):
+  - RNGestureHandler (2.29.1):
     - boost
     - DoubleConversion
     - fast_float
@@ -2741,7 +2741,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - RNSVG (15.14.0):
+  - RNSVG (15.15.1):
     - boost
     - DoubleConversion
     - fast_float
@@ -2767,10 +2767,10 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
-    - RNSVG/common (= 15.14.0)
+    - RNSVG/common (= 15.15.1)
     - SocketRocket
     - Yoga
-  - RNSVG/common (15.14.0):
+  - RNSVG/common (15.15.1):
     - boost
     - DoubleConversion
     - fast_float
@@ -3318,12 +3318,12 @@ SPEC CHECKSUMS:
   RNFBApp: 89523a4912396a34fc60727c39835c0473dccddd
   RNFBMessaging: 67a2d79f246f82c147b02851e966b01163b71ab0
   RNFS: 4ac0f0ea233904cb798630b3c077808c06931688
-  RNGestureHandler: 3fee26f1e76586ef72ace816eefcb85af53a9ede
+  RNGestureHandler: cb79c7e17f7d93615b9d2ef110b97ca0b7fac2a5
   RNKeychain: bfe3d12bf4620fe488771c414530bf16e88f3678
   RNPermissions: f9eb1d9d4ff02828d9464dd72592784ae31ddec8
   RNReanimated: 569159db50b6b0439d7ae9a8f9972923b6043925
   RNScreens: 85b2c6dcdddfb664fe012c7522b4ece3b11747a3
-  RNSVG: 515ad7060ac54919c0e6e888c127daad7a0fc3ba
+  RNSVG: db3fdf5c332dc0ef441dd7e5ad5d5dd98f3bb8a7
   RNVectorIcons: f765286f17e391bc8d97c63ea66a324b0693167a
   RNWorklets: ccf154508a1c587927f4fb6c1e7a43ecfe8532d1
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
