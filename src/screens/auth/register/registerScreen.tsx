@@ -781,6 +781,18 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
    * Handles date picker interactions
    */
   const handleDatePickerPress = () => {
+    // Sync selectedDate with current formData.dateOfBirth if it exists
+    if (formData.dateOfBirth) {
+      try {
+        const currentDate = new Date(formData.dateOfBirth);
+        if (!isNaN(currentDate.getTime())) {
+          setSelectedDate(currentDate);
+        }
+      } catch (error) {
+        // If parsing fails, keep the default
+        console.log('Error parsing date:', error);
+      }
+    }
     setIsDatePickerOpen(true);
     setDateOfBirthFocused(true);
   };
@@ -913,62 +925,66 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
                 {/* Date of Birth Input */}
                 <View style={[styles.floatingInputContainer]}>
-                  <View style={[styles.floatingInputWrapper]}>
-                    <View
-                      style={[
-                        styles.floatingLabelContainer,
-                        { left: -5 },
-                        (dateOfBirthFocused || formData.dateOfBirth) &&
-                        [styles.floatingLabelContainerActive],
-                      ]}
-                    >
-                      <CalendarIcon
-                        style={styles.floatingIcon}
-                        color={
-                          '#475467'
-                        }
-                      />
-                      <Text
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={handleDatePickerPress}
+                    disabled={isLoading}
+                  >
+                    <View style={[styles.floatingInputWrapper]} pointerEvents="none">
+                      <View
                         style={[
-                          styles.floatingLabel,
+                          styles.floatingLabelContainer,
+                          { left: -5 },
                           (dateOfBirthFocused || formData.dateOfBirth) &&
-                          styles.floatingLabelActive,
-                          (dateOfBirthFocused) && styles.floatingLabelFocused,
+                          [styles.floatingLabelContainerActive],
                         ]}
                       >
-                        Date of Birth {''}
-                        <Text style={{ color: '#FF6B6B', fontSize: 14, fontWeight: 'bold', marginLeft: 4 }}>*</Text>
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[
-                        styles.floatingInput,
-                        (dateOfBirthFocused) && styles.floatingInputFocused,
-                        dateOfBirthError && styles.floatingInputError,
-                      ]}
-                      onPress={handleDatePickerPress}
-                      disabled={isLoading}
-                    >
-                      <Text
+                        <CalendarIcon
+                          style={styles.floatingIcon}
+                          color={
+                            '#475467'
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.floatingLabel,
+                            (dateOfBirthFocused || formData.dateOfBirth) &&
+                            styles.floatingLabelActive,
+                            (dateOfBirthFocused) && styles.floatingLabelFocused,
+                          ]}
+                        >
+                          Date of Birth {''}
+                          <Text style={{ color: '#FF6B6B', fontSize: 14, fontWeight: 'bold', marginLeft: 4 }}>*</Text>
+                        </Text>
+                      </View>
+                      <View
                         style={[
-                          styles.dateInputText,
-                          formData.dateOfBirth
-                            ? styles.dateInputTextFilled
-                            : styles.dateInputTextPlaceholder,
-                          dateOfBirthError && { color: '#FF6B6B' },
+                          styles.floatingInput,
+                          (dateOfBirthFocused) && styles.floatingInputFocused,
+                          dateOfBirthError && styles.floatingInputError,
                         ]}
                       >
-                        {formatDateForDisplay(formData.dateOfBirth)}
-                      </Text>
-                    </TouchableOpacity>
-                    <View
-                      style={[
-                        styles.underline,
-                        (dateOfBirthFocused) && styles.underlineFocused,
-                        dateOfBirthError && styles.underlineError,
-                      ]}
-                    />
-                  </View>
+                        <Text
+                          style={[
+                            styles.dateInputText,
+                            formData.dateOfBirth
+                              ? styles.dateInputTextFilled
+                              : styles.dateInputTextPlaceholder,
+                            dateOfBirthError && { color: '#FF6B6B' },
+                          ]}
+                        >
+                          {formData.dateOfBirth ? formatDateForDisplay(formData.dateOfBirth) : ''}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.underline,
+                          (dateOfBirthFocused) && styles.underlineFocused,
+                          dateOfBirthError && styles.underlineError,
+                        ]}
+                      />
+                    </View>
+                  </TouchableOpacity>
                   {dateOfBirthError && (
                     <Text style={styles.errorText}>{dateOfBirthError}</Text>
                   )}
@@ -1023,7 +1039,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                   </View>
                   {phoneNumbers.map((num, idx) => (
                     <React.Fragment key={phoneIds[idx]}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: phoneErrors[idx] ? '#FF6B6B' : (currentlyFocusedField === `phone${idx}` ? '#0088E7' : '#D0D5DD'), minHeight: 40, paddingHorizontal: 8, marginTop: idx === 0 ? 0 : 12, marginBottom: phoneErrors[idx] ? 0 : 20 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: phoneErrors[idx] ? '#FF6B6B' : (currentlyFocusedField === `phone${idx}` ? '#0088E7' : '#475467'), minHeight: 40, paddingHorizontal: 8, marginTop: idx === 0 ? 0 : 12, marginBottom: phoneErrors[idx] ? 0 : 20 }}>
                         <PhoneInput
                           ref={phoneRefs.current[idx]}
                           defaultValue={num}
@@ -1119,13 +1135,14 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
           open={isDatePickerOpen}
           date={selectedDate}
           mode="date"
-          maximumDate={getDefaultDOB()}
+          maximumDate={new Date()}
           minimumDate={new Date(1900, 0, 1)}
           onConfirm={handleDateConfirm}
           onCancel={handleDateCancel}
           title="Select Date of Birth"
           confirmText="Confirm"
           cancelText="Cancel"
+          theme={Platform.OS === 'ios' ? 'light' : undefined}
         />
 
         {/* Success Modal */}
