@@ -15,7 +15,7 @@ import { createStyles } from './styles';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import PhoneInput from 'react-native-phone-number-input';
-import DatePicker from 'react-native-date-picker';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useThemedStyles } from '../../../hooks/useThemedStyles';
 import { useRegister } from '../../../hooks/useAuth';
 import { showErrorToast } from '../../../components/toast';
@@ -1130,19 +1130,19 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
         </ScrollView>
 
         {/* Date Picker Modal */}
-        <DatePicker
-          modal
-          open={isDatePickerOpen}
-          date={selectedDate}
+        <DateTimePickerModal
+          isVisible={isDatePickerOpen}
           mode="date"
+          date={selectedDate}
           maximumDate={new Date()}
           minimumDate={new Date(1900, 0, 1)}
           onConfirm={handleDateConfirm}
           onCancel={handleDateCancel}
-          title="Select Date of Birth"
-          confirmText="Confirm"
-          cancelText="Cancel"
-          theme={Platform.OS === 'ios' ? 'light' : undefined}
+          display="inline"
+          isDarkModeEnabled={false}
+          textColor="#000000"
+          accentColor="#0088E7"
+          buttonTextColorIOS="#0088E7"
         />
 
         {/* Success Modal */}
