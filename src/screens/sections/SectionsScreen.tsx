@@ -1130,7 +1130,7 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                 handleAttachmentChange(rowId, updatedFiles, attachComp);
             }
 
-            showSuccessToast('Attachment uploaded', returnedName);
+            // showSuccessToast('Attachment uploaded', returnedName);
             return uploadedFile;
 
         } catch (e: any) {
@@ -3198,13 +3198,13 @@ export default function SectionsScreen({ navigation }: { navigation: any }) {
                                                     >
                                                         <View style={styles.attachmentModalContainer}>
                                                             <View style={styles.attachmentModalHeader}>
+                                                                <Text style={styles.attachmentModalTitle}>Upload</Text>
                                                                 <TouchableOpacity
                                                                     onPress={() => setShowAttachmentModal(prev => ({ ...prev, [row.webId]: false }))}
                                                                     style={styles.attachmentModalClose}
                                                                 >
                                                                     <Text style={styles.attachmentModalCloseText}>✕</Text>
                                                                 </TouchableOpacity>
-                                                                <Text style={styles.attachmentModalTitle}>Upload</Text>
                                                             </View>
 
                                                             <View style={styles.attachmentModalContent}>
@@ -4707,18 +4707,15 @@ const styles = StyleSheet.create({
     // Attachment Modal Styles
     attachmentModalContainer: {
         flex: 1,
-        // height: '80%',
         backgroundColor: '#fff',
-        // marginTop: 'auto',
-        borderTopLeftRadius: getResponsive(20),
-        borderTopRightRadius: getResponsive(20),
+        paddingTop: Platform.OS === 'ios' ? getResponsive(50) : 0,
     },
     attachmentModalHeader: {
-        flexDirection: 'row-reverse',
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: getResponsive(20),
-        paddingVertical: getResponsive(15),
+        paddingVertical: getResponsive(20),
         borderBottomWidth: 1,
         borderBottomColor: '#e0e0e0',
     },

@@ -89,14 +89,30 @@ export default function App() {
   const requestPermissions = async () => {
     try {
       const RN: any = require('react-native');
-      const result = await RN.PermissionsAndroid.request(RN.PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-      console.log("result: ", result)
-      console.log("result permissions: ", RN.PermissionsAndroid.RESULTS.GRANTED)
-      if(result === RN.PermissionsAndroid.RESULTS.GRANTED) {
-        //request for device permissions
-        requestToken();
+      
+      if (RN.Platform.OS === 'ios') {
+        // iOS: Request permission using Firebase Messaging
+        const authStatus = await messaging().requestPermission();
+        const enabled =
+          authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+          authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+        if (enabled) {
+          console.log('iOS Authorization status:', authStatus);
+          requestToken();
+        } else {
+          Alert.alert('Permission Denied', 'Notification permission is required for full functionality of the app.');
+        }
       } else {
-        Alert.alert('Permission Denied', 'Notification permission is required for full functionality of the app.');
+        // Android: Request permission using PermissionsAndroid
+        const result = await RN.PermissionsAndroid.request(RN.PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        console.log("result: ", result)
+        console.log("result permissions: ", RN.PermissionsAndroid.RESULTS.GRANTED)
+        if(result === RN.PermissionsAndroid.RESULTS.GRANTED) {
+          requestToken();
+        } else {
+          Alert.alert('Permission Denied', 'Notification permission is required for full functionality of the app.');
+        }
       }
       
     } catch (error) {
