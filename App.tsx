@@ -12,7 +12,7 @@ import { ThemeProvider } from './src/contexts/ThemeContext';
 import { getToastConfig, showNotificationToast } from './src/components/toast';
 import { logDebuggerStatus, DebugConsole } from './src/utils/debug';
 import { queryClient } from './src/services/queryClient';
-import { Text as RNText, TextProps as RNTextProps, Alert } from 'react-native';
+import { Text as RNText, TextProps as RNTextProps, Alert, Platform } from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import { useAuthStore } from './src/store/authStore';
 
@@ -88,28 +88,31 @@ export default function App() {
 
   const requestPermissions = async () => {
     try {
-      const RN: any = require('react-native');
-      
-      if (RN.Platform.OS === 'ios') {
-        // iOS: Request permission using Firebase Messaging
-        const authStatus = await messaging().requestPermission();
+      if (Platform.OS === 'ios') {
+        // iOS: explicitly request notification permission from JS
+        const authStatus = await messaging().requestPermission({
+          alert: true,
+          badge: true,
+          sound: true,
+        });
         const enabled =
           authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
           authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
         if (enabled) {
           console.log('iOS Authorization status:', authStatus);
-          requestToken();
+          await requestToken();
         } else {
-          Alert.alert('Permission Denied', 'Notification permission is required for full functionality of the app.');
+          console.log('iOS notifications not authorized');
         }
       } else {
         // Android: Request permission using PermissionsAndroid
+        const RN: any = require('react-native');
         const result = await RN.PermissionsAndroid.request(RN.PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
         console.log("result: ", result)
         console.log("result permissions: ", RN.PermissionsAndroid.RESULTS.GRANTED)
         if(result === RN.PermissionsAndroid.RESULTS.GRANTED) {
-          requestToken();
+          await requestToken();
         } else {
           Alert.alert('Permission Denied', 'Notification permission is required for full functionality of the app.');
         }

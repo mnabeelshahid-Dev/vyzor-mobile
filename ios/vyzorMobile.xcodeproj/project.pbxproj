@@ -48,6 +48,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		04D150BF2F4DAA6C00C6D560 /* vyzormobile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = vyzormobile.entitlements; path = vyzormobile/vyzormobile.entitlements; sourceTree = "<group>"; };
 		04D701892EF9652E00ED1781 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "vyzormobile/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		07CFEAFDDE3B420CB73E0817 /* OFL.txt */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = OFL.txt; path = ../assets/fonts/OFL.txt; sourceTree = "<group>"; };
 		10DEC39D645D4621AF7A3E4B /* Prompt-BlackItalic.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Prompt-BlackItalic.ttf"; path = "../assets/fonts/Prompt-BlackItalic.ttf"; sourceTree = "<group>"; };
@@ -95,6 +96,7 @@
 		13B07FAE1A68108700A75B9A /* vyzormobile */ = {
 			isa = PBXGroup;
 			children = (
+				04D150BF2F4DAA6C00C6D560 /* vyzormobile.entitlements */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
@@ -357,6 +359,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = vyzormobile/vyzormobile.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7NP676RX9H;
 				ENABLE_BITCODE = NO;
@@ -387,6 +390,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = vyzormobile/vyzormobile.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7NP676RX9H;
 				INFOPLIST_FILE = vyzormobile/Info.plist;

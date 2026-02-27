@@ -4,6 +4,7 @@ import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import FirebaseCore
 import FirebaseMessaging
+import UserNotifications
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
@@ -51,6 +52,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
       object: nil,
       userInfo: dataDict
     )
+  }
+  
+  // MARK: - APNs Registration
+  func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    print("APNs device token: \(deviceToken)")
+    Messaging.messaging().apnsToken = deviceToken
+  }
+  
+  func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+    print("Failed to register for remote notifications: \(error.localizedDescription)")
+  }
+
+  func application(_ application: UIApplication,
+                   didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                   fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+    completionHandler(.newData)
   }
   
   // MARK: - UNUserNotificationCenterDelegate

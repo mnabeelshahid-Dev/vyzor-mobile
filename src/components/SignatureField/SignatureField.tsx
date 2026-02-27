@@ -26,6 +26,7 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
     value,
     onSignature,
     onClear,
+    onValidationChange,
     setRef,
     style,
     readonly = false,
@@ -62,7 +63,8 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
         signatureRef.current?.clearSignature();
         setHasSignature(false);
         onClear?.(rowId);
-    }, [readonly, rowId, onClear]);
+        onValidationChange?.(rowId, false);
+    }, [readonly, rowId, onClear, onValidationChange]);
     /* -----------------------------
        Save signature
     ----------------------------- */
@@ -75,8 +77,9 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
 
             setHasSignature(true);
             onSignature?.(rowId, encoded);
+            onValidationChange?.(rowId, true);
         },
-        [rowId, readonly, onSignature]
+        [rowId, readonly, onSignature, onValidationChange]
     );
 
     /* -----------------------------
@@ -96,6 +99,8 @@ const SignatureField: React.FC<SignatureFieldProps> = ({
     const handleEdit = () => {
         if (readonly) return;
         setHasSignature(false);
+        onClear?.(rowId);
+        onValidationChange?.(rowId, false);
     };
 
     /* -----------------------------
