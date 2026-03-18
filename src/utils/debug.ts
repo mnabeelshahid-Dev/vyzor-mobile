@@ -4,17 +4,6 @@
  * @fileoverview Enterprise-grade debugging utilities with proper TypeScript interfaces
  */
 
-import { Platform } from 'react-native';
-
-// Import Reactotron if available in dev mode
-let Reactotron: any;
-if (__DEV__) {
-  try {
-    Reactotron = require('../config/ReactotronConfig').default;
-  } catch {
-    // Reactotron not configured, will fallback to console
-  }
-}
 
 /**
  * Feature flags interface for debug configuration
@@ -52,7 +41,7 @@ interface IErrorWithStack {
 /**
  * Enterprise debug console with structured logging
  * Provides type-safe debugging methods for development environment
- * Logs to both console and Reactotron when available
+ * Logs to console when available
  */
 export class DebugConsole {
   /**
@@ -63,7 +52,6 @@ export class DebugConsole {
   static log(message: string, data?: unknown): void {
     if (__DEV__ && FEATURE_FLAGS.DEBUG_REDUX_LOGS) {
       console.log(`🔍 [DEBUG] ${message}`, data ?? '');
-      Reactotron?.log?.(message, data);
     }
   }
 
@@ -76,7 +64,6 @@ export class DebugConsole {
   static error(context: string, message: string, error?: unknown): void {
     if (__DEV__) {
       console.error(`❌ [ERROR] ${context}: ${message}`, error ?? '');
-      Reactotron?.error?.({ context, message, error }, context);
 
       const errorObj = error as IErrorWithStack;
       if (errorObj?.stack) {
@@ -111,14 +98,6 @@ export class DebugConsole {
       if (response !== undefined) {
         console.log('Response:', response);
       }
-      
-      // Log to Reactotron
-      Reactotron?.display?.({
-        name: `API ${method.toUpperCase()}`,
-        preview: url,
-        value: { request: data, response },
-        important: true,
-      });
     }
   }
 
