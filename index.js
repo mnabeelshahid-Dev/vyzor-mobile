@@ -2,18 +2,30 @@
  * @format
  */
 
+import React, { useEffect } from 'react';
 import { AppRegistry } from 'react-native';
 import App from './App';
 import { name as appName } from './app.json';
-import messaging from '@react-native-firebase/messaging';
 
-// Set up background handler for FCM (runs when app is in background/quit)
-messaging().setBackgroundMessageHandler(async remoteMessage => {
-  try {
-    console.log('FCM background message:', JSON.stringify(remoteMessage, null, 2));
-  } catch (e) {
-    console.log('FCM background message (raw):', remoteMessage);
-  }
-});
+import { enableScreens } from 'react-native-screens';
+enableScreens();
 
-AppRegistry.registerComponent(appName, () => App);
+// Wrapper to initialize FCM after React mounts
+const AppWithFCM = () => {
+  useEffect(() => {
+    // Initialize FCM only after the bridge is ready
+    const messaging = require('@react-native-firebase/messaging').default;
+    messaging().setBackgroundMessageHandler(async remoteMessage => {
+      try {
+        console.log('🔥 FCM background message:', JSON.stringify(remoteMessage, null, 2));
+      } catch (e) {
+        console.log('⚠️ FCM background message (raw):', remoteMessage);
+      }
+    });
+  }, []);
+  
+  return <App />;
+};
+
+// Register the main App component
+AppRegistry.registerComponent(appName, () => AppWithFCM);

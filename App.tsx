@@ -15,6 +15,7 @@ import { queryClient } from './src/services/queryClient';
 import { Text as RNText, TextProps as RNTextProps, Alert, Platform } from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import { useAuthStore } from './src/store/authStore';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 
 
@@ -254,10 +255,12 @@ export default function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AppContent />
-      </ThemeProvider>
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

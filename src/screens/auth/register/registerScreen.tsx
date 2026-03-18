@@ -851,7 +851,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
           nestedScrollEnabled={false}
           keyboardDismissMode="interactive"
         >
-          <View style={[styles.logoSection, { minHeight: 80 }]}> {/* Ensure logo is always visible */}
+          <View style={[styles.logoSection, { minHeight: 80 }]}>
             <View style={styles.logoContainer}>
               <View style={styles.logoIconContainer}>
                 <LogoIconSvg width={50} height={50} />
@@ -859,8 +859,8 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               <Text style={styles.logoText}>vyzor</Text>
             </View>
           </View>
-          <View style={[styles.gradientBackground, { minHeight: '100%' }]}> {/* Responsive background */}
-            <View style={[styles.registerCard, { marginBottom: 32 }]}> {/* Add marginBottom for spacing */}
+          <View style={[styles.gradientBackground, { minHeight: '100%' }]}>
+            <View style={[styles.registerCard, { marginBottom: 32 }]}>
               <Text style={styles.cardTitle}>Create an account</Text>
               <Text style={styles.cardSubtitle}>Enter all required details</Text>
               <View style={styles.form}>

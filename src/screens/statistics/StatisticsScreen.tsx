@@ -491,7 +491,7 @@ export default function StatisticsScreen({ navigation }) {
   const SortModal = () => (
     // Redesigned Dropdown Sort Modal
     showSortModal ? (
-      <View style={[styles.dropdownCard, { position: 'absolute', top: 170, right: 24, zIndex: 100 }]}> {/* Adjust top/right for placement */}
+      <View style={[styles.dropdownCard, { position: 'absolute', top: 170, right: 24, zIndex: 100 }]}>
         <View style={styles.sortModalHeader}>
           <Text style={styles.sortModalTitle}>Sort By</Text>
           <TouchableOpacity

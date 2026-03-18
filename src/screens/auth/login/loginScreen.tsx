@@ -232,7 +232,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               </View>
             </View>
             {/* Login Card */}
-            <View style={[styles.loginCard]}> {/* Add marginBottom for spacing */}
+            <View style={[styles.loginCard]}>
               <Text style={styles.cardTitle}>Sign In</Text>
               <Text style={styles.cardSubtitle}>Sign in to your account</Text>
               <View style={styles.form}>

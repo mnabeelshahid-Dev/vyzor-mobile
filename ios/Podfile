@@ -18,6 +18,8 @@ use_frameworks! :linkage => :static
 
 target 'vyzormobile' do
   config = use_native_modules!
+  pod 'FirebaseCoreExtension', '12.8.0'
+  pod 'Firebase/Messaging', '12.8.0'
 
   use_react_native!(
     :path => config[:reactNativePath],
@@ -32,11 +34,16 @@ target 'vyzormobile' do
       :mac_catalyst_enabled => false
     )
 
-    # 🔴 FIX glog hang on Apple Silicon
+    # 🔴 FIX glog and Folly Coroutine issues
     installer.pods_project.targets.each do |target|
-      if target.name == 'glog'
-        target.build_configurations.each do |config|
-          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
+        # Disable Folly coroutines for Reanimated/Worklets targets as the Folly
+        # pod does not ship coro/ headers; but Folly headers still try to include
+        # them when __cpp_coroutines is defined under C++20 + Clang.
+        if ['RNReanimated', 'RNWorklets'].include?(target.name)
+          existing = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || '$(inherited)'
+          config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = existing + ' FOLLY_HAS_COROUTINES=0'
         end
       end
     end
